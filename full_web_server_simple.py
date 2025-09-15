@@ -1626,11 +1626,30 @@ async def get_game_data():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return JSONResponse({"status": "healthy", "full_game": True, "version": "2.0"})
+    try:
+        # Test database connection
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM players")
+            player_count = cursor.fetchone()[0]
+        
+        return JSONResponse({
+            "status": "healthy", 
+            "full_game": True, 
+            "version": "2.0",
+            "database": "connected",
+            "players": player_count
+        })
+    except Exception as e:
+        return JSONResponse({
+            "status": "unhealthy", 
+            "error": str(e),
+            "version": "2.0"
+        }, status_code=500)
 
 if __name__ == "__main__":
     init_database()
     import uvicorn
     import os
-    port = int(os.environ.get("PORT", 8001))
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
