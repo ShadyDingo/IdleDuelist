@@ -551,12 +551,16 @@ async def create_player(player_data: dict):
         })
 
 @app.post("/duel")
-async def duel(request: DuelRequest):
+async def duel(request: dict):
     """Execute a duel with full game features"""
     try:
+        username = request.get('username')
+        if not username:
+            return JSONResponse({"success": False, "error": "Username required"})
+        
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT * FROM players WHERE id = ?', (request.player_id,))
+            cursor.execute('SELECT * FROM players WHERE username = ?', (username,))
             player_row = cursor.fetchone()
             
             if not player_row:
@@ -565,69 +569,50 @@ async def duel(request: DuelRequest):
             player_data = json.loads(player_row['player_data'])
             player = WebPlayer.from_dict(player_data)
             
-            # Create a bot opponent with similar rating
-            bot_id = f"bot_{random.randint(10000, 99999)}"
-            bot = WebPlayer(bot_id, f"Bot_{random.randint(100, 999)}")
-            bot.rating = player.rating + random.randint(-100, 100)
+            # Create a bot opponent
+            bot_username = f"Bot_{random.randint(100, 999)}"
+            bot_data = {
+                'username': bot_username,
+                'faction': random.choice(list(FACTION_DATA.keys())),
+                'armor_type': random.choice(['cloth', 'leather', 'metal']),
+                'weapon1': random.choice(list(WEAPON_DATA.keys())),
+                'weapon2': random.choice(list(WEAPON_DATA.keys()))
+            }
             
-            # Generate bot equipment and abilities
-            factions = list(FACTION_DATA.keys())
-            armor_types = ['cloth', 'leather', 'metal']
-            weapons = list(WEAPON_DATA.keys())
+            bot = WebPlayer.from_dict(bot_data)
             
-            bot.faction = random.choice(factions)
-            bot.armor_type = random.choice(armor_types)
-            
-            # Set bot abilities
-            faction_data = FACTION_DATA[bot.faction]
-            bot.abilities = faction_data['abilities'][:4]
-            
-            # Generate bot equipment
-            for slot in ['helmet', 'armor', 'pants', 'boots', 'gloves']:
-                armor_key = f"{bot.armor_type}_{slot}"
-                if armor_key in EQUIPMENT_DATA['armor']:
-                    armor_data = EQUIPMENT_DATA['armor'][armor_key].copy()
-                    armor_data['slot'] = slot
-                    armor_data['rarity'] = 'rare'
-                    bot.equipment[slot] = armor_data
-            
-            # Set bot weapons
-            bot_weapons = random.sample(weapons, 2)
-            for i, weapon_key in enumerate(['main_hand', 'off_hand']):
-                if i < len(bot_weapons):
-                    weapon_data = WEAPON_DATA[bot_weapons[i]].copy()
-                    weapon_data['rarity'] = 'rare'
-                    bot.equipment[weapon_key] = weapon_data
-            
-            # Execute duel using main game logic
-            duel_result = execute_duel(player, bot)
+            # Execute duel using advanced combat system
+            duel_result = simulateAdvancedCombat(player_data, bot_data)
             
             # Update player stats
-            if duel_result['winner'] == player.id:
-                player.wins += 1
-                player.rating += 20
+            player_wins = player_data.get('wins', 0)
+            player_losses = player_data.get('losses', 0)
+            
+            if duel_result['winner'] == username:
+                player_wins += 1
+                result_text = f"🎉 {username} WINS THE DUEL!"
             else:
-                player.losses += 1
-                player.rating = max(800, player.rating - 15)
+                player_losses += 1
+                result_text = f"💀 {bot_username} WINS THE DUEL!"
+            
+            # Update player data
+            player_data['wins'] = player_wins
+            player_data['losses'] = player_losses
             
             # Save updated player
             cursor.execute('''
                 UPDATE players SET player_data = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE id = ?
-            ''', (json.dumps(player.to_dict()), player.id))
-            
-            # Save duel log
-            cursor.execute('''
-                INSERT INTO duels (player1_id, player2_id, winner_id, duel_log)
-                VALUES (?, ?, ?, ?)
-            ''', (player.id, bot.id, duel_result['winner'], json.dumps(duel_result)))
+                WHERE username = ?
+            ''', (json.dumps(player_data), username))
             
             conn.commit()
             
             return JSONResponse({
                 "success": True,
-                "duel_result": duel_result,
-                "updated_player": player.to_dict()
+                "combat_log": duel_result['log'],
+                "player_wins": player_wins,
+                "player_losses": player_losses,
+                "result": result_text
             })
             
     except Exception as e:
@@ -635,6 +620,298 @@ async def duel(request: DuelRequest):
             "success": False,
             "error": str(e)
         })
+
+def simulateAdvancedCombat(player_data: dict, opponent_data: dict) -> dict:
+    """Simulate advanced combat with multiple rounds, abilities, and strategic depth"""
+    log = []
+    
+    # Extract player stats
+    player_name = player_data['username']
+    player_faction = player_data['faction']
+    player_armor = player_data['armor_type']
+    player_weapon1 = player_data['weapon1']
+    player_weapon2 = player_data['weapon2']
+    
+    opponent_name = opponent_data['username']
+    opponent_faction = opponent_data['faction']
+    opponent_armor = opponent_data['armor_type']
+    opponent_weapon1 = opponent_data['weapon1']
+    opponent_weapon2 = opponent_data['weapon2']
+    
+    # Calculate base stats
+    player_stats = calculatePlayerStats(player_data)
+    opponent_stats = calculatePlayerStats(opponent_data)
+    
+    # Initialize combat
+    player_hp = player_stats['hp']
+    opponent_hp = opponent_stats['hp']
+    player_max_hp = player_hp
+    opponent_max_hp = opponent_hp
+    
+    # Combat status effects
+    player_buffs = {}
+    opponent_buffs = {}
+    
+    log.append(f"⚔️ {player_name} vs {opponent_name}")
+    log.append(f"🎯 {player_name}: {player_hp}/{player_max_hp} HP | {opponent_name}: {opponent_hp}/{opponent_max_hp} HP")
+    log.append("--- COMBAT BEGINS ---")
+    
+    # Determine turn order (speed-based)
+    player_speed = player_stats['speed']
+    opponent_speed = opponent_stats['speed']
+    
+    if player_speed >= opponent_speed:
+        turn_order = [(player_name, player_stats, player_buffs, opponent_name, opponent_stats, opponent_buffs)]
+        turn_order.append((opponent_name, opponent_stats, opponent_buffs, player_name, player_stats, player_buffs))
+    else:
+        turn_order = [(opponent_name, opponent_stats, opponent_buffs, player_name, player_stats, player_buffs)]
+        turn_order.append((player_name, player_stats, player_buffs, opponent_name, opponent_stats, opponent_buffs))
+    
+    turn_count = 0
+    max_turns = 20  # Reasonable duel length
+    
+    # Main combat loop
+    while player_hp > 0 and opponent_hp > 0 and turn_count < max_turns:
+        turn_count += 1
+        log.append(f"\n--- ROUND {turn_count} ---")
+        
+        # Process each turn
+        for attacker_name, attacker_stats, attacker_buffs, defender_name, defender_stats, defender_buffs in turn_order:
+            if (attacker_name == player_name and player_hp <= 0) or (attacker_name == opponent_name and opponent_hp <= 0):
+                continue
+                
+            # Determine action (70% ability, 30% attack)
+            action_type = "ability" if random.random() < 0.7 else "attack"
+            
+            if action_type == "ability":
+                # Use faction ability
+                faction_data = FACTION_DATA[attacker_stats['faction']]
+                abilities = faction_data['abilities']
+                ability = random.choice(abilities)
+                
+                log.append(f"⚡ {attacker_name} uses {ability.replace('_', ' ').title()}!")
+                
+                # Apply ability effects
+                ability_result = applyAbilityEffect(ability, attacker_name, defender_name, attacker_stats, defender_stats, attacker_buffs, defender_buffs)
+                log.extend(ability_result['log'])
+                
+                # Update HP
+                if attacker_name == player_name:
+                    player_hp = ability_result['attacker_hp']
+                    opponent_hp = ability_result['defender_hp']
+                else:
+                    opponent_hp = ability_result['attacker_hp']
+                    player_hp = ability_result['defender_hp']
+                    
+            else:
+                # Regular attack
+                attack_result = performAttack(attacker_name, defender_name, attacker_stats, defender_stats, attacker_buffs, defender_buffs)
+                log.extend(attack_result['log'])
+                
+                # Update HP
+                if attacker_name == player_name:
+                    player_hp = attack_result['attacker_hp']
+                    opponent_hp = attack_result['defender_hp']
+                else:
+                    opponent_hp = attack_result['attacker_hp']
+                    player_hp = attack_result['defender_hp']
+            
+            # Check for combat end
+            if player_hp <= 0 or opponent_hp <= 0:
+                break
+        
+        # Apply faction passives at end of round
+        player_hp = applyFactionPassives(player_name, player_stats, player_hp, player_max_hp, player_buffs)
+        opponent_hp = applyFactionPassives(opponent_name, opponent_stats, opponent_hp, opponent_max_hp, opponent_buffs)
+        
+        # Status effect cleanup
+        player_buffs = cleanupStatusEffects(player_buffs)
+        opponent_buffs = cleanupStatusEffects(opponent_buffs)
+    
+    # Determine winner
+    if player_hp > 0:
+        winner = player_name
+        log.append(f"\n🎉 {player_name} WINS THE DUEL!")
+        log.append(f"🏆 Final HP: {player_name} ({player_hp}/{player_max_hp}) | {opponent_name} (0/{opponent_max_hp})")
+    else:
+        winner = opponent_name
+        log.append(f"\n💀 {opponent_name} WINS THE DUEL!")
+        log.append(f"💀 Final HP: {player_name} (0/{player_max_hp}) | {opponent_name} ({opponent_hp}/{opponent_max_hp})")
+    
+    log.append(f"⚔️ Combat lasted {turn_count} rounds")
+    
+    return {
+        'winner': winner,
+        'log': log,
+        'turns': turn_count,
+        'player_final_hp': max(0, player_hp),
+        'opponent_final_hp': max(0, opponent_hp)
+    }
+
+def calculatePlayerStats(player_data: dict) -> dict:
+    """Calculate comprehensive player stats including all bonuses"""
+    faction = player_data['faction']
+    armor_type = player_data['armor_type']
+    weapon1 = player_data['weapon1']
+    weapon2 = player_data['weapon2']
+    
+    # Base stats
+    hp = 100
+    attack = 20
+    defense = 10
+    speed = 10
+    crit_chance = 0.05
+    dodge_chance = 0.05
+    
+    # Weapon bonuses
+    weapon1_data = WEAPON_DATA.get(weapon1, {})
+    weapon2_data = WEAPON_DATA.get(weapon2, {})
+    
+    attack += weapon1_data.get('attack', 0) + weapon2_data.get('attack', 0)
+    speed += int((weapon1_data.get('speed', 0) + weapon2_data.get('speed', 0)) / 2)
+    crit_chance += (weapon1_data.get('crit_chance', 0) + weapon2_data.get('crit_chance', 0)) / 2
+    
+    # Armor set bonuses (assuming 5-piece for full effect)
+    armor_bonuses = ARMOR_SET_BONUSES.get(armor_type, {}).get('5_piece', {}).get('effects', {})
+    
+    if 'defense_bonus' in armor_bonuses:
+        defense += armor_bonuses['defense_bonus']
+    if 'speed_bonus' in armor_bonuses:
+        speed += armor_bonuses['speed_bonus']
+    if 'dodge_bonus' in armor_bonuses:
+        dodge_chance += armor_bonuses['dodge_bonus']
+    if 'crit_chance' in armor_bonuses:
+        crit_chance += armor_bonuses['crit_chance']
+    
+    # Faction passives
+    faction_data = FACTION_DATA.get(faction, {})
+    
+    if faction_data.get('passive') == 'divine_protection':
+        # 10% damage reduction (applied during damage calculation)
+        pass
+    elif faction_data.get('passive') == 'shadow_mastery':
+        crit_chance += faction_data.get('passive_value', 0.15)
+    elif faction_data.get('passive') == 'natures_blessing':
+        # 5% HP regen per turn (applied during combat)
+        pass
+    
+    return {
+        'hp': hp,
+        'attack': attack,
+        'defense': defense,
+        'speed': speed,
+        'crit_chance': min(0.95, crit_chance),
+        'dodge_chance': min(0.95, dodge_chance),
+        'faction': faction,
+        'armor_type': armor_type
+    }
+
+def applyAbilityEffect(ability_name: str, attacker_name: str, defender_name: str, 
+                      attacker_stats: dict, defender_stats: dict, 
+                      attacker_buffs: dict, defender_buffs: dict) -> dict:
+    """Apply ability effects and return updated HP values"""
+    log = []
+    attacker_hp = attacker_stats['hp']
+    defender_hp = defender_stats['hp']
+    
+    # Get ability data
+    ability = ABILITY_DATA.get(ability_name, {})
+    
+    # Apply damage abilities
+    if 'damage_multiplier' in ability:
+        base_damage = attacker_stats['attack']
+        damage = int(base_damage * ability['damage_multiplier'])
+        
+        # Check for crit
+        if random.random() < attacker_stats['crit_chance']:
+            damage = int(damage * 1.5)
+            log.append(f"💥 {attacker_name} scores a CRITICAL HIT!")
+        
+        # Apply defense
+        defense_reduction = defender_stats['defense']
+        damage = max(1, damage - defense_reduction)
+        
+        # Check for dodge
+        if random.random() < defender_stats['dodge_chance']:
+            log.append(f"💨 {defender_name} DODGES the attack!")
+            damage = 0
+        
+        if damage > 0:
+            defender_hp = max(0, defender_hp - damage)
+            log.append(f"⚔️ {defender_name} takes {damage} damage!")
+    
+    # Apply healing abilities
+    if 'healing' in ability:
+        healing_data = ability['healing']
+        if isinstance(healing_data, dict) and 'amount' in healing_data:
+            heal_amount = healing_data['amount']
+            max_hp = attacker_stats['hp']
+            attacker_hp = min(max_hp, attacker_hp + heal_amount)
+            log.append(f"💚 {attacker_name} heals for {heal_amount} HP!")
+    
+    # Apply status effects
+    if 'effects' in ability:
+        for effect, value in ability['effects'].items():
+            defender_buffs[effect] = value
+            log.append(f"✨ {defender_name} is affected by {effect.replace('_', ' ')}!")
+    
+    return {
+        'log': log,
+        'attacker_hp': attacker_hp,
+        'defender_hp': defender_hp
+    }
+
+def performAttack(attacker_name: str, defender_name: str, attacker_stats: dict, 
+                 defender_stats: dict, attacker_buffs: dict, defender_buffs: dict) -> dict:
+    """Perform a regular attack"""
+    log = []
+    attacker_hp = attacker_stats['hp']
+    defender_hp = defender_stats['hp']
+    
+    base_damage = attacker_stats['attack']
+    damage = base_damage
+    
+    # Check for crit
+    if random.random() < attacker_stats['crit_chance']:
+        damage = int(damage * 1.5)
+        log.append(f"💥 {attacker_name} scores a CRITICAL HIT!")
+    
+    # Apply defense
+    defense_reduction = defender_stats['defense']
+    damage = max(1, damage - defense_reduction)
+    
+    # Check for dodge
+    if random.random() < defender_stats['dodge_chance']:
+        log.append(f"💨 {defender_name} DODGES the attack!")
+        damage = 0
+    
+    if damage > 0:
+        defender_hp = max(0, defender_hp - damage)
+        log.append(f"⚔️ {attacker_name} attacks {defender_name} for {damage} damage!")
+    
+    return {
+        'log': log,
+        'attacker_hp': attacker_hp,
+        'defender_hp': defender_hp
+    }
+
+def applyFactionPassives(player_name: str, stats: dict, current_hp: int, max_hp: int, buffs: dict) -> int:
+    """Apply faction passives at end of turn"""
+    faction_data = FACTION_DATA.get(stats['faction'], {})
+    
+    # Nature's Blessing - HP regeneration
+    if faction_data.get('passive') == 'natures_blessing':
+        regen_amount = int(max_hp * faction_data.get('passive_value', 0.05))
+        current_hp = min(max_hp, current_hp + regen_amount)
+        if regen_amount > 0:
+            print(f"💚 {player_name} regenerates {regen_amount} HP from Nature's Blessing")
+    
+    return current_hp
+
+def cleanupStatusEffects(buffs: dict) -> dict:
+    """Clean up expired status effects"""
+    # Simple cleanup - remove effects after 1 turn for now
+    return {}
 
 def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
     """Execute a duel using the main game's combat logic"""
@@ -768,6 +1045,59 @@ def execute_attack(attacker: WebPlayer, defender: WebPlayer, attacker_type: str)
     defender.current_hp = max(0, defender.current_hp - damage)
     
     return {"log": log}
+
+@app.post("/update-loadout")
+async def update_loadout(request: dict):
+    """Update player loadout (faction, armor, weapons)"""
+    try:
+        username = request.get('username')
+        new_faction = request.get('faction')
+        new_armor = request.get('armor_type')
+        new_weapon1 = request.get('weapon1')
+        new_weapon2 = request.get('weapon2')
+        
+        if not username:
+            return JSONResponse({"success": False, "error": "Username required"})
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM players WHERE username = ?', (username,))
+            player_row = cursor.fetchone()
+            
+            if not player_row:
+                return JSONResponse({"success": False, "error": "Player not found"})
+            
+            player_data = json.loads(player_row['player_data'])
+            
+            # Update loadout
+            if new_faction:
+                player_data['faction'] = new_faction
+            if new_armor:
+                player_data['armor_type'] = new_armor
+            if new_weapon1:
+                player_data['weapon1'] = new_weapon1
+            if new_weapon2:
+                player_data['weapon2'] = new_weapon2
+            
+            # Save updated player
+            cursor.execute('''
+                UPDATE players SET player_data = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE username = ?
+            ''', (json.dumps(player_data), username))
+            
+            conn.commit()
+            
+            return JSONResponse({
+                "success": True,
+                "player": player_data,
+                "message": "Loadout updated successfully!"
+            })
+            
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        })
 
 @app.get("/leaderboard")
 async def get_leaderboard():

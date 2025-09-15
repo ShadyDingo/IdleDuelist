@@ -53,6 +53,7 @@
             display: block;
             margin-bottom: 8px;
             font-weight: bold;
+            color: #e0e0e0;
         }
 
         input, select {
@@ -83,21 +84,14 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
 
-        .nav-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
-            margin-bottom: 20px;
+            margin: 20px 0;
         }
 
-        .stat-item {
+        .stat-card {
             background: rgba(255, 255, 255, 0.1);
             padding: 15px;
             border-radius: 10px;
@@ -111,710 +105,910 @@
             color: #ffd700;
         }
 
-        .duel-log {
-            background: rgba(0, 0, 0, 0.5);
-            padding: 20px;
+        .combat-log {
+            background: rgba(0, 0, 0, 0.7);
             border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
             max-height: 400px;
             overflow-y: auto;
-            font-family: monospace;
-            font-size: 14px;
-            line-height: 1.5;
+            font-family: 'Courier New', monospace;
+            border: 2px solid #444;
         }
 
+        .combat-log p {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+
+        .ability-used { background: rgba(138, 43, 226, 0.3); }
+        .damage-dealt { background: rgba(220, 20, 60, 0.3); }
+        .healing { background: rgba(0, 255, 127, 0.3); }
+        .dodge { background: rgba(255, 165, 0, 0.3); }
+        .crit { background: rgba(255, 215, 0, 0.3); }
+        .victory { background: rgba(0, 255, 0, 0.3); font-weight: bold; font-size: 1.2em; }
+        .defeat { background: rgba(255, 0, 0, 0.3); font-weight: bold; font-size: 1.2em; }
+
         .leaderboard {
-            display: grid;
-            gap: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            padding: 20px;
         }
 
         .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            margin: 5px 0;
             background: rgba(255, 255, 255, 0.1);
-            padding: 15px;
+            border-radius: 5px;
+        }
+
+        .loadout-section {
+            background: rgba(255, 255, 255, 0.05);
             border-radius: 10px;
-            display: grid;
-            grid-template-columns: auto 1fr auto auto auto;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .rank {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #ffd700;
-        }
-
-        .character-info {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .info-section {
-            background: rgba(255, 255, 255, 0.1);
             padding: 20px;
-            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid rgba(255, 255, 255, 0.1);
         }
 
-        .faction-info {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .armor-set-info {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .ability-list {
+        .loadout-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
+            gap: 20px;
+            margin: 20px 0;
         }
 
-        .ability-item {
+        .loadout-card {
             background: rgba(255, 255, 255, 0.1);
             padding: 15px;
             border-radius: 10px;
-            border-left: 4px solid #ffd700;
-        }
-
-        .equipment-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-        }
-
-        .equipment-item {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .error {
-            color: #ff6b6b;
-            background: rgba(255, 107, 107, 0.1);
+        .bonus-info {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            border-radius: 8px;
             padding: 10px;
-            border-radius: 5px;
             margin: 10px 0;
+            font-size: 0.9em;
         }
 
-        .success {
-            color: #51cf66;
-            background: rgba(81, 207, 102, 0.1);
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
         }
 
-        @media (max-width: 768px) {
-            .container {
-                padding: 10px;
-            }
-            
-            h1 {
-                font-size: 2em;
-            }
-            
-            .nav-buttons {
-                flex-direction: column;
-            }
-            
-            .character-info {
-                grid-template-columns: 1fr;
-            }
-            
-            .leaderboard-item {
-                grid-template-columns: 1fr;
-                text-align: center;
-            }
+        .current-player {
+            background: rgba(0, 255, 0, 0.2);
+            border: 2px solid rgba(0, 255, 0, 0.5);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .logout-btn {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            float: right;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⚔️ IdleDuelist - Full Game Edition ⚔️</h1>
+        <h1>⚔️ IdleDuelist - Full Game ⚔️</h1>
         
-        <!-- Login/Create Account -->
+        <!-- Login Section -->
         <div id="login-section" class="game-section active">
-            <h2>Welcome to IdleDuelist</h2>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                <div>
-                    <h3>Login to Existing Account</h3>
-                    <form id="login-form">
-                        <div class="form-group">
-                            <label for="login-username">Username:</label>
-                            <input type="text" id="login-username" name="username" required>
-                        </div>
-                        <button type="submit">Login</button>
-                    </form>
-                </div>
-                <div>
-                    <h3>Create New Account</h3>
-                    <button onclick="showCharacterCreation()">Create New Character</button>
-                </div>
+            <div class="current-player" id="current-player-info" style="display: none;">
+                <h3>Currently Playing As: <span id="current-username"></span></h3>
+                <button class="logout-btn" onclick="logout()">Logout</button>
             </div>
+            
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-username">Username:</label>
+                    <input type="text" id="login-username" name="username" required>
+                </div>
+                <button type="submit">Login / Create Character</button>
+                <button type="button" onclick="showCharacterCreation()">Create New Character</button>
+            </form>
         </div>
 
-        <!-- Character Creation -->
+        <!-- Character Creation Section -->
         <div id="character-creation" class="game-section">
-            <h2>Create Your Character</h2>
+            <h2>Create New Character</h2>
             <form id="character-form">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <div>
-                        <div class="form-group">
-                            <label for="username">Character Name:</label>
-                            <input type="text" id="username" name="username" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="faction">Faction:</label>
-                            <select id="faction" name="faction" onchange="updateAbilities()">
-                                <option value="order_of_the_silver_crusade">Order of the Silver Crusade</option>
-                                <option value="shadow_covenant">Shadow Covenant</option>
-                                <option value="wilderness_tribe">Wilderness Tribe</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="armor_type">Armor Type:</label>
-                            <select id="armor_type" name="armor_type" onchange="updateArmorInfo()">
-                                <option value="cloth">Cloth (High Speed, Low Defense)</option>
-                                <option value="leather">Leather (Balanced)</option>
-                                <option value="metal">Metal (Low Speed, High Defense)</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <div class="form-group">
-                            <label for="weapon1">Primary Weapon:</label>
-                            <select id="weapon1" name="weapon1">
-                                <option value="sword">Sword</option>
-                                <option value="axe">Axe</option>
-                                <option value="bow">Bow</option>
-                                <option value="crossbow">Crossbow</option>
-                                <option value="knife">Knife</option>
-                                <option value="mace">Mace</option>
-                                <option value="hammer">Hammer</option>
-                                <option value="shield">Shield</option>
-                                <option value="staff">Staff</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="weapon2">Secondary Weapon:</label>
-                            <select id="weapon2" name="weapon2">
-                                <option value="sword">Sword</option>
-                                <option value="axe">Axe</option>
-                                <option value="bow">Bow</option>
-                                <option value="crossbow">Crossbow</option>
-                                <option value="knife">Knife</option>
-                                <option value="mace">Mace</option>
-                                <option value="hammer">Hammer</option>
-                                <option value="shield">Shield</option>
-                                <option value="staff">Staff</option>
-                            </select>
-                        </div>
-                    </div>
+                <div class="form-group">
+                    <label for="username">Character Name:</label>
+                    <input type="text" id="username" name="username" required>
                 </div>
                 
-                <!-- Faction Info -->
-                <div class="faction-info">
-                    <h3 id="faction-name">Order of the Silver Crusade</h3>
-                    <p id="faction-description">Holy warriors focused on defense and healing</p>
-                    <div>
-                        <strong>Primary Passive:</strong> <span id="faction-passive">Divine Protection - 10% damage reduction</span>
-                    </div>
-                    <div>
-                        <strong>Secondary Passive:</strong> <span id="faction-secondary">Holy Resistance - Immune to poison effects</span>
-                    </div>
-                    <div>
-                        <strong>Abilities:</strong> <span id="faction-abilities">Divine Strike, Shield of Faith, Healing Light, Righteous Fury, Purification</span>
-                    </div>
+                <div class="form-group">
+                    <label for="faction">Faction:</label>
+                    <select id="faction" name="faction" onchange="updateAbilities()" required>
+                        <option value="">Select Faction</option>
+                        <option value="order_of_the_silver_crusade">Order of the Silver Crusade</option>
+                        <option value="shadow_covenant">Shadow Covenant</option>
+                        <option value="wilderness_tribe">Wilderness Tribe</option>
+                    </select>
                 </div>
-                
-                <!-- Armor Set Info -->
-                <div class="armor-set-info">
-                    <h3 id="armor-set-name">Lightfoot Set</h3>
-                    <div>
-                        <strong>3-Piece Bonus:</strong> <span id="armor-3-piece">Swift Step - +5% dodge, +2 speed</span>
-                    </div>
-                    <div>
-                        <strong>5-Piece Bonus:</strong> <span id="armor-5-piece">Wind Walker - +10% dodge, +5 speed, +5% crit</span>
-                    </div>
+
+                <div class="form-group">
+                    <label for="armor_type">Armor Type:</label>
+                    <select id="armor_type" name="armor_type" onchange="updateArmorBonuses()" required>
+                        <option value="">Select Armor</option>
+                        <option value="cloth">Cloth (Lightfoot)</option>
+                        <option value="leather">Leather (Balanced)</option>
+                        <option value="metal">Metal (Fortress)</option>
+                    </select>
                 </div>
-                
+
+                <div class="form-group">
+                    <label for="weapon1">Primary Weapon:</label>
+                    <select id="weapon1" name="weapon1" required>
+                        <option value="">Select Weapon</option>
+                        <option value="sword">Sword</option>
+                        <option value="axe">Axe</option>
+                        <option value="mace">Mace</option>
+                        <option value="bow">Bow</option>
+                        <option value="crossbow">Crossbow</option>
+                        <option value="staff">Staff</option>
+                        <option value="knife">Knife</option>
+                        <option value="hammer">Hammer</option>
+                        <option value="shield">Shield</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="weapon2">Secondary Weapon:</label>
+                    <select id="weapon2" name="weapon2" required>
+                        <option value="">Select Weapon</option>
+                        <option value="sword">Sword</option>
+                        <option value="axe">Axe</option>
+                        <option value="mace">Mace</option>
+                        <option value="bow">Bow</option>
+                        <option value="crossbow">Crossbow</option>
+                        <option value="staff">Staff</option>
+                        <option value="knife">Knife</option>
+                        <option value="hammer">Hammer</option>
+                        <option value="shield">Shield</option>
+                    </select>
+                </div>
+
+                <div id="faction-abilities" class="loadout-section">
+                    <h3>Faction Abilities:</h3>
+                    <div id="ability-list"></div>
+                </div>
+
+                <div id="armor-bonuses" class="loadout-section">
+                    <h3>Armor Set Bonuses:</h3>
+                    <div id="bonus-info"></div>
+                </div>
+
                 <button type="submit">Create Character & Start Playing</button>
+                <button type="button" onclick="showLogin()">Back to Login</button>
             </form>
         </div>
 
         <!-- Game Interface -->
         <div id="game-interface" class="game-section">
-            <h2>Welcome, <span id="player-name">Player</span>!</h2>
-            
-            <div class="stats-grid">
-                <div class="stat-item">
-                    <div>Rating</div>
-                    <div class="stat-value" id="rating">1200</div>
-                </div>
-                <div class="stat-item">
-                    <div>Wins</div>
-                    <div class="stat-value" id="wins">0</div>
-                </div>
-                <div class="stat-item">
-                    <div>Losses</div>
-                    <div class="stat-value" id="losses">0</div>
-                </div>
-                <div class="stat-item">
-                    <div>HP</div>
-                    <div class="stat-value" id="hp">100</div>
-                </div>
-                <div class="stat-item">
-                    <div>Attack</div>
-                    <div class="stat-value" id="attack">50</div>
-                </div>
-                <div class="stat-item">
-                    <div>Defense</div>
-                    <div class="stat-value" id="defense">20</div>
-                </div>
-                <div class="stat-item">
-                    <div>Speed</div>
-                    <div class="stat-value" id="speed">25</div>
-                </div>
-                <div class="stat-item">
-                    <div>Crit Chance</div>
-                    <div class="stat-value" id="crit">5%</div>
-                </div>
+            <div class="current-player">
+                <h3>Playing As: <span id="player-name"></span></h3>
+                <button class="logout-btn" onclick="logout()">Logout</button>
             </div>
-            
+
             <div class="nav-buttons">
-                <button onclick="findDuel()">⚔️ Find Duel</button>
+                <button onclick="showLoadoutManagement()">Manage Loadout</button>
+                <button onclick="startDuel()">⚔️ Duel</button>
                 <button onclick="showLeaderboard()">🏆 Leaderboard</button>
-                <button onclick="showCharacterInfo()">👤 Character Info</button>
-                <button onclick="logout()" style="background: #f44336;">🚪 Logout</button>
+                <button onclick="showCharacterInfo()">📊 Character Info</button>
             </div>
-            
-            <div id="duel-log" class="duel-log" style="display: none;"></div>
+
+            <div id="player-stats" class="stats-grid"></div>
+
+            <div id="combat-area">
+                <h3>Combat Log</h3>
+                <div id="combat-log" class="combat-log"></div>
+                <button onclick="startDuel()" id="duel-btn">⚔️ Start New Duel</button>
+            </div>
         </div>
-        
+
+        <!-- Loadout Management -->
+        <div id="loadout-management" class="game-section">
+            <h2>Loadout Management</h2>
+            <div class="nav-buttons">
+                <button onclick="showGameInterface()">← Back to Game</button>
+            </div>
+
+            <div class="loadout-grid">
+                <div class="loadout-card">
+                    <h3>Change Faction</h3>
+                    <select id="new-faction" onchange="updateNewAbilities()">
+                        <option value="order_of_the_silver_crusade">Order of the Silver Crusade</option>
+                        <option value="shadow_covenant">Shadow Covenant</option>
+                        <option value="wilderness_tribe">Wilderness Tribe</option>
+                    </select>
+                    <button onclick="changeFaction()">Apply Faction Change</button>
+                </div>
+
+                <div class="loadout-card">
+                    <h3>Change Armor Type</h3>
+                    <select id="new-armor" onchange="updateNewArmorBonuses()">
+                        <option value="cloth">Cloth (Lightfoot)</option>
+                        <option value="leather">Leather (Balanced)</option>
+                        <option value="metal">Metal (Fortress)</option>
+                    </select>
+                    <button onclick="changeArmor()">Apply Armor Change</button>
+                </div>
+
+                <div class="loadout-card">
+                    <h3>Change Weapons</h3>
+                    <label>Primary Weapon:</label>
+                    <select id="new-weapon1">
+                        <option value="sword">Sword</option>
+                        <option value="axe">Axe</option>
+                        <option value="mace">Mace</option>
+                        <option value="bow">Bow</option>
+                        <option value="crossbow">Crossbow</option>
+                        <option value="staff">Staff</option>
+                        <option value="knife">Knife</option>
+                        <option value="hammer">Hammer</option>
+                        <option value="shield">Shield</option>
+                    </select>
+                    <label>Secondary Weapon:</label>
+                    <select id="new-weapon2">
+                        <option value="sword">Sword</option>
+                        <option value="axe">Axe</option>
+                        <option value="mace">Mace</option>
+                        <option value="bow">Bow</option>
+                        <option value="crossbow">Crossbow</option>
+                        <option value="staff">Staff</option>
+                        <option value="knife">Knife</option>
+                        <option value="hammer">Hammer</option>
+                        <option value="shield">Shield</option>
+                    </select>
+                    <button onclick="changeWeapons()">Apply Weapon Changes</button>
+                </div>
+            </div>
+
+            <div id="new-faction-abilities" class="loadout-section">
+                <h3>New Faction Abilities:</h3>
+                <div id="new-ability-list"></div>
+            </div>
+
+            <div id="new-armor-bonuses" class="loadout-section">
+                <h3>New Armor Set Bonuses:</h3>
+                <div id="new-bonus-info"></div>
+            </div>
+        </div>
+
         <!-- Leaderboard -->
-        <div id="leaderboard" class="game-section">
+        <div id="leaderboard-section" class="game-section">
             <h2>🏆 Leaderboard</h2>
-            <div id="leaderboard-content" class="leaderboard">
-                <!-- Leaderboard items will be loaded here -->
+            <div class="nav-buttons">
+                <button onclick="showGameInterface()">← Back to Game</button>
+                <button onclick="loadLeaderboard()">Refresh</button>
             </div>
-            <button onclick="showGameInterface()">← Back to Game</button>
+            <div id="leaderboard" class="leaderboard"></div>
         </div>
-        
+
         <!-- Character Info -->
         <div id="character-info" class="game-section">
-            <h2>👤 Character Information</h2>
-            <div class="character-info">
-                <div>
-                    <div class="info-section">
-                        <h3>Basic Info</h3>
-                        <div><strong>Name:</strong> <span id="info-name">-</span></div>
-                        <div><strong>Faction:</strong> <span id="info-faction">-</span></div>
-                        <div><strong>Armor Type:</strong> <span id="info-armor">-</span></div>
-                        <div><strong>Rating:</strong> <span id="info-rating">-</span></div>
-                        <div><strong>Record:</strong> <span id="info-record">-</span></div>
-                    </div>
-                    
-                    <div class="info-section">
-                        <h3>Current Abilities</h3>
-                        <div id="current-abilities">
-                            <!-- Abilities will be loaded here -->
-                        </div>
-                    </div>
-                </div>
-                
-                <div>
-                    <div class="info-section">
-                        <h3>Equipment</h3>
-                        <div id="equipment-display" class="equipment-grid">
-                            <!-- Equipment will be loaded here -->
-                        </div>
-                    </div>
-                    
-                    <div class="info-section">
-                        <h3>Faction Passives</h3>
-                        <div id="faction-passives">
-                            <!-- Passives will be loaded here -->
-                        </div>
-                    </div>
-                </div>
+            <h2>📊 Character Information</h2>
+            <div class="nav-buttons">
+                <button onclick="showGameInterface()">← Back to Game</button>
             </div>
-            <button onclick="showGameInterface()">← Back to Game</button>
+            <div id="character-details"></div>
         </div>
     </div>
 
     <script>
-        let currentPlayer = null;
-        let gameData = null;
-
-        // Game data constants
-        const FACTION_DATA = {
+        // Game data
+        const FACTIONS = {
             'order_of_the_silver_crusade': {
                 name: 'Order of the Silver Crusade',
                 description: 'Holy warriors focused on defense and healing',
-                passive: 'Divine Protection - 10% damage reduction',
-                secondary: 'Holy Resistance - Immune to poison effects',
+                passive: 'Divine Protection (10% damage reduction)',
+                secondary_passive: 'Holy Resistance (immune to poison)',
                 abilities: ['Divine Strike', 'Shield of Faith', 'Healing Light', 'Righteous Fury', 'Purification']
             },
             'shadow_covenant': {
                 name: 'Shadow Covenant',
                 description: 'Stealthy assassins focused on critical hits',
-                passive: 'Shadow Mastery - 15% increased crit chance',
-                secondary: 'Stealth Damage - +10% damage when invisible',
+                passive: 'Shadow Mastery (15% increased crit chance)',
+                secondary_passive: 'Stealth Damage (+10% when invisible)',
                 abilities: ['Shadow Strike', 'Vanish', 'Poison Blade', 'Assassinate', 'Shadow Clone']
             },
             'wilderness_tribe': {
                 name: 'Wilderness Tribe',
                 description: 'Nature mages focused on adaptability',
-                passive: "Nature's Blessing - 5% HP regeneration per turn",
-                secondary: 'Nature Affinity - +10% damage vs slowed enemies',
-                abilities: ["Nature's Wrath", 'Thorn Barrier', 'Wild Growth', 'Earthquake', 'Spirit Form']
+                passive: 'Nature\'s Blessing (5% HP regeneration per turn)',
+                secondary_passive: 'Nature Affinity (+10% damage vs slowed enemies)',
+                abilities: ['Nature\'s Wrath', 'Thorn Barrier', 'Wild Growth', 'Earthquake', 'Spirit Form']
             }
         };
 
-        const ARMOR_SET_BONUSES = {
+        const ARMOR_BONUSES = {
             'cloth': {
                 name: 'Lightfoot',
-                '3_piece': 'Swift Step - +5% dodge, +2 speed',
-                '5_piece': 'Wind Walker - +10% dodge, +5 speed, +5% crit'
+                '3_piece': {
+                    name: 'Swift Step',
+                    effects: '+5% dodge, +2 speed',
+                    description: 'Enhanced mobility and evasion'
+                },
+                '5_piece': {
+                    name: 'Wind Walker',
+                    effects: '+10% dodge, +5 speed, +5% crit',
+                    description: 'Master of speed and precision strikes'
+                }
             },
             'leather': {
                 name: 'Balanced',
-                '3_piece': 'Adaptive Combat - +5% to all stats, +1 armor pen',
-                '5_piece': 'Perfect Balance - +10% to all stats, +3 armor pen, +5% damage'
+                '3_piece': {
+                    name: 'Adaptive Combat',
+                    effects: '+5% to all stats, +1 armor pen',
+                    description: 'Versatile fighting techniques'
+                },
+                '5_piece': {
+                    name: 'Perfect Balance',
+                    effects: '+10% to all stats, +3 armor pen, +5% damage',
+                    description: 'Harmonious mastery of all combat arts'
+                }
             },
             'metal': {
                 name: 'Fortress',
-                '3_piece': 'Iron Will - +3 defense, +5% damage reduction',
-                '5_piece': 'Immovable Mountain - +8 defense, +10% damage reduction, +5% damage reflect'
+                '3_piece': {
+                    name: 'Iron Will',
+                    effects: '+3 defense, +5% damage reduction',
+                    description: 'Unwavering defensive stance'
+                },
+                '5_piece': {
+                    name: 'Immovable Mountain',
+                    effects: '+8 defense, +10% damage reduction, +5% damage reflect',
+                    description: 'Unbreakable fortress that strikes back'
+                }
             }
         };
-        
-        // Initialize when DOM loads
+
+        const WEAPONS = {
+            'sword': { name: 'Sword', attack: 12, speed: 8, crit_chance: 0.05 },
+            'axe': { name: 'Axe', attack: 15, speed: 6, crit_chance: 0.03 },
+            'mace': { name: 'Mace', attack: 13, speed: 7, crit_chance: 0.04 },
+            'bow': { name: 'Bow', attack: 10, speed: 10, crit_chance: 0.08 },
+            'crossbow': { name: 'Crossbow', attack: 14, speed: 5, crit_chance: 0.06 },
+            'staff': { name: 'Staff', attack: 8, speed: 9, crit_chance: 0.07 },
+            'knife': { name: 'Knife', attack: 9, speed: 12, crit_chance: 0.10 },
+            'hammer': { name: 'Hammer', attack: 18, speed: 4, crit_chance: 0.02 },
+            'shield': { name: 'Shield', attack: 6, speed: 6, crit_chance: 0.01 }
+        };
+
+        let currentPlayer = null;
+        let duelInProgress = false;
+
+        // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            updateAbilities();
-            updateArmorInfo();
-            setupForm();
             setupLogin();
             checkExistingPlayer();
-            loadGameData();
         });
-        
-        // Load game data from server
-        async function loadGameData() {
-            try {
-                const response = await fetch('/game-data');
-                gameData = await response.json();
-                console.log('Game data loaded:', gameData);
-            } catch (error) {
-                console.error('Error loading game data:', error);
-            }
-        }
-        
-        // Update abilities display
-        function updateAbilities() {
-            const faction = document.getElementById('faction').value;
-            const factionInfo = FACTION_DATA[faction];
-            
-            document.getElementById('faction-name').textContent = factionInfo.name;
-            document.getElementById('faction-description').textContent = factionInfo.description;
-            document.getElementById('faction-passive').textContent = factionInfo.passive;
-            document.getElementById('faction-secondary').textContent = factionInfo.secondary;
-            document.getElementById('faction-abilities').textContent = factionInfo.abilities.join(', ');
-        }
-        
-        // Update armor set info
-        function updateArmorInfo() {
-            const armorType = document.getElementById('armor_type').value;
-            const armorInfo = ARMOR_SET_BONUSES[armorType];
-            
-            document.getElementById('armor-set-name').textContent = armorInfo.name + ' Set';
-            document.getElementById('armor-3-piece').textContent = armorInfo['3_piece'];
-            document.getElementById('armor-5-piece').textContent = armorInfo['5_piece'];
-        }
-        
-        // Setup form submission
-        function setupForm() {
-            const form = document.getElementById('character-form');
-            if (form) {
-                form.addEventListener('submit', handleCharacterCreation);
-            }
-        }
-        
-        // Setup login form
+
         function setupLogin() {
-            const loginForm = document.getElementById('login-form');
-            if (loginForm) {
-                loginForm.addEventListener('submit', handleLogin);
-            }
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('character-form').addEventListener('submit', handleCharacterFormSubmit);
         }
-        
-        // Check for existing player in localStorage
+
         function checkExistingPlayer() {
-            const savedPlayer = localStorage.getItem('idleduelist_player');
-            if (savedPlayer) {
+            const saved = localStorage.getItem('idleDuelistPlayer');
+            if (saved) {
                 try {
-                    currentPlayer = JSON.parse(savedPlayer);
-                    console.log('Found saved player:', currentPlayer.username);
+                    currentPlayer = JSON.parse(saved);
                     showGameInterface();
-                    updatePlayerDisplay();
+                    document.getElementById('current-username').textContent = currentPlayer.username;
+                    document.getElementById('current-player-info').style.display = 'block';
+                    updatePlayerStats();
                 } catch (e) {
-                    console.log('Invalid saved player data');
-                    localStorage.removeItem('idleduelist_player');
+                    console.error('Error loading saved player:', e);
                 }
             }
         }
-        
-        // Handle character creation
-        async function handleCharacterCreation(e) {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const playerData = Object.fromEntries(formData.entries());
-            
-            try {
-                const response = await fetch('/create-player', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(playerData)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    currentPlayer = result.player;
-                    localStorage.setItem('idleduelist_player', JSON.stringify(currentPlayer));
-                    showGameInterface();
-                    updatePlayerDisplay();
-                } else {
-                    alert('Error: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error: ' + error.message);
-            }
-        }
-        
-        // Handle login
+
         async function handleLogin(e) {
             e.preventDefault();
-            const formData = new FormData(e.target);
-            const username = formData.get('username');
-            
+            const username = document.getElementById('login-username').value.trim();
+            if (!username) return;
+
             try {
-                const response = await fetch('/get-player/' + encodeURIComponent(username));
+                // Try to get existing player
+                const response = await fetch(`/get-player/${username}`);
                 const result = await response.json();
                 
                 if (result.success) {
                     currentPlayer = result.player;
-                    localStorage.setItem('idleduelist_player', JSON.stringify(currentPlayer));
+                    savePlayerData();
                     showGameInterface();
-                    updatePlayerDisplay();
-                    alert('Welcome back, ' + username + '!');
+                    document.getElementById('current-username').textContent = currentPlayer.username;
+                    document.getElementById('current-player-info').style.display = 'block';
+                    updatePlayerStats();
                 } else {
-                    alert('Player not found. Please create a new character.');
+                    // Player doesn't exist, create new one
                     showCharacterCreation();
+                    document.getElementById('username').value = username;
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                alert('Error logging in: ' + error.message);
+                alert('Error logging in. Please try again.');
             }
         }
-        
-        // Save player data
+
+        async function handleCharacterFormSubmit(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const playerData = Object.fromEntries(formData.entries());
+
+            try {
+                const response = await fetch('/create-player', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(playerData)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    currentPlayer = result.player;
+                    savePlayerData();
+                    showGameInterface();
+                    document.getElementById('current-username').textContent = currentPlayer.username;
+                    document.getElementById('current-player-info').style.display = 'block';
+                    updatePlayerStats();
+                } else {
+                    alert('Error creating character: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Character creation error:', error);
+                alert('Error creating character: ' + error.message);
+            }
+        }
+
         function savePlayerData() {
             if (currentPlayer) {
-                localStorage.setItem('idleduelist_player', JSON.stringify(currentPlayer));
+                localStorage.setItem('idleDuelistPlayer', JSON.stringify(currentPlayer));
             }
         }
-        
-        // Logout function
+
         function logout() {
             currentPlayer = null;
-            localStorage.removeItem('idleduelist_player');
+            localStorage.removeItem('idleDuelistPlayer');
             showLogin();
+            document.getElementById('current-player-info').style.display = 'none';
         }
-        
-        // Show different sections
-        function showSection(sectionId) {
-            document.querySelectorAll('.game-section').forEach(section => {
-                section.classList.remove('active');
-            });
-            document.getElementById(sectionId).classList.add('active');
-        }
-        
+
         function showLogin() {
-            showSection('login-section');
+            hideAllSections();
+            document.getElementById('login-section').classList.add('active');
+            document.getElementById('character-creation').classList.remove('active');
         }
-        
+
         function showCharacterCreation() {
-            showSection('character-creation');
+            hideAllSections();
+            document.getElementById('character-creation').classList.add('active');
+            updateAbilities();
+            updateArmorBonuses();
         }
-        
+
         function showGameInterface() {
-            showSection('game-interface');
+            hideAllSections();
+            document.getElementById('game-interface').classList.add('active');
+            updatePlayerStats();
         }
-        
+
+        function showLoadoutManagement() {
+            hideAllSections();
+            document.getElementById('loadout-management').classList.add('active');
+            
+            // Set current values
+            document.getElementById('new-faction').value = currentPlayer.faction;
+            document.getElementById('new-armor').value = currentPlayer.armor_type;
+            document.getElementById('new-weapon1').value = currentPlayer.weapon1;
+            document.getElementById('new-weapon2').value = currentPlayer.weapon2;
+            
+            updateNewAbilities();
+            updateNewArmorBonuses();
+        }
+
         function showLeaderboard() {
-            showSection('leaderboard');
+            hideAllSections();
+            document.getElementById('leaderboard-section').classList.add('active');
             loadLeaderboard();
         }
-        
+
         function showCharacterInfo() {
-            showSection('character-info');
-            loadCharacterInfo();
+            hideAllSections();
+            document.getElementById('character-info').classList.add('active');
+            displayCharacterInfo();
         }
-        
-        // Update player display
-        function updatePlayerDisplay() {
-            if (!currentPlayer) return;
+
+        function hideAllSections() {
+            const sections = document.querySelectorAll('.game-section');
+            sections.forEach(section => section.classList.remove('active'));
+        }
+
+        function updateAbilities() {
+            const faction = document.getElementById('faction').value;
+            const abilityList = document.getElementById('ability-list');
             
+            if (faction && FACTIONS[faction]) {
+                const factionData = FACTIONS[faction];
+                abilityList.innerHTML = `
+                    <p><strong>Faction:</strong> ${factionData.name}</p>
+                    <p><strong>Description:</strong> ${factionData.description}</p>
+                    <p><strong>Primary Passive:</strong> ${factionData.passive}</p>
+                    <p><strong>Secondary Passive:</strong> ${factionData.secondary_passive}</p>
+                    <p><strong>Abilities:</strong> ${factionData.abilities.join(', ')}</p>
+                `;
+            } else {
+                abilityList.innerHTML = '<p>Select a faction to see abilities</p>';
+            }
+        }
+
+        function updateArmorBonuses() {
+            const armorType = document.getElementById('armor_type').value;
+            const bonusInfo = document.getElementById('bonus-info');
+            
+            if (armorType && ARMOR_BONUSES[armorType]) {
+                const armorData = ARMOR_BONUSES[armorType];
+                bonusInfo.innerHTML = `
+                    <div class="bonus-info">
+                        <h4>3-Piece Set: ${armorData['3_piece'].name}</h4>
+                        <p><strong>Effects:</strong> ${armorData['3_piece'].effects}</p>
+                        <p><strong>Description:</strong> ${armorData['3_piece'].description}</p>
+                    </div>
+                    <div class="bonus-info">
+                        <h4>5-Piece Set: ${armorData['5_piece'].name}</h4>
+                        <p><strong>Effects:</strong> ${armorData['5_piece'].effects}</p>
+                        <p><strong>Description:</strong> ${armorData['5_piece'].description}</p>
+                    </div>
+                `;
+            } else {
+                bonusInfo.innerHTML = '<p>Select armor type to see set bonuses</p>';
+            }
+        }
+
+        function updateNewAbilities() {
+            const faction = document.getElementById('new-faction').value;
+            const abilityList = document.getElementById('new-ability-list');
+            
+            if (faction && FACTIONS[faction]) {
+                const factionData = FACTIONS[faction];
+                abilityList.innerHTML = `
+                    <p><strong>Faction:</strong> ${factionData.name}</p>
+                    <p><strong>Description:</strong> ${factionData.description}</p>
+                    <p><strong>Primary Passive:</strong> ${factionData.passive}</p>
+                    <p><strong>Secondary Passive:</strong> ${factionData.secondary_passive}</p>
+                    <p><strong>Abilities:</strong> ${factionData.abilities.join(', ')}</p>
+                `;
+            }
+        }
+
+        function updateNewArmorBonuses() {
+            const armorType = document.getElementById('new-armor').value;
+            const bonusInfo = document.getElementById('new-bonus-info');
+            
+            if (armorType && ARMOR_BONUSES[armorType]) {
+                const armorData = ARMOR_BONUSES[armorType];
+                bonusInfo.innerHTML = `
+                    <div class="bonus-info">
+                        <h4>3-Piece Set: ${armorData['3_piece'].name}</h4>
+                        <p><strong>Effects:</strong> ${armorData['3_piece'].effects}</p>
+                        <p><strong>Description:</strong> ${armorData['3_piece'].description}</p>
+                    </div>
+                    <div class="bonus-info">
+                        <h4>5-Piece Set: ${armorData['5_piece'].name}</h4>
+                        <p><strong>Effects:</strong> ${armorData['5_piece'].effects}</p>
+                        <p><strong>Description:</strong> ${armorData['5_piece'].description}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function updatePlayerStats() {
+            if (!currentPlayer) return;
+
+            const statsContainer = document.getElementById('player-stats');
+            const weapon1Data = WEAPONS[currentPlayer.weapon1] || { attack: 0, speed: 0, crit_chance: 0 };
+            const weapon2Data = WEAPONS[currentPlayer.weapon2] || { attack: 0, speed: 0, crit_chance: 0 };
+            
+            const totalAttack = weapon1Data.attack + weapon2Data.attack;
+            const totalSpeed = Math.floor((weapon1Data.speed + weapon2Data.speed) / 2);
+            const totalCrit = ((weapon1Data.crit_chance + weapon2Data.crit_chance) / 2 * 100).toFixed(1);
+
+            statsContainer.innerHTML = `
+                <div class="stat-card">
+                    <h4>⚔️ Attack</h4>
+                    <div class="stat-value">${totalAttack}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>🏃 Speed</h4>
+                    <div class="stat-value">${totalSpeed}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>💥 Crit Chance</h4>
+                    <div class="stat-value">${totalCrit}%</div>
+                </div>
+                <div class="stat-card">
+                    <h4>🏆 Wins</h4>
+                    <div class="stat-value">${currentPlayer.wins || 0}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>💀 Losses</h4>
+                    <div class="stat-value">${currentPlayer.losses || 0}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>⚖️ Win Rate</h4>
+                    <div class="stat-value">${calculateWinRate()}%</div>
+                </div>
+            `;
+
             document.getElementById('player-name').textContent = currentPlayer.username;
-            document.getElementById('rating').textContent = currentPlayer.rating || 1200;
-            document.getElementById('wins').textContent = currentPlayer.wins || 0;
-            document.getElementById('losses').textContent = currentPlayer.losses || 0;
-            document.getElementById('hp').textContent = currentPlayer.get_total_hp ? currentPlayer.get_total_hp() : 100;
-            document.getElementById('attack').textContent = currentPlayer.get_total_damage ? currentPlayer.get_total_damage() : 50;
-            document.getElementById('defense').textContent = currentPlayer.get_total_defense ? currentPlayer.get_total_defense() : 20;
-            document.getElementById('speed').textContent = currentPlayer.get_total_speed ? currentPlayer.get_total_speed() : 25;
-            document.getElementById('crit').textContent = (currentPlayer.get_total_crit_chance ? Math.round(currentPlayer.get_total_crit_chance() * 100) : 5) + '%';
         }
-        
-        // Find duel
-        async function findDuel() {
-            if (!currentPlayer) return;
+
+        function calculateWinRate() {
+            if (!currentPlayer) return 0;
+            const total = (currentPlayer.wins || 0) + (currentPlayer.losses || 0);
+            return total > 0 ? Math.round(((currentPlayer.wins || 0) / total) * 100) : 0;
+        }
+
+        async function startDuel() {
+            if (duelInProgress) return;
+            duelInProgress = true;
             
-            const duelLog = document.getElementById('duel-log');
-            duelLog.style.display = 'block';
-            duelLog.innerHTML = '<div>⚔️ Finding opponent...</div>';
-            
+            const duelBtn = document.getElementById('duel-btn');
+            duelBtn.disabled = true;
+            duelBtn.textContent = '⚔️ Dueling...';
+
             try {
                 const response = await fetch('/duel', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({player_id: currentPlayer.id})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentPlayer.username })
                 });
-                
+
                 const result = await response.json();
-                
                 if (result.success) {
-                    displayDuelResult(result);
-                    currentPlayer = result.updated_player;
+                    displayCombatLog(result.combat_log);
+                    currentPlayer.wins = result.player_wins;
+                    currentPlayer.losses = result.player_losses;
                     savePlayerData();
-                    updatePlayerDisplay();
+                    updatePlayerStats();
                 } else {
-                    duelLog.innerHTML = '<div class="error">Error: ' + result.error + '</div>';
+                    alert('Duel failed: ' + result.error);
                 }
             } catch (error) {
-                duelLog.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
+                console.error('Duel error:', error);
+                alert('Error starting duel: ' + error.message);
+            } finally {
+                duelInProgress = false;
+                duelBtn.disabled = false;
+                duelBtn.textContent = '⚔️ Start New Duel';
             }
         }
-        
-        // Display duel result
-        function displayDuelResult(result) {
-            const duelLog = document.getElementById('duel-log');
-            const duelData = result.duel_result;
-            
-            let logHTML = '<div class="success">' + duelData.result + '</div>';
-            logHTML += '<div><strong>Turns:</strong> ' + duelData.turns + '</div>';
-            logHTML += '<div><strong>Final HP:</strong> You: ' + duelData.player1_hp + ', Opponent: ' + duelData.player2_hp + '</div>';
-            logHTML += '<div><strong>Combat Log:</strong></div>';
-            
-            if (duelData.log && duelData.log.length > 0) {
-                duelData.log.forEach(entry => {
-                    logHTML += '<div>' + entry + '</div>';
-                });
-            }
-            
-            duelLog.innerHTML = logHTML;
+
+        function displayCombatLog(combatLog) {
+            const logContainer = document.getElementById('combat-log');
+            logContainer.innerHTML = '';
+
+            combatLog.forEach(logEntry => {
+                const p = document.createElement('p');
+                p.textContent = logEntry;
+                
+                // Add appropriate CSS classes based on content
+                if (logEntry.includes('uses') && logEntry.includes('ability')) {
+                    p.classList.add('ability-used');
+                } else if (logEntry.includes('damage') && !logEntry.includes('heals')) {
+                    p.classList.add('damage-dealt');
+                } else if (logEntry.includes('heals') || logEntry.includes('healing')) {
+                    p.classList.add('healing');
+                } else if (logEntry.includes('dodges') || logEntry.includes('dodge')) {
+                    p.classList.add('dodge');
+                } else if (logEntry.includes('critical') || logEntry.includes('crit')) {
+                    p.classList.add('crit');
+                } else if (logEntry.includes('VICTORY') || logEntry.includes('WINS')) {
+                    p.classList.add('victory');
+                } else if (logEntry.includes('DEFEAT') || logEntry.includes('LOSES')) {
+                    p.classList.add('defeat');
+                }
+                
+                logContainer.appendChild(p);
+            });
+
+            // Scroll to bottom
+            logContainer.scrollTop = logContainer.scrollHeight;
         }
-        
-        // Load leaderboard
+
+        async function changeFaction() {
+            const newFaction = document.getElementById('new-faction').value;
+            if (newFaction === currentPlayer.faction) {
+                alert('You already have this faction selected!');
+                return;
+            }
+
+            if (confirm(`Are you sure you want to change faction to ${FACTIONS[newFaction].name}?`)) {
+                try {
+                    const response = await fetch('/update-loadout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: currentPlayer.username,
+                            faction: newFaction
+                        })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        currentPlayer.faction = newFaction;
+                        savePlayerData();
+                        alert('Faction changed successfully!');
+                        updatePlayerStats();
+                    } else {
+                        alert('Error changing faction: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('Error changing faction: ' + error.message);
+                }
+            }
+        }
+
+        async function changeArmor() {
+            const newArmor = document.getElementById('new-armor').value;
+            if (newArmor === currentPlayer.armor_type) {
+                alert('You already have this armor type selected!');
+                return;
+            }
+
+            if (confirm(`Are you sure you want to change armor to ${ARMOR_BONUSES[newArmor].name}?`)) {
+                try {
+                    const response = await fetch('/update-loadout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: currentPlayer.username,
+                            armor_type: newArmor
+                        })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        currentPlayer.armor_type = newArmor;
+                        savePlayerData();
+                        alert('Armor changed successfully!');
+                        updatePlayerStats();
+                    } else {
+                        alert('Error changing armor: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('Error changing armor: ' + error.message);
+                }
+            }
+        }
+
+        async function changeWeapons() {
+            const newWeapon1 = document.getElementById('new-weapon1').value;
+            const newWeapon2 = document.getElementById('new-weapon2').value;
+            
+            if (newWeapon1 === currentPlayer.weapon1 && newWeapon2 === currentPlayer.weapon2) {
+                alert('You already have these weapons selected!');
+                return;
+            }
+
+            if (confirm(`Are you sure you want to change weapons to ${WEAPONS[newWeapon1].name} and ${WEAPONS[newWeapon2].name}?`)) {
+                try {
+                    const response = await fetch('/update-loadout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: currentPlayer.username,
+                            weapon1: newWeapon1,
+                            weapon2: newWeapon2
+                        })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        currentPlayer.weapon1 = newWeapon1;
+                        currentPlayer.weapon2 = newWeapon2;
+                        savePlayerData();
+                        alert('Weapons changed successfully!');
+                        updatePlayerStats();
+                    } else {
+                        alert('Error changing weapons: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('Error changing weapons: ' + error.message);
+                }
+            }
+        }
+
         async function loadLeaderboard() {
             try {
                 const response = await fetch('/leaderboard');
                 const result = await response.json();
                 
                 if (result.success) {
-                    const leaderboardContent = document.getElementById('leaderboard-content');
-                    leaderboardContent.innerHTML = '';
-                    
-                    result.leaderboard.forEach(player => {
+                    const leaderboard = document.getElementById('leaderboard');
+                    leaderboard.innerHTML = '';
+
+                    result.players.forEach((player, index) => {
                         const item = document.createElement('div');
                         item.className = 'leaderboard-item';
                         item.innerHTML = `
-                            <div class="rank">#${player.rank}</div>
-                            <div><strong>${player.username}</strong><br><small>${player.faction} • ${player.armor_type}</small></div>
-                            <div>${player.rating}</div>
-                            <div>${player.wins}W</div>
-                            <div>${player.losses}L</div>
+                            <span>#${index + 1} ${player.username}</span>
+                            <span>${player.wins}W / ${player.losses}L (${Math.round((player.wins / (player.wins + player.losses)) * 100)}%)</span>
                         `;
-                        leaderboardContent.appendChild(item);
+                        leaderboard.appendChild(item);
                     });
                 }
             } catch (error) {
-                console.error('Error loading leaderboard:', error);
+                console.error('Leaderboard error:', error);
             }
         }
-        
-        // Load character info
-        function loadCharacterInfo() {
+
+        function displayCharacterInfo() {
             if (!currentPlayer) return;
-            
-            document.getElementById('info-name').textContent = currentPlayer.username;
-            document.getElementById('info-faction').textContent = FACTION_DATA[currentPlayer.faction]?.name || currentPlayer.faction;
-            document.getElementById('info-armor').textContent = currentPlayer.armor_type?.charAt(0).toUpperCase() + currentPlayer.armor_type?.slice(1) || 'Unknown';
-            document.getElementById('info-rating').textContent = currentPlayer.rating || 1200;
-            document.getElementById('info-record').textContent = (currentPlayer.wins || 0) + 'W - ' + (currentPlayer.losses || 0) + 'L';
-            
-            // Load abilities
-            const abilitiesContainer = document.getElementById('current-abilities');
-            abilitiesContainer.innerHTML = '';
-            if (currentPlayer.abilities) {
-                currentPlayer.abilities.forEach(ability => {
-                    const div = document.createElement('div');
-                    div.className = 'ability-item';
-                    div.innerHTML = '<strong>' + ability + '</strong>';
-                    abilitiesContainer.appendChild(div);
-                });
-            }
-            
-            // Load equipment
-            const equipmentContainer = document.getElementById('equipment-display');
-            equipmentContainer.innerHTML = '';
-            if (currentPlayer.equipment) {
-                Object.entries(currentPlayer.equipment).forEach(([slot, item]) => {
-                    const div = document.createElement('div');
-                    div.className = 'equipment-item';
-                    div.innerHTML = '<strong>' + slot + '</strong><br>' + (item.name || 'Unknown');
-                    equipmentContainer.appendChild(div);
-                });
-            }
-            
-            // Load faction passives
-            const passivesContainer = document.getElementById('faction-passives');
-            const factionInfo = FACTION_DATA[currentPlayer.faction];
-            if (factionInfo) {
-                passivesContainer.innerHTML = `
-                    <div><strong>Primary:</strong> ${factionInfo.passive}</div>
-                    <div><strong>Secondary:</strong> ${factionInfo.secondary}</div>
-                `;
-            }
+
+            const factionData = FACTIONS[currentPlayer.faction];
+            const armorData = ARMOR_BONUSES[currentPlayer.armor_type];
+            const weapon1Data = WEAPONS[currentPlayer.weapon1];
+            const weapon2Data = WEAPONS[currentPlayer.weapon2];
+
+            const details = document.getElementById('character-details');
+            details.innerHTML = `
+                <div class="loadout-section">
+                    <h3>Character: ${currentPlayer.username}</h3>
+                    <p><strong>Faction:</strong> ${factionData.name}</p>
+                    <p><strong>Armor Type:</strong> ${armorData.name}</p>
+                    <p><strong>Primary Weapon:</strong> ${weapon1Data.name}</p>
+                    <p><strong>Secondary Weapon:</strong> ${weapon2Data.name}</p>
+                </div>
+                
+                <div class="loadout-section">
+                    <h3>Faction Abilities</h3>
+                    <p><strong>Primary Passive:</strong> ${factionData.passive}</p>
+                    <p><strong>Secondary Passive:</strong> ${factionData.secondary_passive}</p>
+                    <p><strong>Abilities:</strong> ${factionData.abilities.join(', ')}</p>
+                </div>
+
+                <div class="loadout-section">
+                    <h3>Armor Set Bonuses</h3>
+                    <div class="bonus-info">
+                        <h4>3-Piece Set: ${armorData['3_piece'].name}</h4>
+                        <p><strong>Effects:</strong> ${armorData['3_piece'].effects}</p>
+                        <p><strong>Description:</strong> ${armorData['3_piece'].description}</p>
+                    </div>
+                    <div class="bonus-info">
+                        <h4>5-Piece Set: ${armorData['5_piece'].name}</h4>
+                        <p><strong>Effects:</strong> ${armorData['5_piece'].effects}</p>
+                        <p><strong>Description:</strong> ${armorData['5_piece'].description}</p>
+                    </div>
+                </div>
+
+                <div class="loadout-section">
+                    <h3>Combat Statistics</h3>
+                    <p><strong>Total Wins:</strong> ${currentPlayer.wins || 0}</p>
+                    <p><strong>Total Losses:</strong> ${currentPlayer.losses || 0}</p>
+                    <p><strong>Win Rate:</strong> ${calculateWinRate()}%</p>
+                    <p><strong>Total Duels:</strong> ${(currentPlayer.wins || 0) + (currentPlayer.losses || 0)}</p>
+                </div>
+            `;
         }
+
+        // Make functions globally available
+        window.updateAbilities = updateAbilities;
+        window.updateArmorBonuses = updateArmorBonuses;
+        window.updateNewAbilities = updateNewAbilities;
+        window.updateNewArmorBonuses = updateNewArmorBonuses;
     </script>
 </body>
 </html>
