@@ -21,4 +21,4 @@ ENV PORT=8000
 RUN ls -la /app/
 
 # Run the application
-CMD ["python", "-m", "uvicorn", "full_web_server_simple:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "free_deployment.py"]
