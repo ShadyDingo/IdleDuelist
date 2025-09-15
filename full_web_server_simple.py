@@ -804,6 +804,13 @@ async def duel(request: dict):
             player_data['wins'] = player_wins
             player_data['losses'] = player_losses
             
+            # Update rating based on win/loss (simple +25/-25 system)
+            current_rating = player_data.get('rating', 1200)
+            if duel_result['winner'] == username:
+                player_data['rating'] = current_rating + 25
+            else:
+                player_data['rating'] = max(1000, current_rating - 25)  # Don't go below 1000
+            
             # Save updated player
             cursor.execute('''
                 UPDATE players SET player_data = ?, updated_at = CURRENT_TIMESTAMP 
@@ -814,11 +821,14 @@ async def duel(request: dict):
             if not opponent_username.startswith('Bot_'):
                 opponent_wins = opponent_data.get('wins', 0)
                 opponent_losses = opponent_data.get('losses', 0)
+                opponent_rating = opponent_data.get('rating', 1200)
                 
                 if duel_result['winner'] == opponent_username:
                     opponent_wins += 1
+                    opponent_data['rating'] = opponent_rating + 25
                 else:
                     opponent_losses += 1
+                    opponent_data['rating'] = max(1000, opponent_rating - 25)
                 
                 opponent_data['wins'] = opponent_wins
                 opponent_data['losses'] = opponent_losses
@@ -1338,14 +1348,21 @@ async def get_leaderboard():
             leaderboard = []
             for i, player_row in enumerate(players):
                 player_data = json.loads(player_row['player_data'])
+                wins = player_data.get('wins', 0)
+                losses = player_data.get('losses', 0)
+                total_games = wins + losses
+                win_rate = (wins / total_games * 100) if total_games > 0 else 0
+                
                 leaderboard.append({
                     'rank': i + 1,
                     'username': player_data['username'],
                     'rating': player_data.get('rating', 1200),
-                    'wins': player_data.get('wins', 0),
-                    'losses': player_data.get('losses', 0),
+                    'wins': wins,
+                    'losses': losses,
+                    'win_rate': round(win_rate, 1),
                     'faction': FACTION_DATA[player_data['faction']]['name'],
-                    'armor_type': player_data['armor_type'].title()
+                    'armor_type': player_data['armor_type'].title(),
+                    'is_bot': player_data['username'].startswith('Bot_')
                 })
             
             return JSONResponse({
