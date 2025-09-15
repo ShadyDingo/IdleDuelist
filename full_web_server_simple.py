@@ -1340,7 +1340,7 @@ async def get_leaderboard():
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT * FROM players 
-                ORDER BY rating DESC 
+                ORDER BY json_extract(player_data, '$.rating') DESC 
                 LIMIT 20
             ''')
             players = cursor.fetchall()
