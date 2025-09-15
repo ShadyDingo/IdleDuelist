@@ -3,8 +3,7 @@ primary_region = "sjc"
 
 [build]
 
-[deploy]
-  release_command = "python -c 'from free_deployment import init_database; init_database()'"
+# Database will be initialized when the app starts
 
 [http_service]
   internal_port = 8000

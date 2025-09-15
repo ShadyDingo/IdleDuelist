@@ -49,59 +49,69 @@ def get_db_connection():
 
 def init_database():
     """Initialize database tables"""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        # Players table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS players (
-                id TEXT PRIMARY KEY,
-                username TEXT UNIQUE,
-                rating INTEGER DEFAULT 1000,
-                wins INTEGER DEFAULT 0,
-                losses INTEGER DEFAULT 0,
-                equipment TEXT,
-                faction TEXT,
-                abilities TEXT,
-                last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_online BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Duels table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS duels (
-                id TEXT PRIMARY KEY,
-                player1_id TEXT,
-                player2_id TEXT,
-                winner_id TEXT,
-                player1_loadout TEXT,
-                player2_loadout TEXT,
-                duel_log TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # Offline duels table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS offline_duels (
-                id TEXT PRIMARY KEY,
-                defender_id TEXT,
-                attacker_id TEXT,
-                winner_id TEXT,
-                defender_loadout TEXT,
-                attacker_loadout TEXT,
-                duel_log TEXT,
-                processed BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        conn.commit()
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Players table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS players (
+                    id TEXT PRIMARY KEY,
+                    username TEXT UNIQUE,
+                    rating INTEGER DEFAULT 1000,
+                    wins INTEGER DEFAULT 0,
+                    losses INTEGER DEFAULT 0,
+                    equipment TEXT,
+                    faction TEXT,
+                    abilities TEXT,
+                    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_online BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Duels table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS duels (
+                    id TEXT PRIMARY KEY,
+                    player1_id TEXT,
+                    player2_id TEXT,
+                    winner_id TEXT,
+                    player1_loadout TEXT,
+                    player2_loadout TEXT,
+                    duel_log TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Offline duels table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS offline_duels (
+                    id TEXT PRIMARY KEY,
+                    defender_id TEXT,
+                    attacker_id TEXT,
+                    winner_id TEXT,
+                    defender_loadout TEXT,
+                    attacker_loadout TEXT,
+                    duel_log TEXT,
+                    processed BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            conn.commit()
+            print("✅ Database tables created successfully")
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")
+        raise
 
 # Initialize database on startup
-init_database()
+try:
+    init_database()
+    print("✅ Database initialized successfully")
+except Exception as e:
+    print(f"⚠️ Database initialization warning: {e}")
+    print("Continuing anyway - database will be created on first use")
 
 # Pydantic models
 class PlayerData(BaseModel):
