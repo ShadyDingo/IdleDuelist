@@ -263,7 +263,7 @@ EQUIPMENT_DATA = {
         'weapon_bow': {'name': 'Bow', 'attack': 12, 'speed': 4, 'crit_chance': 0.10, 'type': 'one_handed'},
         'weapon_knife': {'name': 'Knife', 'attack': 10, 'speed': 5, 'crit_chance': 0.15, 'type': 'one_handed'},
         'weapon_mace': {'name': 'Mace', 'attack': 14, 'speed': 3, 'crit_chance': 0.06, 'type': 'one_handed'},
-        'weapon_shield': {'name': 'Shield', 'attack': 8, 'speed': 2, 'defense': 5, 'type': 'one_handed'},
+        'weapon_shield': {'name': 'Shield', 'attack': 8, 'speed': 2, 'defense': 5, 'block_chance': 0.12, 'type': 'one_handed'},
         
         # Two-handed weapons (cannot be dual wielded)
         'weapon_hammer': {'name': 'Hammer', 'attack': 25, 'speed': 1, 'crit_chance': 0.04, 'type': 'two_handed'},
@@ -957,12 +957,26 @@ def executeTurnBasedAction(attacker_name, attacker_faction, attacker_armor, atta
                     damage = int(damage * 1.5)
                     log.append(f"💥 {attacker_name} scores a CRITICAL HIT!")
                 
-                # Apply defense
-                defense_reduction = defender_stats['defense']
-                damage = max(1, damage - defense_reduction)
-                
-                defender_hp -= damage
-                log.append(f"💥 {defender_name} takes {damage} damage!")
+        # Apply defense
+        defense_reduction = defender_stats['defense']
+        damage = max(1, damage - defense_reduction)
+        
+        # Check for shield block
+        block_chance = 0
+        if defender_weapon1 == 'shield':
+            shield_data = WEAPON_DATA.get('weapon_shield', {})
+            block_chance += shield_data.get('block_chance', 0)
+        if defender_weapon2 == 'shield':
+            shield_data = WEAPON_DATA.get('weapon_shield', {})
+            block_chance += shield_data.get('block_chance', 0) * 0.75  # Off-hand penalty
+        
+        if block_chance > 0 and random.random() < block_chance:
+            log.append(f"🛡️ {defender_name} BLOCKS the attack with their shield!")
+            damage = 0
+        
+        if damage > 0:
+            defender_hp -= damage
+            log.append(f"💥 {defender_name} takes {damage} damage!")
             
             if 'healing' in ability_data:
                 healing_data = ability_data['healing']
@@ -988,13 +1002,27 @@ def executeTurnBasedAction(attacker_name, attacker_faction, attacker_armor, atta
         crit_chance = attacker_stats['crit_chance']
         is_crit = random.random() < crit_chance
         
-        if is_crit:
+        # Check for shield block before applying damage
+        block_chance = 0
+        if defender_weapon1 == 'shield':
+            shield_data = WEAPON_DATA.get('weapon_shield', {})
+            block_chance += shield_data.get('block_chance', 0)
+        if defender_weapon2 == 'shield':
+            shield_data = WEAPON_DATA.get('weapon_shield', {})
+            block_chance += shield_data.get('block_chance', 0) * 0.75  # Off-hand penalty
+        
+        if block_chance > 0 and random.random() < block_chance:
+            log.append(f"🛡️ {defender_name} BLOCKS the attack with their shield!")
+            base_damage = 0
+        
+        if is_crit and base_damage > 0:
             base_damage = int(base_damage * 1.5)
             log.append(f"💥 {attacker_name} attacks {defender_name} for {base_damage} CRITICAL damage!")
-        else:
+        elif base_damage > 0:
             log.append(f"⚔️ {attacker_name} attacks {defender_name} for {base_damage} damage!")
         
-        defender_hp -= base_damage
+        if base_damage > 0:
+            defender_hp -= base_damage
     
     return attacker_hp, defender_hp, log
 

@@ -569,7 +569,7 @@
 
                 <!-- Stats Display Area -->
                 <div class="stats-display">
-                    <h3>📊 Compiled Stats</h3>
+                    <h3>📊 Character Stats</h3>
                     <div id="compiled-stats">
                         <p>All stats compiled here for quick reference so the player can see what changes once they change what's equipped.</p>
                     </div>
@@ -1107,6 +1107,11 @@
                     const equipmentKey = `${currentPlayer.armor_type}_${slot}`;
                     select.value = equipmentKey;
                     updateSlotIcon(slot, equipmentKey);
+                } else if (select) {
+                    // Set default based on current armor type
+                    const defaultKey = `${currentPlayer.armor_type}_${slot}`;
+                    select.value = defaultKey;
+                    updateSlotIcon(slot, defaultKey);
                 }
             });
             
@@ -1162,7 +1167,7 @@
         }
 
         function getAssetPath(itemKey) {
-            // Map item keys to asset paths
+            // Map item keys to asset paths - using correct file extensions
             const assetMap = {
                 // Armor
                 'cloth_helmet': '/assets/armor/cloth_helmet.png',
@@ -1180,7 +1185,7 @@
                 'metal_gloves': '/assets/armor/metal_gloves.PNG',
                 'metal_pants': '/assets/armor/metal_pants.png',
                 'metal_boots': '/assets/armor/metal_boots.png',
-                // Weapons
+                // Weapons - corrected file extensions
                 'fists': '👊',
                 'sword': '/assets/weapons/weapon_sword.png',
                 'axe': '/assets/weapons/weapon_axe.png',
@@ -1247,22 +1252,97 @@
                 </div>
                 <div class="equipment-summary">
                     <h4>Current Equipment:</h4>
-                    <p><strong>Armor Type:</strong> ${currentPlayer.armor_type}</p>
-                    <p><strong>Main Hand:</strong> ${getWeaponName(currentPlayer.weapon1)}</p>
-                    <p><strong>Off Hand:</strong> ${getWeaponName(currentPlayer.weapon2)}</p>
+                    <p><strong>Armor Type:</strong> ${stats.armor_type}</p>
+                    <p><strong>Main Hand:</strong> ${getWeaponName(document.getElementById('main-hand-select')?.value || 'fists')}</p>
+                    <p><strong>Off Hand:</strong> ${getWeaponName(document.getElementById('off-hand-select')?.value || 'fists')}</p>
                 </div>
             `;
         }
 
         function calculateCurrentStats() {
-            // This would calculate stats based on current equipment selections
-            // For now, return current player stats
+            if (!currentPlayer) return { attack: 0, defense: 0, speed: 0, crit_chance: 0, hp: 0 };
+            
+            // Get current equipment selections
+            const equipment = {};
+            const armorSlots = ['helmet', 'body', 'gloves', 'pants', 'boots'];
+            
+            armorSlots.forEach(slot => {
+                const select = document.getElementById(`${slot}-select`);
+                if (select && select.value) {
+                    equipment[slot] = select.value;
+                }
+            });
+            
+            const mainHand = document.getElementById('main-hand-select')?.value || 'fists';
+            const offHand = document.getElementById('off-hand-select')?.value || 'fists';
+            
+            // Calculate armor type from equipment
+            let armorType = 'cloth'; // default
+            if (Object.keys(equipment).length > 0) {
+                const firstEquipment = Object.values(equipment)[0];
+                if (firstEquipment.includes('leather')) armorType = 'leather';
+                else if (firstEquipment.includes('metal')) armorType = 'metal';
+            }
+            
+            // Calculate stats based on equipment
+            let attack = 0;
+            let defense = 0;
+            let speed = 0;
+            let crit_chance = 0.02; // base crit chance
+            
+            // Weapon stats
+            const weaponStats = {
+                'fists': { attack: 5, speed: 6, crit_chance: 0.02 },
+                'sword': { attack: 15, speed: 3, crit_chance: 0.05 },
+                'axe': { attack: 18, speed: 2, crit_chance: 0.08 },
+                'bow': { attack: 12, speed: 4, crit_chance: 0.10 },
+                'knife': { attack: 10, speed: 5, crit_chance: 0.15 },
+                'mace': { attack: 14, speed: 3, crit_chance: 0.06 },
+                'shield': { attack: 8, speed: 2, defense: 5, crit_chance: 0.02 },
+                'hammer': { attack: 25, speed: 1, crit_chance: 0.04 },
+                'crossbow': { attack: 20, speed: 2, crit_chance: 0.12 },
+                'staff': { attack: 18, speed: 3, crit_chance: 0.07 }
+            };
+            
+            // Calculate weapon damage with dual wielding penalty
+            const mainWeapon = weaponStats[mainHand] || weaponStats['fists'];
+            const offWeapon = weaponStats[offHand] || weaponStats['fists'];
+            
+            if (mainWeapon.attack && offWeapon.attack) {
+                attack = mainWeapon.attack + Math.floor(offWeapon.attack * 0.75); // 25% penalty for off-hand
+            } else {
+                attack = mainWeapon.attack || 5;
+            }
+            
+            // Use main weapon speed and crit chance
+            speed = mainWeapon.speed || 6;
+            crit_chance = mainWeapon.crit_chance || 0.02;
+            
+            // Add shield defense
+            if (mainHand === 'shield') defense += mainWeapon.defense || 0;
+            if (offHand === 'shield') defense += Math.floor((offWeapon.defense || 0) * 0.75);
+            
+            // Armor stats
+            const armorStats = {
+                'cloth': { defense: 0, speed: 3 },
+                'leather': { defense: 2, speed: 2 },
+                'metal': { defense: 4, speed: 1 }
+            };
+            
+            const armor = armorStats[armorType] || armorStats['cloth'];
+            defense += armor.defense;
+            speed += armor.speed;
+            
+            // Base HP calculation
+            const hp = 100 + (defense * 2);
+            
             return {
-                attack: 20,
-                defense: 10,
-                speed: 10,
-                crit_chance: 0.05,
-                hp: 100
+                attack: attack,
+                defense: defense,
+                speed: speed,
+                crit_chance: crit_chance,
+                hp: hp,
+                armor_type: armorType
             };
         }
 
@@ -1313,8 +1393,17 @@
                     return;
                 }
                 
+                // Calculate armor type from equipment
+                let armorType = 'cloth'; // default
+                if (Object.keys(equipment).length > 0) {
+                    const firstEquipment = Object.values(equipment)[0];
+                    if (firstEquipment.includes('leather')) armorType = 'leather';
+                    else if (firstEquipment.includes('metal')) armorType = 'metal';
+                }
+                
                 // Update player data
                 currentPlayer.equipment = equipment;
+                currentPlayer.armor_type = armorType;
                 currentPlayer.weapon1 = mainHand || 'fists';
                 currentPlayer.weapon2 = offHand || 'fists';
                 
