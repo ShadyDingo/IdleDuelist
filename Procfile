@@ -1,1 +1,1 @@
-web: python test_deployment.py
+web: python full_web_server_simple.py
