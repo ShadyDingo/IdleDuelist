@@ -14,7 +14,7 @@ primary_region = "sjc"
   processes = ["app"]
 
 [processes]
-  app = "python free_deployment.py"
+  app = "python simple_deployment.py"
 
 [[vm]]
   cpu_kind = "shared"
