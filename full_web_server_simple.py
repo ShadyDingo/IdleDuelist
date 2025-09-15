@@ -1151,7 +1151,7 @@ async def get_game_data():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return JSONResponse({"status": "healthy", "full_game": True})
+    return JSONResponse({"status": "healthy", "full_game": True, "version": "2.0"})
 
 if __name__ == "__main__":
     init_database()
