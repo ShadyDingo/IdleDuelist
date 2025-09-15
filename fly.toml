@@ -11,7 +11,7 @@ primary_region = "sjc"
   force_https = true
   auto_stop_machines = true
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
   processes = ["app"]
 
 [processes]
@@ -21,6 +21,8 @@ primary_region = "sjc"
   cpu_kind = "shared"
   cpus = 1
   memory_mb = 256
+  auto_start = true
+  auto_stop = true
 
 [env]
   PORT = "8000"
