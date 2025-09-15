@@ -880,7 +880,7 @@ async def duel(request: dict):
             
             return JSONResponse({
                 "success": True,
-                "combat_log": duel_result['log'],
+                "combat_log": duel_result['combat_log'],
                 "player_wins": player_wins,
                 "player_losses": player_losses,
                 "result": result_text
@@ -1044,14 +1044,14 @@ def simulateTurnBasedCombat(player_data: dict, opponent_data: dict) -> dict:
     player_name = player_data['username']
     player_faction = player_data['faction']
     player_armor = player_data['armor_type']
-    player_weapon1 = player_data['weapon1']
-    player_weapon2 = player_data['weapon2']
+    player_weapon1 = player_data.get('weapon1', 'fists')
+    player_weapon2 = player_data.get('weapon2', 'fists')
     
     opponent_name = opponent_data['username']
     opponent_faction = opponent_data['faction']
     opponent_armor = opponent_data['armor_type']
-    opponent_weapon1 = opponent_data['weapon1']
-    opponent_weapon2 = opponent_data['weapon2']
+    opponent_weapon1 = opponent_data.get('weapon1', 'fists')
+    opponent_weapon2 = opponent_data.get('weapon2', 'fists')
     
     # Calculate base stats
     player_stats = calculatePlayerStats(player_data)
@@ -1283,8 +1283,8 @@ def calculatePlayerStats(player_data: dict) -> dict:
     dodge_chance = 0.05
     
     # Weapon bonuses
-    weapon1_data = WEAPON_DATA.get(weapon1, {})
-    weapon2_data = WEAPON_DATA.get(weapon2, {})
+    weapon1_data = WEAPON_DATA.get(f'weapon_{weapon1}', {})
+    weapon2_data = WEAPON_DATA.get(f'weapon_{weapon2}', {})
     
     attack += weapon1_data.get('attack', 0) + weapon2_data.get('attack', 0)
     speed += int((weapon1_data.get('speed', 0) + weapon2_data.get('speed', 0)) / 2)
