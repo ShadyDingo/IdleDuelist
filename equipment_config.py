@@ -348,3 +348,4 @@ if __name__ == "__main__":
     
     print("\nFramework ready for easy equipment expansion!")
 
+

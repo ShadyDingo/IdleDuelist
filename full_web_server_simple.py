@@ -699,6 +699,16 @@ async def create_player(player_data: dict):
                 "error": "Password must be at least 6 characters long"
             })
         
+        # Check if username already exists
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM players WHERE username = ?', (username,))
+            if cursor.fetchone()[0] > 0:
+                return JSONResponse({
+                    "success": False,
+                    "error": "Username already exists"
+                })
+        
         # Hash the password
         password_hash = hash_password(password)
         
@@ -738,6 +748,11 @@ async def create_player(player_data: dict):
         shield_data['rarity'] = 'rare'
         player.equipment['off_hand'] = shield_data
         
+        # Calculate initial stats
+        initial_stats = calculatePlayerStats(player.to_dict())
+        player.max_hp = initial_stats['hp']
+        player.current_hp = initial_stats['hp']
+        
         # Save to database
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -758,12 +773,16 @@ async def create_player(player_data: dict):
                     raise
             conn.commit()
         
+        print(f"✅ Created new player: {username} (ID: {player_id})")
+        
         return JSONResponse({
             "success": True,
-            "player": player.to_dict()
+            "player": player.to_dict(),
+            "message": f"Character '{username}' created successfully!"
         })
         
     except Exception as e:
+        print(f"❌ Error creating player: {e}")
         return JSONResponse({
             "success": False,
             "error": str(e)
@@ -803,8 +822,8 @@ async def duel(request: dict):
             if 'id' not in opponent_data:
                 opponent_data['id'] = opponent_row['id']
             
-                    # Execute duel using turn-based combat system
-                    duel_result = simulateTurnBasedCombat(player_data, opponent_data)
+            # Execute duel using turn-based combat system
+            duel_result = simulateTurnBasedCombat(player_data, opponent_data)
             
             # Update player stats
             player_wins = player_data.get('wins', 0)
@@ -1582,30 +1601,44 @@ async def get_leaderboard():
             
             leaderboard = []
             for i, player_row in enumerate(players):
-                player_data = json.loads(player_row['player_data'])
-                wins = player_data.get('wins', 0)
-                losses = player_data.get('losses', 0)
-                total_games = wins + losses
-                win_rate = (wins / total_games * 100) if total_games > 0 else 0
-                
-                leaderboard.append({
-                    'rank': i + 1,
-                    'username': player_data['username'],
-                    'rating': player_data.get('rating', 1200),
-                    'wins': wins,
-                    'losses': losses,
-                    'win_rate': round(win_rate, 1),
-                    'faction': FACTION_DATA[player_data['faction']]['name'],
-                    'armor_type': player_data['armor_type'].title(),
-                    'is_bot': player_data['username'].startswith('Bot_')
-                })
+                try:
+                    player_data = json.loads(player_row['player_data'])
+                    wins = player_data.get('wins', 0)
+                    losses = player_data.get('losses', 0)
+                    total_games = wins + losses
+                    win_rate = (wins / total_games * 100) if total_games > 0 else 0
+                    
+                    # Get faction name safely
+                    faction_name = "Unknown"
+                    if player_data.get('faction') in FACTION_DATA:
+                        faction_name = FACTION_DATA[player_data['faction']]['name']
+                    
+                    leaderboard.append({
+                        'rank': i + 1,
+                        'username': player_data.get('username', 'Unknown'),
+                        'rating': player_data.get('rating', 1200),
+                        'wins': wins,
+                        'losses': losses,
+                        'win_rate': round(win_rate, 1),
+                        'faction': faction_name,
+                        'armor_type': player_data.get('armor_type', 'Unknown').title(),
+                        'is_bot': player_data.get('username', '').startswith('Bot_'),
+                        'created_at': player_row.get('created_at', 'Unknown')
+                    })
+                except Exception as e:
+                    print(f"Error processing player {i}: {e}")
+                    continue
+            
+            print(f"✅ Leaderboard loaded with {len(leaderboard)} players")
             
             return JSONResponse({
                 "success": True,
-                "leaderboard": leaderboard
+                "leaderboard": leaderboard,
+                "total_players": len(leaderboard)
             })
             
     except Exception as e:
+        print(f"❌ Leaderboard error: {e}")
         return JSONResponse({
             "success": False,
             "error": str(e)
@@ -1625,7 +1658,7 @@ async def get_game_data():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint for Railway"""
     try:
         # Test database connection
         with get_db_connection() as conn:
@@ -1638,14 +1671,21 @@ async def health_check():
             "full_game": True, 
             "version": "2.0",
             "database": "connected",
-            "players": player_count
+            "players": player_count,
+            "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
         return JSONResponse({
             "status": "unhealthy", 
             "error": str(e),
-            "version": "2.0"
+            "version": "2.0",
+            "timestamp": datetime.now().isoformat()
         }, status_code=500)
+
+@app.get("/healthz")
+async def healthz():
+    """Kubernetes-style health check endpoint"""
+    return JSONResponse({"status": "ok"})
 
 if __name__ == "__main__":
     init_database()

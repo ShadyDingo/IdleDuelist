@@ -947,19 +947,50 @@
                     const leaderboard = document.getElementById('leaderboard');
                     leaderboard.innerHTML = '';
 
-                    result.players.forEach((player, index) => {
-                        const item = document.createElement('div');
-                        item.className = 'leaderboard-item';
-                        item.innerHTML = `
-                            <span>#${index + 1} ${player.username}</span>
-                            <span>${player.wins}W / ${player.losses}L (${Math.round((player.wins / (player.wins + player.losses)) * 100)}%)</span>
-                        `;
-                        leaderboard.appendChild(item);
-                    });
+                    if (result.leaderboard && result.leaderboard.length > 0) {
+                        result.leaderboard.forEach((player) => {
+                            const item = document.createElement('div');
+                            item.className = 'leaderboard-item';
+                            
+                            const botIndicator = player.is_bot ? '🤖 ' : '👤 ';
+                            const factionIcon = getFactionIcon(player.faction);
+                            
+                            item.innerHTML = `
+                                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                    <div>
+                                        <span style="font-weight: bold;">#${player.rank} ${botIndicator}${player.username}</span>
+                                        <br>
+                                        <small style="color: #ccc;">${factionIcon} ${player.faction} • ${player.armor_type} Armor</small>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div style="font-weight: bold;">Rating: ${player.rating}</div>
+                                        <div>${player.wins}W / ${player.losses}L (${player.win_rate}%)</div>
+                                    </div>
+                                </div>
+                            `;
+                            leaderboard.appendChild(item);
+                        });
+                    } else {
+                        leaderboard.innerHTML = '<div style="text-align: center; padding: 20px; color: #ccc;">No players found. Create a character to get started!</div>';
+                    }
+                } else {
+                    console.error('Leaderboard error:', result.error);
+                    leaderboard.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff6b6b;">Error loading leaderboard: ' + result.error + '</div>';
                 }
             } catch (error) {
                 console.error('Leaderboard error:', error);
+                const leaderboard = document.getElementById('leaderboard');
+                leaderboard.innerHTML = '<div style="text-align: center; padding: 20px; color: #ff6b6b;">Failed to load leaderboard. Please try again.</div>';
             }
+        }
+
+        function getFactionIcon(factionName) {
+            const icons = {
+                'Order of the Silver Crusade': '⚔️',
+                'Shadow Covenant': '🌑',
+                'Wilderness Tribe': '🌿'
+            };
+            return icons[factionName] || '⚔️';
         }
 
         function displayCharacterInfo() {
