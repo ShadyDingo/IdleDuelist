@@ -912,8 +912,13 @@ def executeTurnBasedAction(attacker_name, attacker_faction, attacker_armor, atta
             # Get ability data
             ability_data = ABILITY_DATA[ability]
             
-            # Add ability icon to log
-            ability_icon = f"<img src='/assets/abilities/ability_{ability}.PNG' width='20' height='20'>" if ability != 'natures_wrath' else f"<img src='/assets/abilities/ability_nature's_wrath.png' width='20' height='20'>"
+            # Add ability icon to log - handle different file extensions
+            if ability == 'natures_wrath':
+                ability_icon = f"<img src='/assets/abilities/ability_nature's_wrath.png' width='20' height='20'>"
+            elif ability == 'poison_blade':
+                ability_icon = f"<img src='/assets/abilities/ability_poison_blade.png' width='20' height='20'>"
+            else:
+                ability_icon = f"<img src='/assets/abilities/ability_{ability}.PNG' width='20' height='20'>"
             
             log.append(f"{ability_icon} {attacker_name} uses {ability_data['name']}!")
             

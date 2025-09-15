@@ -129,6 +129,8 @@
         .crit { background: rgba(255, 215, 0, 0.3); }
         .victory { background: rgba(0, 255, 0, 0.3); font-weight: bold; font-size: 1.2em; }
         .defeat { background: rgba(255, 0, 0, 0.3); font-weight: bold; font-size: 1.2em; }
+        .round-header { background: rgba(70, 130, 180, 0.4); font-weight: bold; font-size: 1.1em; text-align: center; }
+        .turn-header { background: rgba(100, 149, 237, 0.3); font-weight: bold; }
 
         .leaderboard {
             background: rgba(0, 0, 0, 0.5);
@@ -806,10 +808,26 @@
         function displayCombatLog(combatLog) {
             const logContainer = document.getElementById('combat-log');
             logContainer.innerHTML = '';
-
-            combatLog.forEach(logEntry => {
+            
+            // Display combat log incrementally with delays
+            let currentIndex = 0;
+            
+            function displayNextEntry() {
+                if (currentIndex >= combatLog.length) {
+                    // Combat finished, scroll to bottom
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                    return;
+                }
+                
+                const logEntry = combatLog[currentIndex];
                 const p = document.createElement('p');
-                p.textContent = logEntry;
+                
+                // Handle HTML content (like ability icons)
+                if (logEntry.includes('<img')) {
+                    p.innerHTML = logEntry;
+                } else {
+                    p.textContent = logEntry;
+                }
                 
                 // Add appropriate CSS classes based on content
                 if (logEntry.includes('uses') && logEntry.includes('ability')) {
@@ -826,13 +844,46 @@
                     p.classList.add('victory');
                 } else if (logEntry.includes('DEFEAT') || logEntry.includes('LOSES')) {
                     p.classList.add('defeat');
+                } else if (logEntry.includes('Round')) {
+                    p.classList.add('round-header');
+                } else if (logEntry.includes('Turn')) {
+                    p.classList.add('turn-header');
                 }
                 
+                // Add fade-in animation
+                p.style.opacity = '0';
+                p.style.transform = 'translateY(10px)';
                 logContainer.appendChild(p);
-            });
-
-            // Scroll to bottom
-            logContainer.scrollTop = logContainer.scrollHeight;
+                
+                // Animate in
+                setTimeout(() => {
+                    p.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                    p.style.opacity = '1';
+                    p.style.transform = 'translateY(0)';
+                }, 10);
+                
+                // Scroll to bottom
+                logContainer.scrollTop = logContainer.scrollHeight;
+                
+                currentIndex++;
+                
+                // Determine delay based on entry type
+                let delay = 500; // Default 0.5 seconds
+                if (logEntry.includes('Round')) {
+                    delay = 800; // Longer pause for round headers
+                } else if (logEntry.includes('Turn')) {
+                    delay = 600; // Medium pause for turn headers
+                } else if (logEntry.includes('VICTORY') || logEntry.includes('WINS') || logEntry.includes('DEFEAT')) {
+                    delay = 1000; // Longer pause for final results
+                } else if (logEntry.includes('damage') || logEntry.includes('heals')) {
+                    delay = 700; // Slightly longer for important actions
+                }
+                
+                setTimeout(displayNextEntry, delay);
+            }
+            
+            // Start displaying entries
+            displayNextEntry();
         }
 
         async function changeFaction() {
