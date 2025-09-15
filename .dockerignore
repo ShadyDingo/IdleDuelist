@@ -1,0 +1,94 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Development files
+deploy_to_railway.py
+railway_deployment_guide.md
+DEPLOYMENT_CHECKLIST.md
+MOBILE_*.md
+COMBAT_*.md
+EQUIPMENT_*.md
+IMPLEMENTATION_*.md
+MISSING_*.md
+MUSIC_*.md
+ONLINE_*.md
+PROJECT_*.md
+RARITY_*.md
+README_*.md
+STREAMLINED_*.md
+
+# Old database files (keep only full_game.db)
+idle_duelist.db
+web_duelist.db
+
+# Export files
+IdleDuelist_Export.zip
+IdleDuelist_Mobile_Build.ipynb
+
+# Build files
+buildozer.spec
