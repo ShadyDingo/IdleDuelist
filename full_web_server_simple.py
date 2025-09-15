@@ -252,6 +252,7 @@ EQUIPMENT_DATA = {
         'metal_gloves': {'name': 'Metal Gloves', 'speed': 1, 'defense': 4},
     },
     'weapons': {
+        'weapon_fists': {'name': 'Fists', 'attack': 5, 'speed': 6, 'crit_chance': 0.02},
         'weapon_sword': {'name': 'Sword', 'attack': 15, 'speed': 3, 'crit_chance': 0.05},
         'weapon_axe': {'name': 'Axe', 'attack': 18, 'speed': 2, 'crit_chance': 0.08},
         'weapon_bow': {'name': 'Bow', 'attack': 12, 'speed': 4, 'crit_chance': 0.10},
@@ -380,12 +381,14 @@ def generate_ai_bots():
                         bot.equipment[slot] = armor_data
                 
                 # Random weapons
-                bot.weapon1 = random.choice(list(WEAPON_DATA.keys()))
-                bot.weapon2 = random.choice(list(WEAPON_DATA.keys()))
+                weapon1_name = random.choice(['sword', 'axe', 'bow', 'crossbow', 'knife', 'mace', 'hammer', 'shield', 'staff', 'fists'])
+                weapon2_name = random.choice(['sword', 'axe', 'bow', 'crossbow', 'knife', 'mace', 'hammer', 'shield', 'staff', 'fists'])
+                bot.weapon1 = weapon1_name
+                bot.weapon2 = weapon2_name
                 
                 # Set weapon equipment
-                weapon1_key = f"weapon_{bot.weapon1}"
-                weapon2_key = f"weapon_{bot.weapon2}"
+                weapon1_key = f"weapon_{weapon1_name}"
+                weapon2_key = f"weapon_{weapon2_name}"
                 
                 if weapon1_key in WEAPON_DATA:
                     weapon_data = WEAPON_DATA[weapon1_key].copy()
@@ -434,7 +437,11 @@ class WebPlayer:
         self.wins = 0
         self.losses = 0
         self.current_hp = 100
+        self.max_hp = 100
+        self.weapon1 = 'fists'  # Default to fists if no weapons
+        self.weapon2 = 'fists'  # Default to fists if no weapons
         self.active_buffs = {}
+        self.status_effects = {}
         self.duel_history = []
 
     def to_dict(self):
@@ -450,7 +457,11 @@ class WebPlayer:
             'wins': self.wins,
             'losses': self.losses,
             'current_hp': self.current_hp,
+            'max_hp': self.max_hp,
+            'weapon1': self.weapon1,
+            'weapon2': self.weapon2,
             'active_buffs': self.active_buffs,
+            'status_effects': self.status_effects,
             'duel_history': self.duel_history
         }
 
@@ -466,7 +477,11 @@ class WebPlayer:
         player.wins = data.get('wins', 0)
         player.losses = data.get('losses', 0)
         player.current_hp = data.get('current_hp', 100)
+        player.max_hp = data.get('max_hp', 100)
+        player.weapon1 = data.get('weapon1', 'fists')
+        player.weapon2 = data.get('weapon2', 'fists')
         player.active_buffs = data.get('active_buffs', {})
+        player.status_effects = data.get('status_effects', {})
         player.duel_history = data.get('duel_history', [])
         return player
 
@@ -706,8 +721,11 @@ async def create_player(player_data: dict):
                 player.equipment[slot] = armor_data
         
         # Set weapons
-        weapon1_key = f"weapon_{player_data['weapon1']}"
-        weapon2_key = f"weapon_{player_data['weapon2']}"
+        player.weapon1 = player_data.get('weapon1', 'fists')
+        player.weapon2 = player_data.get('weapon2', 'fists')
+        
+        weapon1_key = f"weapon_{player.weapon1}"
+        weapon2_key = f"weapon_{player.weapon2}"
         
         if weapon1_key in WEAPON_DATA:
             weapon_data = WEAPON_DATA[weapon1_key].copy()
