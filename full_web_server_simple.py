@@ -299,6 +299,17 @@ def init_database():
                 )
             ''')
             
+            # Check if password_hash column exists, if not add it
+            cursor.execute("PRAGMA table_info(players)")
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            if 'password_hash' not in columns:
+                print("Adding password_hash column to existing players table...")
+                cursor.execute('ALTER TABLE players ADD COLUMN password_hash TEXT DEFAULT ""')
+                print("✅ Database schema updated with password support")
+            else:
+                print("✅ Database schema already up to date")
+            
             # Duel logs table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS duels (
@@ -501,8 +512,15 @@ async def login(credentials: dict):
                     "error": "Invalid username or password"
                 })
             
-            # Verify password
-            if not verify_password(password, player_row['password_hash']):
+            # Verify password (handle empty password_hash for old accounts)
+            stored_hash = player_row.get('password_hash', '')
+            if not stored_hash:
+                return JSONResponse({
+                    "success": False,
+                    "error": "This account was created before password security was added. Please create a new account."
+                })
+            
+            if not verify_password(password, stored_hash):
                 return JSONResponse({
                     "success": False,
                     "error": "Invalid username or password"
@@ -610,10 +628,21 @@ async def create_player(player_data: dict):
         # Save to database
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO players (id, username, password_hash, player_data) 
-                VALUES (?, ?, ?, ?)
-            ''', (player_id, player.username, password_hash, json.dumps(player.to_dict())))
+            # Handle both old and new database schemas
+            try:
+                cursor.execute('''
+                    INSERT INTO players (id, username, password_hash, player_data) 
+                    VALUES (?, ?, ?, ?)
+                ''', (player_id, player.username, password_hash, json.dumps(player.to_dict())))
+            except sqlite3.OperationalError as e:
+                if "no column named password_hash" in str(e):
+                    # Fallback for old database schema
+                    cursor.execute('''
+                        INSERT INTO players (id, username, player_data) 
+                        VALUES (?, ?, ?)
+                    ''', (player_id, player.username, json.dumps(player.to_dict())))
+                else:
+                    raise
             conn.commit()
         
         return JSONResponse({
