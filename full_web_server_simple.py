@@ -12,10 +12,14 @@ import bcrypt
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 
 app = FastAPI(title="IdleDuelist Full Game", version="1.0.0")
+
+# Mount static files for assets
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 # Game data (copied from idle_duelist.py to avoid Kivy dependencies)
 FACTION_DATA = {
@@ -706,36 +710,33 @@ async def create_player(player_data: dict):
         faction_data = FACTION_DATA[player.faction]
         player.abilities = faction_data['abilities'][:4]  # First 4 abilities
         
-        # Set armor type and generate equipment
-        armor_type = player_data['armor_type']
-        player.armor_type = armor_type
+        # Set default equipment: full cloth set, sword mainhand, shield offhand
+        player.armor_type = 'cloth'
         
-        # Generate full armor set
+        # Generate full cloth armor set
         armor_slots = ['helmet', 'armor', 'pants', 'boots', 'gloves']
         for slot in armor_slots:
-            armor_key = f"{armor_type}_{slot}"
+            armor_key = f"cloth_{slot}"
             if armor_key in EQUIPMENT_DATA['armor']:
                 armor_data = EQUIPMENT_DATA['armor'][armor_key].copy()
                 armor_data['slot'] = slot
                 armor_data['rarity'] = 'rare'  # Give good starting gear
                 player.equipment[slot] = armor_data
         
-        # Set weapons
-        player.weapon1 = player_data.get('weapon1', 'fists')
-        player.weapon2 = player_data.get('weapon2', 'fists')
+        # Set default weapons: sword mainhand, shield offhand
+        player.weapon1 = 'sword'
+        player.weapon2 = 'shield'
         
-        weapon1_key = f"weapon_{player.weapon1}"
-        weapon2_key = f"weapon_{player.weapon2}"
+        # Set weapon equipment
+        sword_data = WEAPON_DATA['weapon_sword'].copy()
+        sword_data['slot'] = 'main_hand'
+        sword_data['rarity'] = 'rare'
+        player.equipment['main_hand'] = sword_data
         
-        if weapon1_key in WEAPON_DATA:
-            weapon_data = WEAPON_DATA[weapon1_key].copy()
-            weapon_data['rarity'] = 'rare'
-            player.equipment['main_hand'] = weapon_data
-            
-        if weapon2_key in WEAPON_DATA:
-            weapon_data = WEAPON_DATA[weapon2_key].copy()
-            weapon_data['rarity'] = 'rare'
-            player.equipment['off_hand'] = weapon_data
+        shield_data = WEAPON_DATA['weapon_shield'].copy()
+        shield_data['slot'] = 'off_hand'
+        shield_data['rarity'] = 'rare'
+        player.equipment['off_hand'] = shield_data
         
         # Save to database
         with get_db_connection() as conn:
@@ -872,8 +873,120 @@ async def duel(request: dict):
             "error": str(e)
         })
 
-def simulateAdvancedCombat(player_data: dict, opponent_data: dict) -> dict:
-    """Simulate advanced combat with multiple rounds, abilities, and strategic depth"""
+def executeTurnBasedAction(attacker_name, attacker_faction, attacker_armor, attacker_weapon1, attacker_weapon2,
+                          attacker_hp, attacker_stats, attacker_buffs, attacker_status_effects,
+                          defender_name, defender_faction, defender_armor, defender_weapon1, defender_weapon2,
+                          defender_hp, defender_stats, defender_buffs, defender_status_effects,
+                          log, turn_number):
+    """Execute a single turn-based action with detailed logging"""
+    
+    # Add turn indicator
+    log.append(f"Turn {turn_number}: {attacker_name}'s action")
+    
+    # Determine action (ability vs attack)
+    action = getTurnAction(attacker_name, attacker_faction, attacker_buffs)
+    
+    if action == 'ability':
+        # Execute ability
+        ability = selectAbility(attacker_faction, attacker_buffs)
+        if ability:
+            # Get ability data
+            ability_data = ABILITY_DATA[ability]
+            
+            # Add ability icon to log
+            ability_icon = f"<img src='/assets/abilities/ability_{ability}.PNG' width='20' height='20'>" if ability != 'natures_wrath' else f"<img src='/assets/abilities/ability_nature's_wrath.png' width='20' height='20'>"
+            
+            log.append(f"{ability_icon} {attacker_name} uses {ability_data['name']}!")
+            
+            # Apply ability effects
+            if 'damage' in ability_data['effects']:
+                base_damage = ability_data['effects']['damage']
+                # Apply faction and armor bonuses
+                total_damage = calculateAbilityDamage(base_damage, attacker_faction, attacker_armor, defender_armor)
+                defender_hp -= total_damage
+                log.append(f"💥 {defender_name} takes {total_damage} damage!")
+            
+            if 'heal' in ability_data['effects']:
+                heal_amount = ability_data['effects']['heal']
+                attacker_hp = min(attacker_stats['hp'], attacker_hp + heal_amount)
+                log.append(f"💚 {attacker_name} heals for {heal_amount} HP!")
+            
+            # Apply buffs/debuffs
+            for effect, value in ability_data['effects'].items():
+                if effect in ['damage_multiplier', 'speed_boost', 'defense_boost']:
+                    attacker_buffs[effect] = value
+                    log.append(f"✨ {attacker_name} gains {effect}!")
+    else:
+        # Execute attack
+        base_damage = calculateAttackDamage(attacker_weapon1, attacker_weapon2, attacker_faction, attacker_armor)
+        
+        # Apply damage multiplier if active
+        if 'damage_multiplier' in attacker_buffs:
+            base_damage = int(base_damage * attacker_buffs['damage_multiplier'])
+            del attacker_buffs['damage_multiplier']  # One-time use
+        
+        # Check for crit
+        crit_chance = attacker_stats['crit_chance']
+        is_crit = random.random() < crit_chance
+        
+        if is_crit:
+            base_damage = int(base_damage * 1.5)
+            log.append(f"💥 {attacker_name} attacks {defender_name} for {base_damage} CRITICAL damage!")
+        else:
+            log.append(f"⚔️ {attacker_name} attacks {defender_name} for {base_damage} damage!")
+        
+        defender_hp -= base_damage
+    
+    return attacker_hp, defender_hp, log
+
+def getTurnAction(player_name, faction, active_buffs):
+    """Determine if player uses ability or attack this turn"""
+    # Simple logic: 30% chance for ability, 70% for attack
+    # Could be made more sophisticated based on faction, health, etc.
+    return 'ability' if random.random() < 0.3 else 'attack'
+
+def selectAbility(faction, active_buffs):
+    """Select an ability to use"""
+    faction_abilities = FACTION_DATA[faction]['abilities']
+    return random.choice(faction_abilities)
+
+def calculateAbilityDamage(base_damage, attacker_faction, attacker_armor, defender_armor):
+    """Calculate ability damage with faction and armor bonuses"""
+    damage = base_damage
+    
+    # Apply faction damage bonus
+    faction_data = FACTION_DATA[attacker_faction]
+    if 'damage_bonus' in faction_data:
+        damage += faction_data['damage_bonus']
+    
+    # Apply armor set bonuses
+    armor_bonuses = ARMOR_SET_BONUSES.get(attacker_armor, {}).get('5_piece', {}).get('effects', {})
+    if 'damage_bonus' in armor_bonuses:
+        damage += armor_bonuses['damage_bonus']
+    
+    return max(1, damage)
+
+def calculateAttackDamage(weapon1, weapon2, faction, armor):
+    """Calculate attack damage from weapons"""
+    weapon1_data = WEAPON_DATA.get(f'weapon_{weapon1}', {'attack': 5})
+    weapon2_data = WEAPON_DATA.get(f'weapon_{weapon2}', {'attack': 5})
+    
+    base_damage = weapon1_data.get('attack', 5) + weapon2_data.get('attack', 5)
+    
+    # Apply faction bonus
+    faction_data = FACTION_DATA[faction]
+    if 'damage_bonus' in faction_data:
+        base_damage += faction_data['damage_bonus']
+    
+    # Apply armor set bonuses
+    armor_bonuses = ARMOR_SET_BONUSES.get(armor, {}).get('5_piece', {}).get('effects', {})
+    if 'damage_bonus' in armor_bonuses:
+        base_damage += armor_bonuses['damage_bonus']
+    
+    return max(1, base_damage)
+
+def simulateTurnBasedCombat(player_data: dict, opponent_data: dict) -> dict:
+    """Simulate turn-based combat with step-by-step execution"""
     log = []
     
     # Extract player stats
@@ -893,11 +1006,115 @@ def simulateAdvancedCombat(player_data: dict, opponent_data: dict) -> dict:
     player_stats = calculatePlayerStats(player_data)
     opponent_stats = calculatePlayerStats(opponent_data)
     
-    # Initialize combat
+    # Initialize combat state
     player_hp = player_stats['hp']
     opponent_hp = opponent_stats['hp']
-    player_max_hp = player_hp
-    opponent_max_hp = opponent_hp
+    
+    player_active_buffs = {}
+    opponent_active_buffs = {}
+    player_status_effects = {}
+    opponent_status_effects = {}
+    
+    log.append(f"⚔️ {player_name} vs {opponent_name}")
+    log.append(f"🎯 {player_name}: {player_hp} HP | {opponent_name}: {opponent_hp} HP")
+    
+    # Combat loop - multiple rounds with turn-based execution
+    max_rounds = 8
+    turn_number = 0
+    
+    for round_num in range(1, max_rounds + 1):
+        if player_hp <= 0 or opponent_hp <= 0:
+            break
+            
+        log.append(f"\n--- Round {round_num} ---")
+        
+        # Determine turn order based on speed
+        player_speed = player_stats['speed']
+        opponent_speed = opponent_stats['speed']
+        
+        # Apply speed modifiers from buffs
+        if 'speed_boost' in player_active_buffs:
+            player_speed += player_active_buffs['speed_boost']
+        if 'speed_boost' in opponent_active_buffs:
+            opponent_speed += opponent_active_buffs['speed_boost']
+        
+        # Player goes first if speed is higher (or equal, then random)
+        player_first = player_speed > opponent_speed or (player_speed == opponent_speed and random.random() < 0.5)
+        
+        # Execute turns with step-by-step logging
+        if player_first:
+            # Player turn
+            turn_number += 1
+            player_hp, opponent_hp, log = executeTurnBasedAction(
+                player_name, player_faction, player_armor, player_weapon1, player_weapon2,
+                player_hp, player_stats, player_active_buffs, player_status_effects,
+                opponent_name, opponent_faction, opponent_armor, opponent_weapon1, opponent_weapon2,
+                opponent_hp, opponent_stats, opponent_active_buffs, opponent_status_effects,
+                log, turn_number
+            )
+            
+            # Opponent turn (if still alive)
+            if opponent_hp > 0:
+                turn_number += 1
+                opponent_hp, player_hp, log = executeTurnBasedAction(
+                    opponent_name, opponent_faction, opponent_armor, opponent_weapon1, opponent_weapon2,
+                    opponent_hp, opponent_stats, opponent_active_buffs, opponent_status_effects,
+                    player_name, player_faction, player_armor, player_weapon1, player_weapon2,
+                    player_hp, player_stats, player_active_buffs, player_status_effects,
+                    log, turn_number
+                )
+        else:
+            # Opponent turn
+            turn_number += 1
+            opponent_hp, player_hp, log = executeTurnBasedAction(
+                opponent_name, opponent_faction, opponent_armor, opponent_weapon1, opponent_weapon2,
+                opponent_hp, opponent_stats, opponent_active_buffs, opponent_status_effects,
+                player_name, player_faction, player_armor, player_weapon1, player_weapon2,
+                player_hp, player_stats, player_active_buffs, player_status_effects,
+                log, turn_number
+            )
+            
+            # Player turn (if still alive)
+            if player_hp > 0:
+                turn_number += 1
+                player_hp, opponent_hp, log = executeTurnBasedAction(
+                    player_name, player_faction, player_armor, player_weapon1, player_weapon2,
+                    player_hp, player_stats, player_active_buffs, player_status_effects,
+                    opponent_name, opponent_faction, opponent_armor, opponent_weapon1, opponent_weapon2,
+                    opponent_hp, opponent_stats, opponent_active_buffs, opponent_status_effects,
+                    log, turn_number
+                )
+        
+        # Process status effects at end of round
+        player_hp, player_active_buffs, player_status_effects = processStatusEffects(
+            player_name, player_hp, player_active_buffs, player_status_effects, log
+        )
+        opponent_hp, opponent_active_buffs, opponent_status_effects = processStatusEffects(
+            opponent_name, opponent_hp, opponent_active_buffs, opponent_status_effects, log
+        )
+        
+        # Update HP display
+        log.append(f"💚 {player_name}: {max(0, player_hp)} HP | {opponent_name}: {max(0, opponent_hp)} HP")
+    
+    # Determine winner
+    if player_hp > opponent_hp:
+        winner = player_name
+        log.append(f"\n🎉 {player_name} WINS THE DUEL!")
+    elif opponent_hp > player_hp:
+        winner = opponent_name
+        log.append(f"\n💀 {opponent_name} WINS THE DUEL!")
+    else:
+        winner = "draw"
+        log.append(f"\n🤝 THE DUEL ENDS IN A DRAW!")
+    
+    return {
+        'winner': winner,
+        'combat_log': log,
+        'player_final_hp': max(0, player_hp),
+        'opponent_final_hp': max(0, opponent_hp),
+        'rounds': min(max_rounds, round_num),
+        'total_turns': turn_number
+    }
     
     # Combat status effects
     player_buffs = {}
