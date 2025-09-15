@@ -324,8 +324,102 @@ def init_database():
             
             conn.commit()
             print("✅ Full game database initialized")
+            
+            # Generate AI bot characters if none exist
+            generate_ai_bots()
+            
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
+
+def generate_ai_bots():
+    """Generate 10 AI bot characters with random loadouts"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if we already have AI bots
+            cursor.execute("SELECT COUNT(*) FROM players WHERE username LIKE 'Bot_%'")
+            bot_count = cursor.fetchone()[0]
+            
+            if bot_count >= 10:
+                print(f"✅ {bot_count} AI bots already exist")
+                return
+            
+            print(f"Generating AI bots... (found {bot_count}, need 10)")
+            
+            # Generate 10 AI bots with random loadouts
+            for i in range(10):
+                bot_id = f"bot_{random.randint(10000, 99999)}"
+                bot_username = f"Bot_{random.randint(100, 999)}"
+                
+                # Check if username already exists
+                cursor.execute("SELECT COUNT(*) FROM players WHERE username = ?", (bot_username,))
+                while cursor.fetchone()[0] > 0:
+                    bot_username = f"Bot_{random.randint(100, 999)}"
+                    cursor.execute("SELECT COUNT(*) FROM players WHERE username = ?", (bot_username,))
+                
+                # Create bot player
+                bot = WebPlayer(bot_id, bot_username)
+                
+                # Random faction
+                bot.faction = random.choice(list(FACTION_DATA.keys()))
+                faction_data = FACTION_DATA[bot.faction]
+                bot.abilities = faction_data['abilities'][:4]  # First 4 abilities
+                
+                # Random armor type
+                bot.armor_type = random.choice(['cloth', 'leather', 'metal'])
+                
+                # Generate full armor set
+                armor_slots = ['helmet', 'armor', 'pants', 'boots', 'gloves']
+                for slot in armor_slots:
+                    armor_key = f"{bot.armor_type}_{slot}"
+                    if armor_key in EQUIPMENT_DATA['armor']:
+                        armor_data = EQUIPMENT_DATA['armor'][armor_key].copy()
+                        armor_data['slot'] = slot
+                        armor_data['rarity'] = 'rare'  # Give good starting gear
+                        bot.equipment[slot] = armor_data
+                
+                # Random weapons
+                bot.weapon1 = random.choice(list(WEAPON_DATA.keys()))
+                bot.weapon2 = random.choice(list(WEAPON_DATA.keys()))
+                
+                # Set weapon equipment
+                weapon1_key = f"weapon_{bot.weapon1}"
+                weapon2_key = f"weapon_{bot.weapon2}"
+                
+                if weapon1_key in WEAPON_DATA:
+                    weapon_data = WEAPON_DATA[weapon1_key].copy()
+                    weapon_data['slot'] = 'main_hand'
+                    weapon_data['rarity'] = 'rare'
+                    bot.equipment['main_hand'] = weapon_data
+                
+                if weapon2_key in WEAPON_DATA:
+                    weapon_data = WEAPON_DATA[weapon2_key].copy()
+                    weapon_data['slot'] = 'off_hand'
+                    weapon_data['rarity'] = 'rare'
+                    bot.equipment['off_hand'] = weapon_data
+                
+                # Calculate initial stats
+                initial_stats = calculatePlayerStats(bot.to_dict())
+                bot.max_hp = initial_stats['hp']
+                bot.current_hp = initial_stats['hp']
+                
+                # Give bots some wins/losses to make them realistic
+                bot.wins = random.randint(0, 50)
+                bot.losses = random.randint(0, 50)
+                bot.rating = 1200 + random.randint(-200, 200)
+                
+                # Save bot to database
+                cursor.execute('''
+                    INSERT INTO players (id, username, password_hash, player_data) 
+                    VALUES (?, ?, ?, ?)
+                ''', (bot.id, bot.username, hash_password("bot_password"), json.dumps(bot.to_dict())))
+            
+            conn.commit()
+            print("✅ Generated 10 AI bot characters with random loadouts")
+            
+    except Exception as e:
+        print(f"❌ Failed to generate AI bots: {e}")
 
 # Web Player class
 class WebPlayer:
@@ -678,31 +772,33 @@ async def duel(request: dict):
                 player_data['id'] = player_row['id']
             player = WebPlayer.from_dict(player_data)
             
-            # Create a bot opponent
-            bot_username = f"Bot_{random.randint(100, 999)}"
-            bot_data = {
-                'username': bot_username,
-                'faction': random.choice(list(FACTION_DATA.keys())),
-                'armor_type': random.choice(['cloth', 'leather', 'metal']),
-                'weapon1': random.choice(list(WEAPON_DATA.keys())),
-                'weapon2': random.choice(list(WEAPON_DATA.keys()))
-            }
+            # Select a random opponent from existing players (including AI bots)
+            cursor.execute('SELECT * FROM players WHERE username != ? ORDER BY RANDOM() LIMIT 1', (username,))
+            opponent_row = cursor.fetchone()
             
-            bot = WebPlayer.from_dict(bot_data)
+            if not opponent_row:
+                return JSONResponse({"success": False, "error": "No opponents available"})
+            
+            opponent_data = json.loads(opponent_row['player_data'])
+            # Ensure id field is present for WebPlayer.from_dict()
+            if 'id' not in opponent_data:
+                opponent_data['id'] = opponent_row['id']
             
             # Execute duel using advanced combat system
-            duel_result = simulateAdvancedCombat(player_data, bot_data)
+            duel_result = simulateAdvancedCombat(player_data, opponent_data)
             
             # Update player stats
             player_wins = player_data.get('wins', 0)
             player_losses = player_data.get('losses', 0)
+            
+            opponent_username = opponent_data['username']
             
             if duel_result['winner'] == username:
                 player_wins += 1
                 result_text = f"🎉 {username} WINS THE DUEL!"
             else:
                 player_losses += 1
-                result_text = f"💀 {bot_username} WINS THE DUEL!"
+                result_text = f"💀 {opponent_username} WINS THE DUEL!"
             
             # Update player data
             player_data['wins'] = player_wins
@@ -713,6 +809,24 @@ async def duel(request: dict):
                 UPDATE players SET player_data = ?, updated_at = CURRENT_TIMESTAMP 
                 WHERE username = ?
             ''', (json.dumps(player_data), username))
+            
+            # Update opponent stats too (if they're a real player, not AI)
+            if not opponent_username.startswith('Bot_'):
+                opponent_wins = opponent_data.get('wins', 0)
+                opponent_losses = opponent_data.get('losses', 0)
+                
+                if duel_result['winner'] == opponent_username:
+                    opponent_wins += 1
+                else:
+                    opponent_losses += 1
+                
+                opponent_data['wins'] = opponent_wins
+                opponent_data['losses'] = opponent_losses
+                
+                cursor.execute('''
+                    UPDATE players SET player_data = ?, updated_at = CURRENT_TIMESTAMP 
+                    WHERE username = ?
+                ''', (json.dumps(opponent_data), opponent_username))
             
             conn.commit()
             
