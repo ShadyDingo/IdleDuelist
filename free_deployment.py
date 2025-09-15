@@ -401,4 +401,13 @@ async def get_server_stats():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    print(f"Starting IdleDuelist backend on port {port}")
+    print(f"Host: 0.0.0.0")
+    print(f"Environment: {os.environ.get('FLY_REGION', 'local')}")
+    
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    except Exception as e:
+        print(f"Error starting server: {e}")
+        import traceback
+        traceback.print_exc()
