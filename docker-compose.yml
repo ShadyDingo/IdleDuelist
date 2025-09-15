@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://idle_duelist:password@db:5432/idle_duelist
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./:/app
+    command: uvicorn backend_server:app --host 0.0.0.0 --port 8000 --reload
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=idle_duelist
+      - POSTGRES_USER=idle_duelist
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
