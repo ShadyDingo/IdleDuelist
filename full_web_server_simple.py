@@ -8,6 +8,7 @@ import os
 import json
 import sqlite3
 import random
+import bcrypt
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -272,6 +273,14 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt"""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against its hash"""
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
 def init_database():
     """Initialize the database with tables"""
     try:
@@ -283,6 +292,7 @@ def init_database():
                 CREATE TABLE IF NOT EXISTS players (
                     id TEXT PRIMARY KEY,
                     username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
                     player_data TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -464,6 +474,54 @@ async def home():
         print(f"Error reading HTML file: {e}")
         return HTMLResponse(content="<h1>Error loading page</h1><p>Please check the server logs.</p>")
 
+@app.post("/login")
+async def login(credentials: dict):
+    """Login with username and password"""
+    try:
+        username = credentials.get('username', '').strip()
+        password = credentials.get('password', '').strip()
+        
+        if not username or not password:
+            return JSONResponse({
+                "success": False,
+                "error": "Username and password are required"
+            })
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, username, password_hash, player_data 
+                FROM players WHERE username = ?
+            ''', (username,))
+            player_row = cursor.fetchone()
+            
+            if not player_row:
+                return JSONResponse({
+                    "success": False,
+                    "error": "Invalid username or password"
+                })
+            
+            # Verify password
+            if not verify_password(password, player_row['password_hash']):
+                return JSONResponse({
+                    "success": False,
+                    "error": "Invalid username or password"
+                })
+            
+            # Return player data (without password hash)
+            player_data = json.loads(player_row['player_data'])
+            return JSONResponse({
+                "success": True,
+                "player": player_data,
+                "message": "Login successful!"
+            })
+            
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        })
+
 @app.get("/get-player/{username}")
 async def get_player(username: str):
     """Get a player by username"""
@@ -494,8 +552,27 @@ async def get_player(username: str):
 async def create_player(player_data: dict):
     """Create a new player with full game features"""
     try:
+        # Validate required fields
+        username = player_data.get('username', '').strip()
+        password = player_data.get('password', '').strip()
+        
+        if not username or not password:
+            return JSONResponse({
+                "success": False,
+                "error": "Username and password are required"
+            })
+        
+        if len(password) < 6:
+            return JSONResponse({
+                "success": False,
+                "error": "Password must be at least 6 characters long"
+            })
+        
+        # Hash the password
+        password_hash = hash_password(password)
+        
         player_id = f"web_{random.randint(10000, 99999)}"
-        player = WebPlayer(player_id, player_data['username'])
+        player = WebPlayer(player_id, username)
         
         # Set faction and abilities
         player.faction = player_data['faction']
@@ -534,9 +611,9 @@ async def create_player(player_data: dict):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO players (id, username, player_data) 
-                VALUES (?, ?, ?)
-            ''', (player_id, player.username, json.dumps(player.to_dict())))
+                INSERT INTO players (id, username, password_hash, player_data) 
+                VALUES (?, ?, ?, ?)
+            ''', (player_id, player.username, password_hash, json.dumps(player.to_dict())))
             conn.commit()
         
         return JSONResponse({

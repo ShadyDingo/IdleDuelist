@@ -214,7 +214,11 @@
                     <label for="login-username">Username:</label>
                     <input type="text" id="login-username" name="username" required>
                 </div>
-                <button type="submit">Login / Create Character</button>
+                <div class="form-group">
+                    <label for="login-password">Password:</label>
+                    <input type="password" id="login-password" name="password" required>
+                </div>
+                <button type="submit">Login</button>
                 <button type="button" onclick="showCharacterCreation()">Create New Character</button>
             </form>
         </div>
@@ -226,6 +230,17 @@
                 <div class="form-group">
                     <label for="username">Character Name:</label>
                     <input type="text" id="username" name="username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required minlength="6">
+                    <small>Password must be at least 6 characters long</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm-password">Confirm Password:</label>
+                    <input type="password" id="confirm-password" name="confirm_password" required>
                 </div>
                 
                 <div class="form-group">
@@ -519,11 +534,20 @@
         async function handleLogin(e) {
             e.preventDefault();
             const username = document.getElementById('login-username').value.trim();
-            if (!username) return;
+            const password = document.getElementById('login-password').value;
+            
+            if (!username || !password) {
+                alert('Please enter both username and password');
+                return;
+            }
 
             try {
-                // Try to get existing player
-                const response = await fetch(`/get-player/${username}`);
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
                 const result = await response.json();
                 
                 if (result.success) {
@@ -533,10 +557,11 @@
                     document.getElementById('current-username').textContent = currentPlayer.username;
                     document.getElementById('current-player-info').style.display = 'block';
                     updatePlayerStats();
+                    
+                    // Clear login form
+                    document.getElementById('login-form').reset();
                 } else {
-                    // Player doesn't exist, create new one
-                    showCharacterCreation();
-                    document.getElementById('username').value = username;
+                    alert('Login failed: ' + result.error);
                 }
             } catch (error) {
                 console.error('Login error:', error);
@@ -548,6 +573,20 @@
             e.preventDefault();
             const formData = new FormData(e.target);
             const playerData = Object.fromEntries(formData.entries());
+            
+            // Validate passwords match
+            const password = playerData.password;
+            const confirmPassword = playerData.confirm_password;
+            
+            if (password !== confirmPassword) {
+                alert('Passwords do not match!');
+                return;
+            }
+            
+            if (password.length < 6) {
+                alert('Password must be at least 6 characters long!');
+                return;
+            }
 
             try {
                 const response = await fetch('/create-player', {
@@ -564,6 +603,9 @@
                     document.getElementById('current-username').textContent = currentPlayer.username;
                     document.getElementById('current-player-info').style.display = 'block';
                     updatePlayerStats();
+                    
+                    // Clear character form
+                    document.getElementById('character-form').reset();
                 } else {
                     alert('Error creating character: ' + result.error);
                 }
