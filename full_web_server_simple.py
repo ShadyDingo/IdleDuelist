@@ -918,23 +918,55 @@ def executeTurnBasedAction(attacker_name, attacker_faction, attacker_armor, atta
             log.append(f"{ability_icon} {attacker_name} uses {ability_data['name']}!")
             
             # Apply ability effects
-            if 'damage' in ability_data['effects']:
-                base_damage = ability_data['effects']['damage']
+            effects = ability_data.get('effects', {})
+            
+            if 'damage' in effects:
+                base_damage = effects['damage']
                 # Apply faction and armor bonuses
                 total_damage = calculateAbilityDamage(base_damage, attacker_faction, attacker_armor, defender_armor)
                 defender_hp -= total_damage
                 log.append(f"💥 {defender_name} takes {total_damage} damage!")
             
-            if 'heal' in ability_data['effects']:
-                heal_amount = ability_data['effects']['heal']
+            if 'heal' in effects:
+                heal_amount = effects['heal']
                 attacker_hp = min(attacker_stats['hp'], attacker_hp + heal_amount)
                 log.append(f"💚 {attacker_name} heals for {heal_amount} HP!")
             
             # Apply buffs/debuffs
-            for effect, value in ability_data['effects'].items():
+            for effect, value in effects.items():
                 if effect in ['damage_multiplier', 'speed_boost', 'defense_boost']:
                     attacker_buffs[effect] = value
                     log.append(f"✨ {attacker_name} gains {effect}!")
+            
+            # Handle special ability effects
+            if 'damage_multiplier' in ability_data:
+                # This is a damage ability
+                base_damage = attacker_stats['attack']
+                damage = int(base_damage * ability_data['damage_multiplier'])
+                
+                # Check for crit
+                if random.random() < attacker_stats['crit_chance']:
+                    damage = int(damage * 1.5)
+                    log.append(f"💥 {attacker_name} scores a CRITICAL HIT!")
+                
+                # Apply defense
+                defense_reduction = defender_stats['defense']
+                damage = max(1, damage - defense_reduction)
+                
+                defender_hp -= damage
+                log.append(f"💥 {defender_name} takes {damage} damage!")
+            
+            if 'healing' in ability_data:
+                healing_data = ability_data['healing']
+                if isinstance(healing_data, dict) and 'amount' in healing_data:
+                    heal_amount = healing_data['amount']
+                    attacker_hp = min(attacker_stats['hp'], attacker_hp + heal_amount)
+                    log.append(f"💚 {attacker_name} heals for {heal_amount} HP!")
+            
+            if 'cleanse' in ability_data and ability_data['cleanse']:
+                # Remove negative effects
+                defender_status_effects.clear()
+                log.append(f"✨ {defender_name} is cleansed of all negative effects!")
     else:
         # Execute attack
         base_damage = calculateAttackDamage(attacker_weapon1, attacker_weapon2, attacker_faction, attacker_armor)
@@ -1399,6 +1431,33 @@ def cleanupStatusEffects(buffs: dict) -> dict:
     """Clean up expired status effects"""
     # Simple cleanup - remove effects after 1 turn for now
     return {}
+
+def processStatusEffects(player_name: str, current_hp: int, active_buffs: dict, status_effects: dict, log: list) -> tuple:
+    """Process status effects at end of turn"""
+    # Process poison effects
+    if 'poison' in status_effects:
+        poison_damage = 5  # Fixed poison damage
+        current_hp = max(0, current_hp - poison_damage)
+        log.append(f"☠️ {player_name} takes {poison_damage} poison damage!")
+        status_effects['poison'] -= 1
+        if status_effects['poison'] <= 0:
+            del status_effects['poison']
+    
+    # Process healing over time
+    if 'healing' in status_effects:
+        heal_amount = status_effects['healing']
+        current_hp = min(100, current_hp + heal_amount)  # Assuming max HP is 100
+        log.append(f"💚 {player_name} heals for {heal_amount} HP!")
+        status_effects['healing'] -= 1
+        if status_effects['healing'] <= 0:
+            del status_effects['healing']
+    
+    # Clean up expired effects
+    expired_effects = [effect for effect, duration in status_effects.items() if duration <= 0]
+    for effect in expired_effects:
+        del status_effects[effect]
+    
+    return current_hp, active_buffs, status_effects
 
 def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
     """Execute a duel using the main game's combat logic"""
