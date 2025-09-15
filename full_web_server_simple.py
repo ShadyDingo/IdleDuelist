@@ -256,16 +256,19 @@ EQUIPMENT_DATA = {
         'metal_gloves': {'name': 'Metal Gloves', 'speed': 1, 'defense': 4},
     },
     'weapons': {
-        'weapon_fists': {'name': 'Fists', 'attack': 5, 'speed': 6, 'crit_chance': 0.02},
-        'weapon_sword': {'name': 'Sword', 'attack': 15, 'speed': 3, 'crit_chance': 0.05},
-        'weapon_axe': {'name': 'Axe', 'attack': 18, 'speed': 2, 'crit_chance': 0.08},
-        'weapon_bow': {'name': 'Bow', 'attack': 12, 'speed': 4, 'crit_chance': 0.10},
-        'weapon_crossbow': {'name': 'Crossbow', 'attack': 16, 'speed': 2, 'crit_chance': 0.12},
-        'weapon_knife': {'name': 'Knife', 'attack': 10, 'speed': 5, 'crit_chance': 0.15},
-        'weapon_mace': {'name': 'Mace', 'attack': 14, 'speed': 3, 'crit_chance': 0.06},
-        'weapon_hammer': {'name': 'Hammer', 'attack': 20, 'speed': 1, 'crit_chance': 0.04},
-        'weapon_shield': {'name': 'Shield', 'attack': 8, 'speed': 2, 'defense': 5},
-        'weapon_staff': {'name': 'Staff', 'attack': 13, 'speed': 3, 'crit_chance': 0.07},
+        # One-handed weapons (can be dual wielded)
+        'weapon_fists': {'name': 'Fists', 'attack': 5, 'speed': 6, 'crit_chance': 0.02, 'type': 'one_handed'},
+        'weapon_sword': {'name': 'Sword', 'attack': 15, 'speed': 3, 'crit_chance': 0.05, 'type': 'one_handed'},
+        'weapon_axe': {'name': 'Axe', 'attack': 18, 'speed': 2, 'crit_chance': 0.08, 'type': 'one_handed'},
+        'weapon_bow': {'name': 'Bow', 'attack': 12, 'speed': 4, 'crit_chance': 0.10, 'type': 'one_handed'},
+        'weapon_knife': {'name': 'Knife', 'attack': 10, 'speed': 5, 'crit_chance': 0.15, 'type': 'one_handed'},
+        'weapon_mace': {'name': 'Mace', 'attack': 14, 'speed': 3, 'crit_chance': 0.06, 'type': 'one_handed'},
+        'weapon_shield': {'name': 'Shield', 'attack': 8, 'speed': 2, 'defense': 5, 'type': 'one_handed'},
+        
+        # Two-handed weapons (cannot be dual wielded)
+        'weapon_hammer': {'name': 'Hammer', 'attack': 25, 'speed': 1, 'crit_chance': 0.04, 'type': 'two_handed'},
+        'weapon_crossbow': {'name': 'Crossbow', 'attack': 20, 'speed': 2, 'crit_chance': 0.12, 'type': 'two_handed'},
+        'weapon_staff': {'name': 'Staff', 'attack': 18, 'speed': 3, 'crit_chance': 0.07, 'type': 'two_handed'},
     }
 }
 
@@ -1023,11 +1026,26 @@ def calculateAbilityDamage(base_damage, attacker_faction, attacker_armor, defend
     return max(1, damage)
 
 def calculateAttackDamage(weapon1, weapon2, faction, armor):
-    """Calculate attack damage from weapons"""
-    weapon1_data = WEAPON_DATA.get(f'weapon_{weapon1}', {'attack': 5})
-    weapon2_data = WEAPON_DATA.get(f'weapon_{weapon2}', {'attack': 5})
+    """Calculate attack damage from weapons with dual wielding penalties"""
+    weapon1_data = WEAPON_DATA.get(f'weapon_{weapon1}', {'attack': 5, 'type': 'one_handed'})
+    weapon2_data = WEAPON_DATA.get(f'weapon_{weapon2}', {'attack': 5, 'type': 'one_handed'})
     
-    base_damage = weapon1_data.get('attack', 5) + weapon2_data.get('attack', 5)
+    # Check for two-handed weapons
+    if weapon1_data.get('type') == 'two_handed':
+        # Two-handed weapon - only use main hand, ignore off hand
+        base_damage = weapon1_data.get('attack', 5)
+    elif weapon2_data.get('type') == 'two_handed':
+        # Two-handed weapon in off hand - only use off hand, ignore main hand
+        base_damage = weapon2_data.get('attack', 5)
+    else:
+        # Dual wielding one-handed weapons
+        main_damage = weapon1_data.get('attack', 5)
+        off_damage = weapon2_data.get('attack', 5)
+        
+        # Apply dual wielding penalty to off-hand weapon (25% reduction)
+        off_damage = int(off_damage * 0.75)
+        
+        base_damage = main_damage + off_damage
     
     # Apply faction bonus
     faction_data = FACTION_DATA[faction]
@@ -1599,13 +1617,12 @@ def execute_attack(attacker: WebPlayer, defender: WebPlayer, attacker_type: str)
 
 @app.post("/update-loadout")
 async def update_loadout(request: dict):
-    """Update player loadout (faction, armor, weapons)"""
+    """Update player loadout (equipment, weapons)"""
     try:
         username = request.get('username')
-        new_faction = request.get('faction')
-        new_armor = request.get('armor_type')
-        new_weapon1 = request.get('weapon1')
-        new_weapon2 = request.get('weapon2')
+        equipment = request.get('equipment', {})
+        weapon1 = request.get('weapon1')
+        weapon2 = request.get('weapon2')
         
         if not username:
             return JSONResponse({"success": False, "error": "Username required"})
@@ -1620,15 +1637,19 @@ async def update_loadout(request: dict):
             
             player_data = json.loads(player_row['player_data'])
             
-            # Update loadout
-            if new_faction:
-                player_data['faction'] = new_faction
-            if new_armor:
-                player_data['armor_type'] = new_armor
-            if new_weapon1:
-                player_data['weapon1'] = new_weapon1
-            if new_weapon2:
-                player_data['weapon2'] = new_weapon2
+            # Update equipment
+            if equipment:
+                player_data['equipment'] = equipment
+            
+            # Update weapons
+            if weapon1:
+                player_data['weapon1'] = weapon1
+            if weapon2:
+                player_data['weapon2'] = weapon2
+            
+            # Recalculate stats with new equipment
+            player_data['max_hp'] = calculatePlayerStats(player_data)['hp']
+            player_data['current_hp'] = player_data['max_hp']
             
             # Save updated player
             cursor.execute('''
@@ -1638,13 +1659,16 @@ async def update_loadout(request: dict):
             
             conn.commit()
             
+            print(f"✅ Updated loadout for {username}")
+            
             return JSONResponse({
                 "success": True,
                 "player": player_data,
-                "message": "Loadout updated successfully!"
+                "message": "Loadout saved successfully!"
             })
             
     except Exception as e:
+        print(f"❌ Loadout update error: {e}")
         return JSONResponse({
             "success": False,
             "error": str(e)

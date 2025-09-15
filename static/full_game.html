@@ -132,6 +132,170 @@
         .round-header { background: rgba(70, 130, 180, 0.4); font-weight: bold; font-size: 1.1em; text-align: center; }
         .turn-header { background: rgba(100, 149, 237, 0.3); font-weight: bold; }
 
+        /* Loadout Screen Styles */
+        .loadout-screen {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .equipment-slots {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .armor-slots, .weapon-slots {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .equipment-slot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            min-width: 120px;
+            transition: all 0.3s ease;
+        }
+
+        .equipment-slot:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .slot-icon {
+            font-size: 2em;
+            margin-bottom: 8px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .slot-label {
+            font-size: 0.9em;
+            color: #e0e0e0;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .slot-select {
+            width: 100%;
+            padding: 8px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 0.9em;
+        }
+
+        .stats-display {
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 200px;
+        }
+
+        .stats-display h3 {
+            margin-bottom: 15px;
+            text-align: center;
+            color: #fff;
+        }
+
+        .loadout-actions {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .save-btn {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .save-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .back-btn {
+            background: linear-gradient(45deg, #6c757d, #5a6268);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-card h4 {
+            margin: 0 0 8px 0;
+            font-size: 0.9em;
+            color: #e0e0e0;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .equipment-summary {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .equipment-summary h4 {
+            margin: 0 0 10px 0;
+            color: #fff;
+        }
+
+        .equipment-summary p {
+            margin: 5px 0;
+            color: #e0e0e0;
+        }
+
         .leaderboard {
             background: rgba(0, 0, 0, 0.5);
             border-radius: 10px;
@@ -298,74 +462,124 @@
             </div>
         </div>
 
-        <!-- Loadout Management -->
+        <!-- Loadout Screen -->
         <div id="loadout-management" class="game-section">
-            <h2>Loadout Management</h2>
+            <h2>⚔️ Loadout Screen</h2>
             <div class="nav-buttons">
                 <button onclick="showGameInterface()">← Back to Game</button>
             </div>
 
-            <div class="loadout-grid">
-                <div class="loadout-card">
-                    <h3>Change Faction</h3>
-                    <select id="new-faction" onchange="updateNewAbilities()">
-                        <option value="order_of_the_silver_crusade">Order of the Silver Crusade</option>
-                        <option value="shadow_covenant">Shadow Covenant</option>
-                        <option value="wilderness_tribe">Wilderness Tribe</option>
-                    </select>
-                    <button onclick="changeFaction()">Apply Faction Change</button>
+            <div class="loadout-screen">
+                <!-- Equipment Slots -->
+                <div class="equipment-slots">
+                    <!-- Left Column - Armor Slots -->
+                    <div class="armor-slots">
+                        <div class="equipment-slot" data-slot="helmet">
+                            <div class="slot-icon" id="helmet-icon">🪖</div>
+                            <div class="slot-label">helmet</div>
+                            <select class="slot-select" id="helmet-select" onchange="updateSlotPreview('helmet')">
+                                <option value="">Empty</option>
+                                <option value="cloth_helmet">Cloth Helmet</option>
+                                <option value="leather_helmet">Leather Helmet</option>
+                                <option value="metal_helmet">Metal Helmet</option>
+                            </select>
+                        </div>
+                        
+                        <div class="equipment-slot" data-slot="body">
+                            <div class="slot-icon" id="body-icon">🦺</div>
+                            <div class="slot-label">body</div>
+                            <select class="slot-select" id="body-select" onchange="updateSlotPreview('body')">
+                                <option value="">Empty</option>
+                                <option value="cloth_armor">Cloth Armor</option>
+                                <option value="leather_armor">Leather Armor</option>
+                                <option value="metal_armor">Metal Armor</option>
+                            </select>
+                        </div>
+                        
+                        <div class="equipment-slot" data-slot="gloves">
+                            <div class="slot-icon" id="gloves-icon">🧤</div>
+                            <div class="slot-label">gloves</div>
+                            <select class="slot-select" id="gloves-select" onchange="updateSlotPreview('gloves')">
+                                <option value="">Empty</option>
+                                <option value="cloth_gloves">Cloth Gloves</option>
+                                <option value="leather_gloves">Leather Gloves</option>
+                                <option value="metal_gloves">Metal Gloves</option>
+                            </select>
+                        </div>
+                        
+                        <div class="equipment-slot" data-slot="pants">
+                            <div class="slot-icon" id="pants-icon">👖</div>
+                            <div class="slot-label">pants</div>
+                            <select class="slot-select" id="pants-select" onchange="updateSlotPreview('pants')">
+                                <option value="">Empty</option>
+                                <option value="cloth_pants">Cloth Pants</option>
+                                <option value="leather_pants">Leather Pants</option>
+                                <option value="metal_pants">Metal Pants</option>
+                            </select>
+                        </div>
+                        
+                        <div class="equipment-slot" data-slot="boots">
+                            <div class="slot-icon" id="boots-icon">👢</div>
+                            <div class="slot-label">boots</div>
+                            <select class="slot-select" id="boots-select" onchange="updateSlotPreview('boots')">
+                                <option value="">Empty</option>
+                                <option value="cloth_boots">Cloth Boots</option>
+                                <option value="leather_boots">Leather Boots</option>
+                                <option value="metal_boots">Metal Boots</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Right Column - Weapon Slots -->
+                    <div class="weapon-slots">
+                        <div class="equipment-slot" data-slot="main_hand">
+                            <div class="slot-icon" id="main-hand-icon">⚔️</div>
+                            <div class="slot-label">main hand</div>
+                            <select class="slot-select" id="main-hand-select" onchange="updateSlotPreview('main_hand')">
+                                <option value="">Empty</option>
+                                <option value="fists">Fists</option>
+                                <option value="sword">Sword</option>
+                                <option value="axe">Axe</option>
+                                <option value="bow">Bow</option>
+                                <option value="knife">Knife</option>
+                                <option value="mace">Mace</option>
+                                <option value="shield">Shield</option>
+                                <option value="hammer">Hammer (2H)</option>
+                                <option value="crossbow">Crossbow (2H)</option>
+                                <option value="staff">Staff (2H)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="equipment-slot" data-slot="off_hand">
+                            <div class="slot-icon" id="off-hand-icon">🛡️</div>
+                            <div class="slot-label">off hand</div>
+                            <select class="slot-select" id="off-hand-select" onchange="updateSlotPreview('off_hand')">
+                                <option value="">Empty</option>
+                                <option value="fists">Fists</option>
+                                <option value="sword">Sword</option>
+                                <option value="axe">Axe</option>
+                                <option value="bow">Bow</option>
+                                <option value="knife">Knife</option>
+                                <option value="mace">Mace</option>
+                                <option value="shield">Shield</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="loadout-card">
-                    <h3>Change Armor Type</h3>
-                    <select id="new-armor" onchange="updateNewArmorBonuses()">
-                        <option value="cloth">Cloth (Lightfoot)</option>
-                        <option value="leather">Leather (Balanced)</option>
-                        <option value="metal">Metal (Fortress)</option>
-                    </select>
-                    <button onclick="changeArmor()">Apply Armor Change</button>
+                <!-- Stats Display Area -->
+                <div class="stats-display">
+                    <h3>📊 Compiled Stats</h3>
+                    <div id="compiled-stats">
+                        <p>All stats compiled here for quick reference so the player can see what changes once they change what's equipped.</p>
+                    </div>
                 </div>
 
-                <div class="loadout-card">
-                    <h3>Change Weapons</h3>
-                    <label>Primary Weapon:</label>
-                    <select id="new-weapon1">
-                        <option value="fists">Fists (5 dmg, 6 speed)</option>
-                        <option value="sword">Sword (15 dmg, 3 speed)</option>
-                        <option value="axe">Axe (18 dmg, 2 speed)</option>
-                        <option value="mace">Mace (14 dmg, 3 speed)</option>
-                        <option value="bow">Bow (12 dmg, 4 speed)</option>
-                        <option value="crossbow">Crossbow (16 dmg, 2 speed)</option>
-                        <option value="staff">Staff (13 dmg, 3 speed)</option>
-                        <option value="knife">Knife (10 dmg, 5 speed)</option>
-                        <option value="hammer">Hammer (20 dmg, 1 speed)</option>
-                        <option value="shield">Shield (8 dmg, 2 speed)</option>
-                    </select>
-                    <label>Secondary Weapon:</label>
-                    <select id="new-weapon2">
-                        <option value="fists">Fists (5 dmg, 6 speed)</option>
-                        <option value="sword">Sword (15 dmg, 3 speed)</option>
-                        <option value="axe">Axe (18 dmg, 2 speed)</option>
-                        <option value="mace">Mace (14 dmg, 3 speed)</option>
-                        <option value="bow">Bow (12 dmg, 4 speed)</option>
-                        <option value="crossbow">Crossbow (16 dmg, 2 speed)</option>
-                        <option value="staff">Staff (13 dmg, 3 speed)</option>
-                        <option value="knife">Knife (10 dmg, 5 speed)</option>
-                        <option value="hammer">Hammer (20 dmg, 1 speed)</option>
-                        <option value="shield">Shield (8 dmg, 2 speed)</option>
-                    </select>
-                    <button onclick="changeWeapons()">Apply Weapon Changes</button>
+                <!-- Action Buttons -->
+                <div class="loadout-actions">
+                    <button onclick="saveLoadout()" class="save-btn">💾 Save Loadout</button>
+                    <button onclick="showGameInterface()" class="back-btn">← Back to Menu</button>
                 </div>
-            </div>
-
-            <div id="new-faction-abilities" class="loadout-section">
-                <h3>New Faction Abilities:</h3>
-                <div id="new-ability-list"></div>
-            </div>
-
-            <div id="new-armor-bonuses" class="loadout-section">
-                <h3>New Armor Set Bonuses:</h3>
-                <div id="new-bonus-info"></div>
             </div>
         </div>
 
@@ -618,14 +832,9 @@
             hideAllSections();
             document.getElementById('loadout-management').classList.add('active');
             
-            // Set current values
-            document.getElementById('new-faction').value = currentPlayer.faction;
-            document.getElementById('new-armor').value = currentPlayer.armor_type;
-            document.getElementById('new-weapon1').value = currentPlayer.weapon1;
-            document.getElementById('new-weapon2').value = currentPlayer.weapon2;
-            
-            updateNewAbilities();
-            updateNewArmorBonuses();
+            // Load current equipment
+            loadCurrentEquipment();
+            updateCompiledStats();
         }
 
         function showLeaderboard() {
@@ -884,6 +1093,255 @@
             
             // Start displaying entries
             displayNextEntry();
+        }
+
+        function loadCurrentEquipment() {
+            if (!currentPlayer) return;
+            
+            // Load armor equipment
+            const armorSlots = ['helmet', 'body', 'gloves', 'pants', 'boots'];
+            armorSlots.forEach(slot => {
+                const select = document.getElementById(`${slot}-select`);
+                if (select && currentPlayer.equipment[slot]) {
+                    const equipment = currentPlayer.equipment[slot];
+                    const equipmentKey = `${currentPlayer.armor_type}_${slot}`;
+                    select.value = equipmentKey;
+                    updateSlotIcon(slot, equipmentKey);
+                }
+            });
+            
+            // Load weapon equipment
+            const weapon1Select = document.getElementById('main-hand-select');
+            const weapon2Select = document.getElementById('off-hand-select');
+            
+            if (weapon1Select && currentPlayer.weapon1) {
+                weapon1Select.value = currentPlayer.weapon1;
+                updateSlotIcon('main_hand', currentPlayer.weapon1);
+            }
+            
+            if (weapon2Select && currentPlayer.weapon2) {
+                weapon2Select.value = currentPlayer.weapon2;
+                updateSlotIcon('off_hand', currentPlayer.weapon2);
+            }
+        }
+
+        function updateSlotPreview(slot) {
+            const select = document.getElementById(`${slot}-select`);
+            const value = select.value;
+            updateSlotIcon(slot, value);
+            updateCompiledStats();
+        }
+
+        function updateSlotIcon(slot, itemKey) {
+            const iconElement = document.getElementById(`${slot}-icon`);
+            if (!iconElement) return;
+            
+            if (!itemKey || itemKey === '') {
+                // Reset to default icon
+                const defaultIcons = {
+                    'helmet': '🪖',
+                    'body': '🦺',
+                    'gloves': '🧤',
+                    'pants': '👖',
+                    'boots': '👢',
+                    'main_hand': '⚔️',
+                    'off_hand': '🛡️'
+                };
+                iconElement.textContent = defaultIcons[slot] || '❓';
+                return;
+            }
+            
+            // Try to load the actual asset image
+            const assetPath = getAssetPath(itemKey);
+            if (assetPath) {
+                iconElement.innerHTML = `<img src="${assetPath}" alt="${itemKey}" style="width: 40px; height: 40px; object-fit: contain;">`;
+            } else {
+                // Fallback to emoji
+                iconElement.textContent = getItemEmoji(itemKey);
+            }
+        }
+
+        function getAssetPath(itemKey) {
+            // Map item keys to asset paths
+            const assetMap = {
+                // Armor
+                'cloth_helmet': '/assets/armor/cloth_helmet.png',
+                'cloth_armor': '/assets/armor/cloth_armor.PNG',
+                'cloth_gloves': '/assets/armor/cloth_gloves.png',
+                'cloth_pants': '/assets/armor/cloth_pants.PNG',
+                'cloth_boots': '/assets/armor/cloth_boots.PNG',
+                'leather_helmet': '/assets/armor/leather_helmet.png',
+                'leather_armor': '/assets/armor/leather_armor.PNG',
+                'leather_gloves': '/assets/armor/leather_gloves.png',
+                'leather_pants': '/assets/armor/leather_pants.png',
+                'leather_boots': '/assets/armor/leather_boots.png',
+                'metal_helmet': '/assets/armor/metal_helmet.PNG',
+                'metal_armor': '/assets/armor/metal_armor.png',
+                'metal_gloves': '/assets/armor/metal_gloves.PNG',
+                'metal_pants': '/assets/armor/metal_pants.png',
+                'metal_boots': '/assets/armor/metal_boots.png',
+                // Weapons
+                'fists': '👊',
+                'sword': '/assets/weapons/weapon_sword.png',
+                'axe': '/assets/weapons/weapon_axe.png',
+                'bow': '/assets/weapons/weapon_bow.PNG',
+                'knife': '/assets/weapons/weapon_knife.PNG',
+                'mace': '/assets/weapons/weapon_mace.PNG',
+                'shield': '/assets/weapons/weapon_shield.PNG',
+                'hammer': '/assets/weapons/weapon_hammer.png',
+                'crossbow': '/assets/weapons/weapon_crossbow.PNG',
+                'staff': '/assets/weapons/weapon_staff.png'
+            };
+            
+            return assetMap[itemKey] || null;
+        }
+
+        function getItemEmoji(itemKey) {
+            const emojiMap = {
+                'fists': '👊',
+                'sword': '⚔️',
+                'axe': '🪓',
+                'bow': '🏹',
+                'knife': '🔪',
+                'mace': '🔨',
+                'shield': '🛡️',
+                'hammer': '🔨',
+                'crossbow': '🏹',
+                'staff': '🪄'
+            };
+            
+            return emojiMap[itemKey] || '❓';
+        }
+
+        function updateCompiledStats() {
+            if (!currentPlayer) return;
+            
+            const statsContainer = document.getElementById('compiled-stats');
+            if (!statsContainer) return;
+            
+            // Calculate stats based on current selections
+            const stats = calculateCurrentStats();
+            
+            statsContainer.innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h4>⚔️ Attack</h4>
+                        <div class="stat-value">${stats.attack}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>🛡️ Defense</h4>
+                        <div class="stat-value">${stats.defense}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>💨 Speed</h4>
+                        <div class="stat-value">${stats.speed}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>💥 Crit Chance</h4>
+                        <div class="stat-value">${(stats.crit_chance * 100).toFixed(1)}%</div>
+                    </div>
+                    <div class="stat-card">
+                        <h4>❤️ HP</h4>
+                        <div class="stat-value">${stats.hp}</div>
+                    </div>
+                </div>
+                <div class="equipment-summary">
+                    <h4>Current Equipment:</h4>
+                    <p><strong>Armor Type:</strong> ${currentPlayer.armor_type}</p>
+                    <p><strong>Main Hand:</strong> ${getWeaponName(currentPlayer.weapon1)}</p>
+                    <p><strong>Off Hand:</strong> ${getWeaponName(currentPlayer.weapon2)}</p>
+                </div>
+            `;
+        }
+
+        function calculateCurrentStats() {
+            // This would calculate stats based on current equipment selections
+            // For now, return current player stats
+            return {
+                attack: 20,
+                defense: 10,
+                speed: 10,
+                crit_chance: 0.05,
+                hp: 100
+            };
+        }
+
+        function getWeaponName(weaponKey) {
+            const weaponNames = {
+                'fists': 'Fists',
+                'sword': 'Sword',
+                'axe': 'Axe',
+                'bow': 'Bow',
+                'knife': 'Knife',
+                'mace': 'Mace',
+                'shield': 'Shield',
+                'hammer': 'Hammer',
+                'crossbow': 'Crossbow',
+                'staff': 'Staff'
+            };
+            return weaponNames[weaponKey] || 'Unknown';
+        }
+
+        async function saveLoadout() {
+            if (!currentPlayer) {
+                alert('No player loaded!');
+                return;
+            }
+            
+            try {
+                // Collect all equipment selections
+                const equipment = {};
+                const armorSlots = ['helmet', 'body', 'gloves', 'pants', 'boots'];
+                
+                armorSlots.forEach(slot => {
+                    const select = document.getElementById(`${slot}-select`);
+                    if (select && select.value) {
+                        equipment[slot] = {
+                            name: select.options[select.selectedIndex].text,
+                            slot: slot,
+                            rarity: 'rare'
+                        };
+                    }
+                });
+                
+                const mainHand = document.getElementById('main-hand-select').value;
+                const offHand = document.getElementById('off-hand-select').value;
+                
+                // Check for two-handed weapon conflicts
+                if (mainHand && ['hammer', 'crossbow', 'staff'].includes(mainHand) && offHand) {
+                    alert('Two-handed weapons cannot be used with off-hand items!');
+                    return;
+                }
+                
+                // Update player data
+                currentPlayer.equipment = equipment;
+                currentPlayer.weapon1 = mainHand || 'fists';
+                currentPlayer.weapon2 = offHand || 'fists';
+                
+                // Save to server
+                const response = await fetch('/update-loadout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: currentPlayer.username,
+                        equipment: equipment,
+                        weapon1: currentPlayer.weapon1,
+                        weapon2: currentPlayer.weapon2
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Loadout saved successfully!');
+                    savePlayerData();
+                } else {
+                    alert('Error saving loadout: ' + result.error);
+                }
+                
+            } catch (error) {
+                console.error('Save loadout error:', error);
+                alert('Error saving loadout: ' + error.message);
+            }
         }
 
         async function changeFaction() {
