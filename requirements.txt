@@ -1,16 +1,3 @@
-# Idle Duelist Mobile Game Requirements
-# Core game dependencies
-kivy>=2.1.0  # Mobile GUI framework
-kivymd>=1.1.0  # Material Design components
-pillow>=9.0.0  # Image processing for icons
-plyer>=2.1.0  # Platform-specific features
-
-# Audio support
-pygame>=2.1.0  # Audio backend for Kivy (optional, improves audio support)
-
-# Build and deployment
-buildozer>=1.4.0  # Android build tool
-cython>=0.29.0  # Required for buildozer
-
-# Development dependencies
-kivy-garden>=0.1.4  # Additional Kivy widgets
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
