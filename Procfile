@@ -1,1 +1,1 @@
-web: python simple_deployment.py
+web: python simple_web_server.py

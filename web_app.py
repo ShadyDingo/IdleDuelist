@@ -491,57 +491,93 @@ async def home():
         
         <script>
             let currentPlayer = null;
-            let duelInterval = null;
             
-            // Update abilities display when faction changes
+            // Game data
+            const WEAPONS = {
+                'sword': {'damage': 15, 'speed': 8, 'crit_chance': 0.05, 'name': 'Sword'},
+                'dagger': {'damage': 12, 'speed': 12, 'crit_chance': 0.08, 'name': 'Dagger'},
+                'mace': {'damage': 18, 'speed': 6, 'crit_chance': 0.03, 'name': 'Mace'},
+                'bow': {'damage': 14, 'speed': 10, 'crit_chance': 0.07, 'name': 'Bow'},
+                'staff': {'damage': 13, 'speed': 9, 'crit_chance': 0.06, 'name': 'Staff'},
+                'axe': {'damage': 17, 'speed': 7, 'crit_chance': 0.04, 'name': 'Axe'},
+                'hammer': {'damage': 19, 'speed': 5, 'crit_chance': 0.02, 'name': 'Hammer'},
+                'crossbow': {'damage': 16, 'speed': 9, 'crit_chance': 0.05, 'name': 'Crossbow'},
+                'knife': {'damage': 10, 'speed': 14, 'crit_chance': 0.10, 'name': 'Knife'},
+                'shield': {'damage': 8, 'speed': 6, 'crit_chance': 0.02, 'name': 'Shield'}
+            };
+            
+            const FACTIONS = {
+                'order': 'Order of the Silver Crusade',
+                'shadow': 'Shadow Covenant',
+                'wilderness': 'Wilderness Tribe'
+            };
+            
+            const ABILITIES = {
+                'order': ['Healing Light', 'Shield of Faith', 'Righteous Fury', 'Purification'],
+                'shadow': ['Shadow Strike', 'Vanish', 'Shadow Clone', 'Assassinate'],
+                'wilderness': ['Wild Growth', 'Thorn Barrier', 'Nature\'s Wrath', 'Spirit Form']
+            };
+            
+            // Initialize when DOM loads
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('DOM loaded');
+                updateAbilities();
+                setupForm();
+            });
+            
+            // Update abilities display
             function updateAbilities() {
                 const faction = document.getElementById('faction').value;
-                const abilities = {
-                    'order': ['Healing Light', 'Shield of Faith', 'Righteous Fury', 'Purification'],
-                    'shadow': ['Shadow Strike', 'Vanish', 'Shadow Clone', 'Assassinate'],
-                    'wilderness': ['Wild Growth', 'Thorn Barrier', 'Nature\'s Wrath', 'Spirit Form']
-                };
-                
                 const display = document.getElementById('abilities-display');
-                display.innerHTML = abilities[faction].map(ability => 
-                    `<div style="background: rgba(255,255,255,0.1); padding: 5px; margin: 2px; border-radius: 3px;">${ability}</div>`
+                const abilities = ABILITIES[faction];
+                
+                display.innerHTML = abilities.map(ability => 
+                    '<div style="background: rgba(255,255,255,0.1); padding: 5px; margin: 2px; border-radius: 3px;">' + ability + '</div>'
                 ).join('');
             }
             
-            // Initialize abilities display
-            updateAbilities();
+            // Setup form submission
+            function setupForm() {
+                const form = document.getElementById('character-form');
+                if (form) {
+                    form.addEventListener('submit', handleFormSubmit);
+                    console.log('Form setup complete');
+                }
+            }
             
-            // Character creation form
-            document.getElementById('character-form').addEventListener('submit', async function(e) {
+            // Handle form submission
+            async function handleFormSubmit(e) {
                 e.preventDefault();
+                console.log('Form submitted');
                 
                 const formData = new FormData(e.target);
                 const playerData = Object.fromEntries(formData.entries());
+                console.log('Player data:', playerData);
                 
                 try {
                     const response = await fetch('/create-player', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify(playerData)
                     });
                     
                     const result = await response.json();
+                    console.log('Response:', result);
                     
                     if (result.success) {
                         currentPlayer = result.player;
                         showGameInterface();
                         updatePlayerDisplay();
                     } else {
-                        alert('Error creating character: ' + result.error);
+                        alert('Error: ' + result.error);
                     }
                 } catch (error) {
+                    console.error('Error:', error);
                     alert('Error: ' + error.message);
                 }
-            });
+            }
             
-            // Show different sections
+            // Show sections
             function showSection(sectionId) {
                 document.querySelectorAll('.game-section').forEach(section => {
                     section.classList.remove('active');
@@ -572,9 +608,8 @@ async def home():
                 document.getElementById('wins').textContent = currentPlayer.wins;
                 document.getElementById('losses').textContent = currentPlayer.losses;
                 
-                // Calculate stats (simplified)
-                const weapon1 = ${json.dumps(WEAPONS)}[currentPlayer.weapon1];
-                const weapon2 = ${json.dumps(WEAPONS)}[currentPlayer.weapon2];
+                const weapon1 = WEAPONS[currentPlayer.weapon1];
+                const weapon2 = WEAPONS[currentPlayer.weapon2];
                 
                 const damage = Math.floor((weapon1.damage + weapon2.damage) * 0.75);
                 const speed = Math.floor((weapon1.speed + weapon2.speed) * 0.8);
@@ -596,9 +631,7 @@ async def home():
                 try {
                     const response = await fetch('/duel', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({player_id: currentPlayer.id})
                     });
                     
@@ -609,7 +642,7 @@ async def home():
                         currentPlayer = result.updated_player;
                         updatePlayerDisplay();
                     } else {
-                        duelLog.innerHTML = '<div class="error">Error finding duel: ' + result.error + '</div>';
+                        duelLog.innerHTML = '<div class="error">Error: ' + result.error + '</div>';
                     }
                 } catch (error) {
                     duelLog.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
@@ -621,19 +654,18 @@ async def home():
                 const duelLog = document.getElementById('duel-log');
                 const timestamp = new Date().toLocaleTimeString();
                 
-                let html = `<div><strong>[${timestamp}]</strong> Duel Results:</div>`;
-                html += `<div>⚔️ ${result.player_name} vs ${result.opponent_name}</div>`;
-                html += `<div>💥 Damage dealt: ${result.player_damage}</div>`;
-                html += `<div>💥 Damage received: ${result.opponent_damage}</div>`;
+                let html = '<div><strong>[' + timestamp + ']</strong> Duel Results:</div>';
+                html += '<div>⚔️ ' + result.player_name + ' vs ' + result.opponent_name + '</div>';
+                html += '<div>💥 Damage dealt: ' + result.player_damage + '</div>';
+                html += '<div>💥 Damage received: ' + result.opponent_damage + '</div>';
                 
                 if (result.winner === currentPlayer.id) {
-                    html += `<div class="success">🏆 Victory! (+20 rating)</div>`;
+                    html += '<div class="success">🏆 Victory! (+20 rating)</div>';
                 } else {
-                    html += `<div class="error">💀 Defeat! (-15 rating)</div>`;
+                    html += '<div class="error">💀 Defeat! (-15 rating)</div>';
                 }
                 
-                html += `<div>New Rating: ${result.updated_player.rating}</div><br>`;
-                
+                html += '<div>New Rating: ' + result.updated_player.rating + '</div><br>';
                 duelLog.innerHTML = html + duelLog.innerHTML;
             }
             
@@ -642,7 +674,6 @@ async def home():
                 try {
                     const response = await fetch('/leaderboard');
                     const players = await response.json();
-                    
                     const content = document.getElementById('leaderboard-content');
                     
                     if (players.length === 0) {
@@ -650,17 +681,17 @@ async def home():
                         return;
                     }
                     
-                    content.innerHTML = players.map((player, index) => `
-                        <div class="leaderboard-entry">
-                            <div><strong>#${index + 1}</strong> ${player.username}</div>
-                            <div class="rating">${player.rating}</div>
-                            <div class="wins">${player.wins}W</div>
-                            <div class="losses">${player.losses}L</div>
-                        </div>
-                    `).join('');
+                    content.innerHTML = players.map(function(player, index) {
+                        return '<div class="leaderboard-entry">' +
+                            '<div><strong>#' + (index + 1) + '</strong> ' + player.username + '</div>' +
+                            '<div class="rating">' + player.rating + '</div>' +
+                            '<div class="wins">' + player.wins + 'W</div>' +
+                            '<div class="losses">' + player.losses + 'L</div>' +
+                            '</div>';
+                    }).join('');
                 } catch (error) {
                     document.getElementById('leaderboard-content').innerHTML = 
-                        '<div class="error">Error loading leaderboard: ' + error.message + '</div>';
+                        '<div class="error">Error: ' + error.message + '</div>';
                 }
             }
             
@@ -669,38 +700,33 @@ async def home():
                 if (!currentPlayer) return;
                 
                 const details = document.getElementById('character-details');
-                const abilities = {
-                    'order': ['Healing Light', 'Shield of Faith', 'Righteous Fury', 'Purification'],
-                    'shadow': ['Shadow Strike', 'Vanish', 'Shadow Clone', 'Assassinate'],
-                    'wilderness': ['Wild Growth', 'Thorn Barrier', 'Nature\'s Wrath', 'Spirit Form']
-                };
+                const abilities = ABILITIES[currentPlayer.faction];
                 
-                details.innerHTML = `
-                    <div class="stats-display">
-                        <div class="stat-card">
-                            <div>Faction</div>
-                            <div class="stat-value">${${json.dumps(FACTIONS)}[currentPlayer.faction].name}</div>
-                        </div>
-                        <div class="stat-card">
-                            <div>Armor</div>
-                            <div class="stat-value">${currentPlayer.armor_type.charAt(0).toUpperCase() + currentPlayer.armor_type.slice(1)}</div>
-                        </div>
-                        <div class="stat-card">
-                            <div>Primary Weapon</div>
-                            <div class="stat-value">${${json.dumps(WEAPONS)}[currentPlayer.weapon1].name}</div>
-                        </div>
-                        <div class="stat-card">
-                            <div>Secondary Weapon</div>
-                            <div class="stat-value">${${json.dumps(WEAPONS)}[currentPlayer.weapon2].name}</div>
-                        </div>
-                    </div>
-                    <h3>Abilities:</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px;">
-                        ${abilities[currentPlayer.faction].map(ability => 
-                            `<div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; text-align: center;">${ability}</div>`
-                        ).join('')}
-                    </div>
-                `;
+                details.innerHTML = 
+                    '<div class="stats-display">' +
+                        '<div class="stat-card">' +
+                            '<div>Faction</div>' +
+                            '<div class="stat-value">' + FACTIONS[currentPlayer.faction] + '</div>' +
+                        '</div>' +
+                        '<div class="stat-card">' +
+                            '<div>Armor</div>' +
+                            '<div class="stat-value">' + currentPlayer.armor_type.charAt(0).toUpperCase() + currentPlayer.armor_type.slice(1) + '</div>' +
+                        '</div>' +
+                        '<div class="stat-card">' +
+                            '<div>Primary Weapon</div>' +
+                            '<div class="stat-value">' + WEAPONS[currentPlayer.weapon1].name + '</div>' +
+                        '</div>' +
+                        '<div class="stat-card">' +
+                            '<div>Secondary Weapon</div>' +
+                            '<div class="stat-value">' + WEAPONS[currentPlayer.weapon2].name + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<h3>Abilities:</h3>' +
+                    '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px;">' +
+                        abilities.map(function(ability) {
+                            return '<div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; text-align: center;">' + ability + '</div>';
+                        }).join('') +
+                    '</div>';
             }
         </script>
     </body>
