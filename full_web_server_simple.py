@@ -803,8 +803,8 @@ async def duel(request: dict):
             if 'id' not in opponent_data:
                 opponent_data['id'] = opponent_row['id']
             
-            # Execute duel using advanced combat system
-            duel_result = simulateAdvancedCombat(player_data, opponent_data)
+                    # Execute duel using turn-based combat system
+                    duel_result = simulateTurnBasedCombat(player_data, opponent_data)
             
             # Update player stats
             player_wins = player_data.get('wins', 0)
