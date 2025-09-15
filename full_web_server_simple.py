@@ -567,6 +567,9 @@ async def duel(request: dict):
                 return JSONResponse({"success": False, "error": "Player not found"})
             
             player_data = json.loads(player_row['player_data'])
+            # Ensure id field is present for WebPlayer.from_dict()
+            if 'id' not in player_data:
+                player_data['id'] = player_row['id']
             player = WebPlayer.from_dict(player_data)
             
             # Create a bot opponent
