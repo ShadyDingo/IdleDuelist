@@ -1,7 +1,10 @@
-app = "idle-duelist-backend"
+app = "idleduelist"
 primary_region = "sjc"
 
 [build]
+
+[deploy]
+  release_command = "python -c 'from free_deployment import init_database; init_database()'"
 
 [http_service]
   internal_port = 8000
