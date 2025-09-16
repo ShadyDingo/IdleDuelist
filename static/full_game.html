@@ -1143,29 +1143,24 @@
             const armorSlots = ['helmet', 'body', 'gloves', 'pants', 'boots'];
             armorSlots.forEach(slot => {
                 const select = document.getElementById(`${slot}-select`);
-                if (select && currentPlayer.equipment[slot]) {
-                    const equipment = currentPlayer.equipment[slot];
-                    // Map slot names to equipment keys
-                    const slotToKey = {
-                        'helmet': 'helmet',
-                        'body': 'armor',  // body slot uses armor key
-                        'gloves': 'gloves',
-                        'pants': 'pants',
-                        'boots': 'boots'
-                    };
-                    const equipmentKey = `${currentPlayer.armor_type}_${slotToKey[slot]}`;
-                    select.value = equipmentKey;
-                    updateSlotIcon(slot, equipmentKey);
+                // Map slot names to equipment keys
+                const slotToKey = {
+                    'helmet': 'helmet',
+                    'body': 'armor',  // body slot uses armor key
+                    'gloves': 'gloves',
+                    'pants': 'pants',
+                    'boots': 'boots'
+                };
+                const equipmentKey = slotToKey[slot];
+                
+                if (select && currentPlayer.equipment[equipmentKey]) {
+                    const equipment = currentPlayer.equipment[equipmentKey];
+                    const fullEquipmentKey = `${currentPlayer.armor_type}_${equipmentKey}`;
+                    select.value = fullEquipmentKey;
+                    updateSlotIcon(slot, fullEquipmentKey);
                 } else if (select) {
                     // Set default based on current armor type
-                    const slotToKey = {
-                        'helmet': 'helmet',
-                        'body': 'armor',  // body slot uses armor key
-                        'gloves': 'gloves',
-                        'pants': 'pants',
-                        'boots': 'boots'
-                    };
-                    const defaultKey = `${currentPlayer.armor_type}_${slotToKey[slot]}`;
+                    const defaultKey = `${currentPlayer.armor_type}_${equipmentKey}`;
                     select.value = defaultKey;
                     updateSlotIcon(slot, defaultKey);
                 }
