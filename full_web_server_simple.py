@@ -966,6 +966,7 @@ def executeTurnBasedAction(attacker_name, attacker_faction, attacker_armor, atta
                     log.append(f"✨ {attacker_name} gains {effect}!")
             
             # Handle special ability effects
+            damage = 0  # Initialize damage variable for all ability types
             if 'damage_multiplier' in ability_data:
                 # This is a damage ability
                 base_damage = attacker_stats['attack']
