@@ -1280,8 +1280,9 @@
             let armorType = 'cloth'; // default
             if (Object.keys(equipment).length > 0) {
                 const firstEquipment = Object.values(equipment)[0];
-                if (firstEquipment.includes('leather')) armorType = 'leather';
-                else if (firstEquipment.includes('metal')) armorType = 'metal';
+                const equipmentName = typeof firstEquipment === 'string' ? firstEquipment : firstEquipment.name || '';
+                if (equipmentName.includes('leather')) armorType = 'leather';
+                else if (equipmentName.includes('metal')) armorType = 'metal';
             }
             
             // Calculate stats based on equipment
@@ -1397,8 +1398,9 @@
                 let armorType = 'cloth'; // default
                 if (Object.keys(equipment).length > 0) {
                     const firstEquipment = Object.values(equipment)[0];
-                    if (firstEquipment.includes('leather')) armorType = 'leather';
-                    else if (firstEquipment.includes('metal')) armorType = 'metal';
+                    const equipmentName = typeof firstEquipment === 'string' ? firstEquipment : firstEquipment.name || '';
+                    if (equipmentName.includes('leather')) armorType = 'leather';
+                    else if (equipmentName.includes('metal')) armorType = 'metal';
                 }
                 
                 // Update player data
@@ -1415,7 +1417,8 @@
                         username: currentPlayer.username,
                         equipment: equipment,
                         weapon1: currentPlayer.weapon1,
-                        weapon2: currentPlayer.weapon2
+                        weapon2: currentPlayer.weapon2,
+                        armor_type: armorType
                     })
                 });
                 

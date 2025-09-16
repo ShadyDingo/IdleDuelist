@@ -629,7 +629,7 @@ async def login(credentials: dict):
                 })
             
             # Verify password (handle empty password_hash for old accounts)
-            stored_hash = player_row.get('password_hash', '')
+            stored_hash = player_row['password_hash'] if player_row['password_hash'] else ''
             if not stored_hash:
                 return JSONResponse({
                     "success": False,
@@ -957,9 +957,9 @@ def executeTurnBasedAction(attacker_name, attacker_faction, attacker_armor, atta
                     damage = int(damage * 1.5)
                     log.append(f"💥 {attacker_name} scores a CRITICAL HIT!")
                 
-        # Apply defense
-        defense_reduction = defender_stats['defense']
-        damage = max(1, damage - defense_reduction)
+                # Apply defense
+                defense_reduction = defender_stats['defense']
+                damage = max(1, damage - defense_reduction)
         
         # Check for shield block
         block_chance = 0
@@ -1651,6 +1651,7 @@ async def update_loadout(request: dict):
         equipment = request.get('equipment', {})
         weapon1 = request.get('weapon1')
         weapon2 = request.get('weapon2')
+        armor_type = request.get('armor_type')
         
         if not username:
             return JSONResponse({"success": False, "error": "Username required"})
@@ -1674,6 +1675,10 @@ async def update_loadout(request: dict):
                 player_data['weapon1'] = weapon1
             if weapon2:
                 player_data['weapon2'] = weapon2
+            
+            # Update armor type
+            if armor_type:
+                player_data['armor_type'] = armor_type
             
             # Recalculate stats with new equipment
             player_data['max_hp'] = calculatePlayerStats(player_data)['hp']
@@ -1710,7 +1715,7 @@ async def get_leaderboard():
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT * FROM players 
-                ORDER BY json_extract(player_data, '$.rating') DESC 
+                ORDER BY json_extract(player_data, '$.wins') DESC, json_extract(player_data, '$.rating') DESC 
                 LIMIT 20
             ''')
             players = cursor.fetchall()
