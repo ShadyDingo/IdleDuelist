@@ -722,11 +722,27 @@
             document.getElementById('character-form').addEventListener('submit', handleCharacterFormSubmit);
         }
 
-        function checkExistingPlayer() {
+        async function checkExistingPlayer() {
             const saved = localStorage.getItem('idleDuelistPlayer');
             if (saved) {
                 try {
                     currentPlayer = JSON.parse(saved);
+                    
+                    // Refresh player data from server to ensure we have latest data
+                    if (currentPlayer && currentPlayer.username) {
+                        try {
+                            const response = await fetch(`/get-player/${currentPlayer.username}`);
+                            const result = await response.json();
+                            if (result.success) {
+                                console.log('Refreshed player data on page load:', result.player);
+                                currentPlayer = result.player;
+                                savePlayerData(); // Update localStorage with fresh data
+                            }
+                        } catch (error) {
+                            console.error('Error refreshing player data on page load:', error);
+                        }
+                    }
+                    
                     showGameInterface();
                     document.getElementById('current-username').textContent = currentPlayer.username;
                     document.getElementById('current-player-info').style.display = 'block';
@@ -823,7 +839,19 @@
 
         function savePlayerData() {
             if (currentPlayer) {
-                localStorage.setItem('idleDuelistPlayer', JSON.stringify(currentPlayer));
+                try {
+                    localStorage.setItem('idleDuelistPlayer', JSON.stringify(currentPlayer));
+                    console.log('Player data saved to localStorage:', {
+                        username: currentPlayer.username,
+                        armor_type: currentPlayer.armor_type,
+                        weapon1: currentPlayer.weapon1,
+                        weapon2: currentPlayer.weapon2
+                    });
+                } catch (e) {
+                    console.error('Error saving player data to localStorage:', e);
+                }
+            } else {
+                console.warn('No currentPlayer to save');
             }
         }
 
