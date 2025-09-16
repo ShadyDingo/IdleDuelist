@@ -560,7 +560,7 @@
                         <div class="equipment-slot" data-slot="main_hand">
                             <div class="slot-icon" id="main-hand-icon">⚔️</div>
                             <div class="slot-label">main hand</div>
-                            <select class="slot-select" id="main-hand-select" onchange="updateSlotPreview('main_hand')">
+                            <select class="slot-select" id="main-hand-select" onchange="handleMainHandChange()">
                                 <option value="">Empty</option>
                                 <option value="fists">Fists</option>
                                 <option value="sword">Sword</option>
@@ -1145,12 +1145,27 @@
                 const select = document.getElementById(`${slot}-select`);
                 if (select && currentPlayer.equipment[slot]) {
                     const equipment = currentPlayer.equipment[slot];
-                    const equipmentKey = `${currentPlayer.armor_type}_${slot}`;
+                    // Map slot names to equipment keys
+                    const slotToKey = {
+                        'helmet': 'helmet',
+                        'body': 'armor',  // body slot uses armor key
+                        'gloves': 'gloves',
+                        'pants': 'pants',
+                        'boots': 'boots'
+                    };
+                    const equipmentKey = `${currentPlayer.armor_type}_${slotToKey[slot]}`;
                     select.value = equipmentKey;
                     updateSlotIcon(slot, equipmentKey);
                 } else if (select) {
                     // Set default based on current armor type
-                    const defaultKey = `${currentPlayer.armor_type}_${slot}`;
+                    const slotToKey = {
+                        'helmet': 'helmet',
+                        'body': 'armor',  // body slot uses armor key
+                        'gloves': 'gloves',
+                        'pants': 'pants',
+                        'boots': 'boots'
+                    };
+                    const defaultKey = `${currentPlayer.armor_type}_${slotToKey[slot]}`;
                     select.value = defaultKey;
                     updateSlotIcon(slot, defaultKey);
                 }
@@ -1176,6 +1191,23 @@
             const value = select.value;
             updateSlotIcon(slot, value);
             updateCompiledStats();
+        }
+
+        function handleMainHandChange() {
+            const mainHandSelect = document.getElementById('main-hand-select');
+            const offHandSelect = document.getElementById('off-hand-select');
+            const selectedWeapon = mainHandSelect.value;
+            
+            // Check if it's a two-handed weapon
+            if (['hammer', 'crossbow', 'staff'].includes(selectedWeapon)) {
+                // Clear off-hand and set to Empty
+                offHandSelect.value = '';
+                updateSlotIcon('off_hand', '');
+                showNotification('Two-handed weapon selected - off-hand cleared', 'info');
+            }
+            
+            // Update the slot preview
+            updateSlotPreview('main_hand');
         }
 
         function updateSlotIcon(slot, itemKey) {
@@ -1441,14 +1473,23 @@
             try {
                 // Collect all equipment selections
                 const equipment = {};
-                const armorSlots = ['helmet', 'armor', 'gloves', 'pants', 'boots'];
+                const armorSlots = ['helmet', 'body', 'gloves', 'pants', 'boots'];
                 
                 armorSlots.forEach(slot => {
                     const select = document.getElementById(`${slot}-select`);
                     if (select && select.value) {
-                        equipment[slot] = {
+                        // Map slot names to equipment keys for storage
+                        const slotToKey = {
+                            'helmet': 'helmet',
+                            'body': 'armor',  // body slot stores as armor
+                            'gloves': 'gloves',
+                            'pants': 'pants',
+                            'boots': 'boots'
+                        };
+                        const storageKey = slotToKey[slot];
+                        equipment[storageKey] = {
                             name: select.options[select.selectedIndex].text,
-                            slot: slot,
+                            slot: storageKey,
                             rarity: 'rare'
                         };
                     }
