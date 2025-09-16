@@ -1139,6 +1139,11 @@
         function loadCurrentEquipment() {
             if (!currentPlayer) return;
             
+            // Debug logging
+            console.log('loadCurrentEquipment called with currentPlayer:', currentPlayer);
+            console.log('currentPlayer.armor_type:', currentPlayer.armor_type);
+            console.log('currentPlayer.equipment:', currentPlayer.equipment);
+            
             // Load armor equipment
             const armorSlots = ['helmet', 'body', 'gloves', 'pants', 'boots'];
             armorSlots.forEach(slot => {
@@ -1530,6 +1535,7 @@
                 const result = await response.json();
                 if (result.success) {
                     // Update local player data with server response
+                    console.log('Loadout save successful, updating currentPlayer:', result.player);
                     currentPlayer = result.player;
                     savePlayerData();
                     updatePlayerStats();
