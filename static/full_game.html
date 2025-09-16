@@ -1142,6 +1142,8 @@
             // Debug logging
             console.log('loadCurrentEquipment called with currentPlayer:', currentPlayer);
             console.log('currentPlayer.armor_type:', currentPlayer.armor_type);
+            console.log('currentPlayer.weapon1:', currentPlayer.weapon1);
+            console.log('currentPlayer.weapon2:', currentPlayer.weapon2);
             console.log('currentPlayer.equipment:', currentPlayer.equipment);
             
             // Load armor equipment
@@ -1536,7 +1538,25 @@
                 if (result.success) {
                     // Update local player data with server response
                     console.log('Loadout save successful, updating currentPlayer:', result.player);
-                    currentPlayer = result.player;
+                    
+                    // Ensure our local changes are preserved
+                    if (result.player) {
+                        currentPlayer = result.player;
+                        // Double-check that our changes are in the server response
+                        if (result.player.armor_type !== armorType) {
+                            currentPlayer.armor_type = armorType;
+                        }
+                        if (result.player.weapon1 !== (mainHand || 'fists')) {
+                            currentPlayer.weapon1 = mainHand || 'fists';
+                        }
+                        if (result.player.weapon2 !== (offHand || 'fists')) {
+                            currentPlayer.weapon2 = offHand || 'fists';
+                        }
+                        if (JSON.stringify(result.player.equipment) !== JSON.stringify(equipment)) {
+                            currentPlayer.equipment = equipment;
+                        }
+                    }
+                    
                     savePlayerData();
                     updatePlayerStats();
                     // Show subtle success message
