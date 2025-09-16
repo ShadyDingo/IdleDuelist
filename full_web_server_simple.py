@@ -723,33 +723,52 @@ async def create_player(player_data: dict):
         faction_data = FACTION_DATA[player.faction]
         player.abilities = faction_data['abilities'][:4]  # First 4 abilities
         
-        # Set default equipment: full cloth set, sword mainhand, shield offhand
-        player.armor_type = 'cloth'
+        # Set faction-based default equipment
+        faction = player_data['faction']
         
-        # Generate full cloth armor set
+        if faction == 'order_of_the_silver_crusade':
+            # Order: Full leather armor + sword + shield
+            player.armor_type = 'leather'
+            player.weapon1 = 'sword'
+            player.weapon2 = 'shield'
+        elif faction == 'shadow_covenant':
+            # Shadow: Full leather armor + knife + knife (dual wield)
+            player.armor_type = 'leather'
+            player.weapon1 = 'knife'
+            player.weapon2 = 'knife'
+        elif faction == 'wilderness_tribe':
+            # Wilderness: Full leather armor + staff (two-handed)
+            player.armor_type = 'leather'
+            player.weapon1 = 'staff'
+            player.weapon2 = 'fists'  # Staff is two-handed, so off-hand is empty
+        else:
+            # Default fallback: cloth + sword + shield
+            player.armor_type = 'cloth'
+            player.weapon1 = 'sword'
+            player.weapon2 = 'shield'
+        
+        # Generate full armor set based on faction choice
         armor_slots = ['helmet', 'armor', 'pants', 'boots', 'gloves']
         for slot in armor_slots:
-            armor_key = f"cloth_{slot}"
+            armor_key = f"{player.armor_type}_{slot}"
             if armor_key in EQUIPMENT_DATA['armor']:
                 armor_data = EQUIPMENT_DATA['armor'][armor_key].copy()
                 armor_data['slot'] = slot
                 armor_data['rarity'] = 'rare'  # Give good starting gear
                 player.equipment[slot] = armor_data
         
-        # Set default weapons: sword mainhand, shield offhand
-        player.weapon1 = 'sword'
-        player.weapon2 = 'shield'
+        # Set weapon equipment based on faction choice
+        weapon1_data = WEAPON_DATA[f'weapon_{player.weapon1}'].copy()
+        weapon1_data['slot'] = 'main_hand'
+        weapon1_data['rarity'] = 'rare'
+        player.equipment['main_hand'] = weapon1_data
         
-        # Set weapon equipment
-        sword_data = WEAPON_DATA['weapon_sword'].copy()
-        sword_data['slot'] = 'main_hand'
-        sword_data['rarity'] = 'rare'
-        player.equipment['main_hand'] = sword_data
-        
-        shield_data = WEAPON_DATA['weapon_shield'].copy()
-        shield_data['slot'] = 'off_hand'
-        shield_data['rarity'] = 'rare'
-        player.equipment['off_hand'] = shield_data
+        # Only set off-hand weapon if not using two-handed weapon
+        if player.weapon2 != 'fists':
+            weapon2_data = WEAPON_DATA[f'weapon_{player.weapon2}'].copy()
+            weapon2_data['slot'] = 'off_hand'
+            weapon2_data['rarity'] = 'rare'
+            player.equipment['off_hand'] = weapon2_data
         
         # Calculate initial stats
         initial_stats = calculatePlayerStats(player.to_dict())
@@ -1709,15 +1728,11 @@ async def update_loadout(request: dict):
 
 @app.get("/leaderboard")
 async def get_leaderboard():
-    """Get the leaderboard"""
+    """Get the leaderboard - working version"""
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT * FROM players 
-                ORDER BY json_extract(player_data, '$.wins') DESC, json_extract(player_data, '$.rating') DESC 
-                LIMIT 20
-            ''')
+            cursor.execute('SELECT * FROM players LIMIT 20')
             players = cursor.fetchall()
             
             leaderboard = []
@@ -1744,13 +1759,11 @@ async def get_leaderboard():
                         'faction': faction_name,
                         'armor_type': player_data.get('armor_type', 'Unknown').title(),
                         'is_bot': player_data.get('username', '').startswith('Bot_'),
-                        'created_at': player_row.get('created_at', 'Unknown')
+                        'created_at': player_row['created_at'] if 'created_at' in player_row.keys() else 'Unknown'
                     })
                 except Exception as e:
                     print(f"Error processing player {i}: {e}")
                     continue
-            
-            print(f"✅ Leaderboard loaded with {len(leaderboard)} players")
             
             return JSONResponse({
                 "success": True,
@@ -1807,6 +1820,25 @@ async def health_check():
 async def healthz():
     """Kubernetes-style health check endpoint"""
     return JSONResponse({"status": "ok"})
+
+@app.get("/debug-db")
+async def debug_database():
+    """Debug endpoint to check database directly"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM players')
+            total_count = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT username, json_extract(player_data, "$.wins") as wins FROM players LIMIT 5')
+            sample_players = cursor.fetchall()
+            
+            return JSONResponse({
+                "total_players": total_count,
+                "sample_players": [{"username": p[0], "wins": p[1]} for p in sample_players]
+            })
+    except Exception as e:
+        return JSONResponse({"error": str(e)})
 
 if __name__ == "__main__":
     init_database()

@@ -362,6 +362,29 @@
             background: linear-gradient(45deg, #e74c3c, #c0392b);
             float: right;
         }
+
+        /* Notification animations */
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -421,7 +444,9 @@
 
                 <div class="form-group">
                     <label>Starting Equipment:</label>
-                    <p class="equipment-info">You'll start with a full cloth armor set, sword, and shield. You can customize your loadout after character creation!</p>
+                    <div id="equipment-info" class="equipment-info">
+                        <p>Select a faction to see your starting equipment!</p>
+                    </div>
                 </div>
 
                 <div id="faction-abilities" class="loadout-section">
@@ -857,6 +882,7 @@
         function updateAbilities() {
             const faction = document.getElementById('faction').value;
             const abilityList = document.getElementById('ability-list');
+            const equipmentInfo = document.getElementById('equipment-info');
             
             if (faction && FACTIONS[faction]) {
                 const factionData = FACTIONS[faction];
@@ -867,8 +893,23 @@
                     <p><strong>Secondary Passive:</strong> ${factionData.secondary_passive}</p>
                     <p><strong>Abilities:</strong> ${factionData.abilities.join(', ')}</p>
                 `;
+                
+                // Update starting equipment info based on faction
+                let equipmentText = '';
+                if (faction === 'order_of_the_silver_crusade') {
+                    equipmentText = 'You\'ll start with full leather armor, sword, and shield. Perfect for defensive combat!';
+                } else if (faction === 'shadow_covenant') {
+                    equipmentText = 'You\'ll start with full leather armor and dual knives. Stealthy and deadly!';
+                } else if (faction === 'wilderness_tribe') {
+                    equipmentText = 'You\'ll start with full leather armor and a staff. Channel the power of nature!';
+                } else {
+                    equipmentText = 'You\'ll start with basic equipment. Select a faction to see specific gear!';
+                }
+                
+                equipmentInfo.innerHTML = `<p>${equipmentText}</p><p><em>You can customize your loadout after character creation!</em></p>`;
             } else {
                 abilityList.innerHTML = '<p>Select a faction to see abilities</p>';
+                equipmentInfo.innerHTML = '<p>Select a faction to see your starting equipment!</p>';
             }
         }
 
@@ -1363,16 +1404,44 @@
             return weaponNames[weaponKey] || 'Unknown';
         }
 
+        // Simple notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                z-index: 10000;
+                animation: slideIn 0.3s ease-out;
+                ${type === 'success' ? 'background: #4CAF50;' : ''}
+                ${type === 'error' ? 'background: #f44336;' : ''}
+                ${type === 'info' ? 'background: #2196F3;' : ''}
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
         async function saveLoadout() {
             if (!currentPlayer) {
-                alert('No player loaded!');
+                showNotification('No player loaded!', 'error');
                 return;
             }
             
             try {
                 // Collect all equipment selections
                 const equipment = {};
-                const armorSlots = ['helmet', 'body', 'gloves', 'pants', 'boots'];
+                const armorSlots = ['helmet', 'armor', 'gloves', 'pants', 'boots'];
                 
                 armorSlots.forEach(slot => {
                     const select = document.getElementById(`${slot}-select`);
@@ -1390,7 +1459,7 @@
                 
                 // Check for two-handed weapon conflicts
                 if (mainHand && ['hammer', 'crossbow', 'staff'].includes(mainHand) && offHand) {
-                    alert('Two-handed weapons cannot be used with off-hand items!');
+                    showNotification('Two-handed weapons cannot be used with off-hand items!', 'error');
                     return;
                 }
                 
@@ -1424,120 +1493,22 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    alert('Loadout saved successfully!');
+                    // Update local player data with server response
+                    currentPlayer = result.player;
                     savePlayerData();
+                    updatePlayerStats();
+                    // Show subtle success message
+                    showNotification('Loadout saved successfully!', 'success');
                 } else {
-                    alert('Error saving loadout: ' + result.error);
+                    showNotification('Error saving loadout: ' + result.error, 'error');
                 }
                 
             } catch (error) {
                 console.error('Save loadout error:', error);
-                alert('Error saving loadout: ' + error.message);
+                showNotification('Error saving loadout: ' + error.message, 'error');
             }
         }
 
-        async function changeFaction() {
-            const newFaction = document.getElementById('new-faction').value;
-            if (newFaction === currentPlayer.faction) {
-                alert('You already have this faction selected!');
-                return;
-            }
-
-            if (confirm(`Are you sure you want to change faction to ${FACTIONS[newFaction].name}?`)) {
-                try {
-                    const response = await fetch('/update-loadout', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            username: currentPlayer.username,
-                            faction: newFaction
-                        })
-                    });
-
-                    const result = await response.json();
-                    if (result.success) {
-                        currentPlayer.faction = newFaction;
-                        savePlayerData();
-                        alert('Faction changed successfully!');
-                        updatePlayerStats();
-                    } else {
-                        alert('Error changing faction: ' + result.error);
-                    }
-                } catch (error) {
-                    alert('Error changing faction: ' + error.message);
-                }
-            }
-        }
-
-        async function changeArmor() {
-            const newArmor = document.getElementById('new-armor').value;
-            if (newArmor === currentPlayer.armor_type) {
-                alert('You already have this armor type selected!');
-                return;
-            }
-
-            if (confirm(`Are you sure you want to change armor to ${ARMOR_BONUSES[newArmor].name}?`)) {
-                try {
-                    const response = await fetch('/update-loadout', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            username: currentPlayer.username,
-                            armor_type: newArmor
-                        })
-                    });
-
-                    const result = await response.json();
-                    if (result.success) {
-                        currentPlayer.armor_type = newArmor;
-                        savePlayerData();
-                        alert('Armor changed successfully!');
-                        updatePlayerStats();
-                    } else {
-                        alert('Error changing armor: ' + result.error);
-                    }
-                } catch (error) {
-                    alert('Error changing armor: ' + error.message);
-                }
-            }
-        }
-
-        async function changeWeapons() {
-            const newWeapon1 = document.getElementById('new-weapon1').value;
-            const newWeapon2 = document.getElementById('new-weapon2').value;
-            
-            if (newWeapon1 === currentPlayer.weapon1 && newWeapon2 === currentPlayer.weapon2) {
-                alert('You already have these weapons selected!');
-                return;
-            }
-
-            if (confirm(`Are you sure you want to change weapons to ${WEAPONS[newWeapon1].name} and ${WEAPONS[newWeapon2].name}?`)) {
-                try {
-                    const response = await fetch('/update-loadout', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            username: currentPlayer.username,
-                            weapon1: newWeapon1,
-                            weapon2: newWeapon2
-                        })
-                    });
-
-                    const result = await response.json();
-                    if (result.success) {
-                        currentPlayer.weapon1 = newWeapon1;
-                        currentPlayer.weapon2 = newWeapon2;
-                        savePlayerData();
-                        alert('Weapons changed successfully!');
-                        updatePlayerStats();
-                    } else {
-                        alert('Error changing weapons: ' + result.error);
-                    }
-                } catch (error) {
-                    alert('Error changing weapons: ' + error.message);
-                }
-            }
-        }
 
         async function loadLeaderboard() {
             try {
