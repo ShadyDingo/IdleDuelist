@@ -853,9 +853,24 @@
             updatePlayerStats();
         }
 
-        function showLoadoutManagement() {
+        async function showLoadoutManagement() {
             hideAllSections();
             document.getElementById('loadout-management').classList.add('active');
+            
+            // Refresh player data from server to ensure we have the latest loadout
+            if (currentPlayer && currentPlayer.username) {
+                try {
+                    const response = await fetch(`/get-player/${currentPlayer.username}`);
+                    const result = await response.json();
+                    if (result.success) {
+                        console.log('Refreshed player data from server:', result.player);
+                        currentPlayer = result.player;
+                        savePlayerData(); // Update localStorage with fresh data
+                    }
+                } catch (error) {
+                    console.error('Error refreshing player data:', error);
+                }
+            }
             
             // Load current equipment
             loadCurrentEquipment();
@@ -1163,11 +1178,13 @@
                 if (select && currentPlayer.equipment[equipmentKey]) {
                     const equipment = currentPlayer.equipment[equipmentKey];
                     const fullEquipmentKey = `${currentPlayer.armor_type}_${equipmentKey}`;
+                    console.log(`Setting ${slot} to ${fullEquipmentKey} (found equipment)`);
                     select.value = fullEquipmentKey;
                     updateSlotIcon(slot, fullEquipmentKey);
                 } else if (select) {
                     // Set default based on current armor type
                     const defaultKey = `${currentPlayer.armor_type}_${equipmentKey}`;
+                    console.log(`Setting ${slot} to ${defaultKey} (default fallback)`);
                     select.value = defaultKey;
                     updateSlotIcon(slot, defaultKey);
                 }
