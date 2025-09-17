@@ -735,6 +735,11 @@
                             const result = await response.json();
                             if (result.success) {
                                 console.log('Refreshed player data on page load:', result.player);
+                                console.log('Weapon fields in refreshed data:', {
+                                    weapon1: result.player.weapon1,
+                                    weapon2: result.player.weapon2,
+                                    armor_type: result.player.armor_type
+                                });
                                 currentPlayer = result.player;
                                 savePlayerData(); // Update localStorage with fresh data
                             }
@@ -1673,7 +1678,20 @@
         }
 
         function displayCharacterInfo() {
-            if (!currentPlayer) return;
+            if (!currentPlayer) {
+                console.log('displayCharacterInfo: No currentPlayer');
+                return;
+            }
+
+            console.log('displayCharacterInfo: currentPlayer data:', {
+                username: currentPlayer.username,
+                faction: currentPlayer.faction,
+                armor_type: currentPlayer.armor_type,
+                weapon1: currentPlayer.weapon1,
+                weapon2: currentPlayer.weapon2,
+                wins: currentPlayer.wins,
+                losses: currentPlayer.losses
+            });
 
             const factionData = FACTIONS[currentPlayer.faction];
             const armorData = ARMOR_BONUSES[currentPlayer.armor_type];
