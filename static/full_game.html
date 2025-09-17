@@ -549,7 +549,7 @@
 
                 <!-- Stats Preview -->
                 <div class="stats-preview">
-                    <h3>📊 Your Stats</h3>
+                    <h3>📊 Live Stats Preview</h3>
                     <div id="compiled-stats">
                         <div class="stat-row">
                             <div class="stat-item">
@@ -608,6 +608,49 @@
                 <div class="loadout-actions">
                     <button onclick="saveLoadout()" class="save-btn">💾 Save Loadout</button>
                     <button onclick="showGameInterface()" class="back-btn">← Back to Menu</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Duel Screen -->
+        <div id="duel-screen" class="game-section">
+            <h2>⚔️ Duel in Progress</h2>
+            <div class="nav-buttons">
+                <button onclick="showGameInterface()" id="back-to-game-btn" style="display: none;">← Back to Game</button>
+            </div>
+
+            <div class="duel-container">
+                <!-- Duel Status -->
+                <div class="duel-status">
+                    <div class="player-info">
+                        <h3>${currentPlayer ? currentPlayer.username : 'Player'}</h3>
+                        <div class="hp-bar">
+                            <div class="hp-fill" id="player-hp-bar"></div>
+                            <span class="hp-text" id="player-hp-text">250/250</span>
+                        </div>
+                    </div>
+                    <div class="vs-indicator">VS</div>
+                    <div class="player-info">
+                        <h3 id="opponent-name">Opponent</h3>
+                        <div class="hp-bar">
+                            <div class="hp-fill" id="opponent-hp-bar"></div>
+                            <span class="hp-text" id="opponent-hp-text">250/250</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Combat Log -->
+                <div class="duel-log">
+                    <h3>Combat Log</h3>
+                    <div id="duel-combat-log" class="combat-log-content">
+                        <p>Duel starting...</p>
+                    </div>
+                </div>
+
+                <!-- Duel Controls -->
+                <div class="duel-controls">
+                    <button onclick="startDuel()" id="start-duel-btn" class="duel-btn">⚔️ Start Duel</button>
+                    <button onclick="showGameInterface()" id="duel-again-btn" class="duel-btn" style="display: none;">🔄 Duel Again</button>
                 </div>
             </div>
         </div>
@@ -724,10 +767,10 @@
         };
 
         const WEAPON_TIERS = {
-            'basic': { name: 'Basic', str: 1, dex: 1, description: 'Basic weapon' },
-            'enhanced': { name: 'Enhanced', str: 2, dex: 2, description: 'Enhanced weapon' },
-            'masterwork': { name: 'Masterwork', str: 3, dex: 3, description: 'Masterwork weapon' },
-            'legendary': { name: 'Legendary', str: 4, dex: 4, description: 'Legendary weapon' }
+            'basic': { name: 'Basic', str: 1, dex: 1, con: 0, int: 0, description: 'Basic weapon' },
+            'enhanced': { name: 'Enhanced', str: 2, dex: 2, con: 1, int: 1, description: 'Enhanced weapon' },
+            'masterwork': { name: 'Masterwork', str: 3, dex: 3, con: 2, int: 2, description: 'Masterwork weapon' },
+            'legendary': { name: 'Legendary', str: 4, dex: 4, con: 3, int: 3, description: 'Legendary weapon' }
         };
 
         const WEAPONS = {
@@ -776,12 +819,16 @@
                 const weapon1Tier = WEAPON_TIERS[WEAPONS[weapon1].tier];
                 baseStats.strength += weapon1Tier.str;
                 baseStats.dexterity += weapon1Tier.dex;
+                baseStats.constitution += weapon1Tier.con;
+                baseStats.intellect += weapon1Tier.int;
             }
             
             if (weapon2 !== 'fists' && WEAPONS[weapon2] && WEAPON_TIERS[WEAPONS[weapon2].tier]) {
                 const weapon2Tier = WEAPON_TIERS[WEAPONS[weapon2].tier];
                 baseStats.strength += weapon2Tier.str;
                 baseStats.dexterity += weapon2Tier.dex;
+                baseStats.constitution += weapon2Tier.con;
+                baseStats.intellect += weapon2Tier.int;
             }
 
             // Calculate derived stats
@@ -1136,65 +1183,17 @@
         function updatePlayerStats() {
             if (!currentPlayer) return;
 
+            // Update player name
+            document.getElementById('player-name').textContent = currentPlayer.username;
+            
+            // Clear main screen stats - they'll be shown in Character Info instead
             const statsContainer = document.getElementById('player-stats');
-            const playerStats = calculatePlayerStats(currentPlayer);
-
             statsContainer.innerHTML = `
-                <div class="stat-card">
-                    <h4>💪 Strength</h4>
-                    <div class="stat-value">${playerStats.strength}</div>
-                </div>
-                <div class="stat-card">
-                    <h4>🏃 Dexterity</h4>
-                    <div class="stat-value">${playerStats.dexterity}</div>
-                </div>
-                <div class="stat-card">
-                    <h4>🛡️ Constitution</h4>
-                    <div class="stat-value">${playerStats.constitution}</div>
-                </div>
-                <div class="stat-card">
-                    <h4>🧠 Intellect</h4>
-                    <div class="stat-value">${playerStats.intellect}</div>
-                </div>
-                <div class="stat-card">
-                    <h4>❤️ HP</h4>
-                    <div class="stat-value">${playerStats.hp}</div>
-                </div>
-                <div class="stat-card">
-                    <h4>⚔️ Attack Power</h4>
-                    <div class="stat-value">${playerStats.attack_power}</div>
-                </div>
-                <div class="stat-card">
-                    <h4>✨ Spell Power</h4>
-                    <div class="stat-value">${playerStats.spell_power}</div>
-                </div>
-                <div class="stat-card">
-                    <h4>💥 Crit Chance</h4>
-                    <div class="stat-value">${(playerStats.crit_chance * 100).toFixed(1)}%</div>
-                </div>
-                <div class="stat-card">
-                    <h4>🛡️ Parry Chance</h4>
-                    <div class="stat-value">${(playerStats.parry_chance * 100).toFixed(1)}%</div>
-                </div>
-                <div class="stat-card">
-                    <h4>💨 Dodge Chance</h4>
-                    <div class="stat-value">${(playerStats.dodge_chance * 100).toFixed(1)}%</div>
-                </div>
-                <div class="stat-card">
-                    <h4>🏆 Wins</h4>
-                    <div class="stat-value">${currentPlayer.wins || 0}</div>
-                </div>
-                <div class="stat-card">
-                    <h4>💀 Losses</h4>
-                    <div class="stat-value">${currentPlayer.losses || 0}</div>
-                </div>
-                <div class="stat-card">
-                    <h4>⚖️ Win Rate</h4>
-                    <div class="stat-value">${calculateWinRate()}%</div>
+                <div class="welcome-message">
+                    <h3>Welcome back, ${currentPlayer.username}!</h3>
+                    <p>Ready for your next duel? Choose your action below.</p>
                 </div>
             `;
-
-            document.getElementById('player-name').textContent = currentPlayer.username;
         }
 
         function calculateWinRate() {
@@ -1279,9 +1278,18 @@
             if (duelInProgress) return;
             duelInProgress = true;
             
-            const duelBtn = document.getElementById('duel-btn');
-            duelBtn.disabled = true;
-            duelBtn.textContent = '⚔️ Dueling...';
+            // Show duel screen
+            hideAllSections();
+            document.getElementById('duel-screen').classList.add('active');
+            
+            const startBtn = document.getElementById('start-duel-btn');
+            const againBtn = document.getElementById('duel-again-btn');
+            const backBtn = document.getElementById('back-to-game-btn');
+            
+            startBtn.disabled = true;
+            startBtn.textContent = '⚔️ Dueling...';
+            againBtn.style.display = 'none';
+            backBtn.style.display = 'none';
 
             try {
                 const response = await fetch('/duel', {
@@ -1292,21 +1300,34 @@
 
                 const result = await response.json();
                 if (result.success) {
-                    displayCombatLog(result.combat_log);
+                    // Update opponent name
+                    document.getElementById('opponent-name').textContent = result.opponent_name || 'Bot';
+                    
+                    // Display combat log with turn-by-turn animation
+                    await displayDuelCombatLog(result.combat_log);
+                    
+                    // Update player stats
                     currentPlayer.wins = result.player_wins;
                     currentPlayer.losses = result.player_losses;
                     savePlayerData();
                     updatePlayerStats();
+                    
+                    // Show completion buttons
+                    startBtn.style.display = 'none';
+                    againBtn.style.display = 'inline-block';
+                    backBtn.style.display = 'inline-block';
                 } else {
                     alert('Duel failed: ' + result.error);
+                    startBtn.disabled = false;
+                    startBtn.textContent = '⚔️ Start Duel';
                 }
             } catch (error) {
                 console.error('Duel error:', error);
                 alert('Error starting duel: ' + error.message);
+                startBtn.disabled = false;
+                startBtn.textContent = '⚔️ Start Duel';
             } finally {
                 duelInProgress = false;
-                duelBtn.disabled = false;
-                duelBtn.textContent = '⚔️ Start New Duel';
             }
         }
 
@@ -1389,6 +1410,62 @@
             
             // Start displaying entries
             displayNextEntry();
+        }
+
+        async function displayDuelCombatLog(combatLog) {
+            const logContainer = document.getElementById('duel-combat-log');
+            logContainer.innerHTML = '';
+            
+            // Display combat log incrementally with delays
+            for (let i = 0; i < combatLog.length; i++) {
+                const entry = combatLog[i];
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.textContent = entry;
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+                
+                // Update HP bars if entry contains HP info
+                updateHPBars(entry);
+                
+                // Wait before next entry
+                await new Promise(resolve => setTimeout(resolve, 800));
+            }
+        }
+
+        function updateHPBars(logEntry) {
+            // Parse HP from log entries like "Player: 150 HP | Opponent: 200 HP"
+            const hpMatch = logEntry.match(/(\w+):\s*(\d+(?:\.\d+)?)\s*HP/);
+            if (hpMatch) {
+                const name = hpMatch[1];
+                const hp = parseFloat(hpMatch[2]);
+                
+                if (name === currentPlayer.username) {
+                    updateHPBar('player-hp-bar', 'player-hp-text', hp, 250);
+                } else {
+                    updateHPBar('opponent-hp-bar', 'opponent-hp-text', hp, 250);
+                }
+            }
+        }
+
+        function updateHPBar(barId, textId, currentHP, maxHP) {
+            const bar = document.getElementById(barId);
+            const text = document.getElementById(textId);
+            
+            if (bar && text) {
+                const percentage = Math.max(0, (currentHP / maxHP) * 100);
+                bar.style.width = percentage + '%';
+                text.textContent = `${Math.round(currentHP)}/${maxHP}`;
+                
+                // Change color based on HP level
+                if (percentage > 60) {
+                    bar.style.backgroundColor = '#4CAF50'; // Green
+                } else if (percentage > 30) {
+                    bar.style.backgroundColor = '#FF9800'; // Orange
+                } else {
+                    bar.style.backgroundColor = '#F44336'; // Red
+                }
+            }
         }
 
         function loadCurrentEquipment() {
@@ -1866,58 +1943,106 @@
                 return;
             }
 
-            console.log('displayCharacterInfo: currentPlayer data:', {
-                username: currentPlayer.username,
-                faction: currentPlayer.faction,
-                armor_type: currentPlayer.armor_type,
-                weapon1: currentPlayer.weapon1,
-                weapon2: currentPlayer.weapon2,
-                wins: currentPlayer.wins,
-                losses: currentPlayer.losses
-            });
-
             const factionData = FACTIONS[currentPlayer.faction];
-            const armorData = ARMOR_BONUSES[currentPlayer.armor_type];
-            const weapon1Data = WEAPONS[currentPlayer.weapon1] || { name: 'Unknown Weapon', attack: 0, speed: 0, crit_chance: 0 };
-            const weapon2Data = WEAPONS[currentPlayer.weapon2] || { name: 'Unknown Weapon', attack: 0, speed: 0, crit_chance: 0 };
+            const armorTier = ARMOR_TIERS[currentPlayer.armor_type];
+            const weapon1Data = WEAPONS[currentPlayer.weapon1] || { name: 'Fists', tier: 'basic' };
+            const weapon2Data = WEAPONS[currentPlayer.weapon2] || { name: 'Fists', tier: 'basic' };
+            const weapon1Tier = WEAPON_TIERS[weapon1Data.tier];
+            const weapon2Tier = WEAPON_TIERS[weapon2Data.tier];
+            
+            // Calculate current stats
+            const playerStats = calculatePlayerStats(currentPlayer);
 
             const details = document.getElementById('character-details');
             details.innerHTML = `
-                <div class="loadout-section">
-                    <h3>Character: ${currentPlayer.username}</h3>
+                <div class="character-section">
+                    <h3>Character Overview</h3>
+                    <p><strong>Name:</strong> ${currentPlayer.username}</p>
                     <p><strong>Faction:</strong> ${factionData.name}</p>
-                    <p><strong>Armor Type:</strong> ${armorData.name}</p>
-                    <p><strong>Primary Weapon:</strong> ${weapon1Data.name}</p>
-                    <p><strong>Secondary Weapon:</strong> ${weapon2Data.name}</p>
+                    <p><strong>Armor Tier:</strong> ${armorTier.name} (${armorTier.description})</p>
+                    <p><strong>Main Weapon:</strong> ${weapon1Data.name} (${weapon1Tier.name})</p>
+                    <p><strong>Off-Hand Weapon:</strong> ${weapon2Data.name} (${weapon2Tier.name})</p>
                 </div>
                 
-                <div class="loadout-section">
+                <div class="character-section">
+                    <h3>Core Attributes</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">💪 Strength:</span>
+                            <span class="stat-value">${playerStats.strength}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">🏃 Dexterity:</span>
+                            <span class="stat-value">${playerStats.dexterity}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">🛡️ Constitution:</span>
+                            <span class="stat-value">${playerStats.constitution}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">🧠 Intellect:</span>
+                            <span class="stat-value">${playerStats.intellect}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="character-section">
+                    <h3>Combat Stats</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">❤️ HP:</span>
+                            <span class="stat-value">${playerStats.hp}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">⚔️ Attack Power:</span>
+                            <span class="stat-value">${playerStats.attack_power}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">✨ Spell Power:</span>
+                            <span class="stat-value">${playerStats.spell_power}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">💥 Crit Chance:</span>
+                            <span class="stat-value">${(playerStats.crit_chance * 100).toFixed(1)}%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">🛡️ Parry Chance:</span>
+                            <span class="stat-value">${(playerStats.parry_chance * 100).toFixed(1)}%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">💨 Dodge Chance:</span>
+                            <span class="stat-value">${(playerStats.dodge_chance * 100).toFixed(1)}%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="character-section">
                     <h3>Faction Abilities</h3>
                     <p><strong>Primary Passive:</strong> ${factionData.passive}</p>
                     <p><strong>Secondary Passive:</strong> ${factionData.secondary_passive}</p>
                     <p><strong>Abilities:</strong> ${factionData.abilities.join(', ')}</p>
                 </div>
 
-                <div class="loadout-section">
-                    <h3>Armor Set Bonuses</h3>
-                    <div class="bonus-info">
-                        <h4>3-Piece Set: ${armorData['3_piece'].name}</h4>
-                        <p><strong>Effects:</strong> ${armorData['3_piece'].effects}</p>
-                        <p><strong>Description:</strong> ${armorData['3_piece'].description}</p>
+                <div class="character-section">
+                    <h3>Combat Record</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">🏆 Wins:</span>
+                            <span class="stat-value">${currentPlayer.wins || 0}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">💀 Losses:</span>
+                            <span class="stat-value">${currentPlayer.losses || 0}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">⚖️ Win Rate:</span>
+                            <span class="stat-value">${calculateWinRate()}%</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">📊 Total Duels:</span>
+                            <span class="stat-value">${(currentPlayer.wins || 0) + (currentPlayer.losses || 0)}</span>
+                        </div>
                     </div>
-                    <div class="bonus-info">
-                        <h4>5-Piece Set: ${armorData['5_piece'].name}</h4>
-                        <p><strong>Effects:</strong> ${armorData['5_piece'].effects}</p>
-                        <p><strong>Description:</strong> ${armorData['5_piece'].description}</p>
-                    </div>
-                </div>
-
-                <div class="loadout-section">
-                    <h3>Combat Statistics</h3>
-                    <p><strong>Total Wins:</strong> ${currentPlayer.wins || 0}</p>
-                    <p><strong>Total Losses:</strong> ${currentPlayer.losses || 0}</p>
-                    <p><strong>Win Rate:</strong> ${calculateWinRate()}%</p>
-                    <p><strong>Total Duels:</strong> ${(currentPlayer.wins || 0) + (currentPlayer.losses || 0)}</p>
                 </div>
             `;
         }

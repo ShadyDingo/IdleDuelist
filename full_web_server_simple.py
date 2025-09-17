@@ -1763,7 +1763,7 @@ async def get_leaderboard():
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT * FROM players LIMIT 20')
+            cursor.execute('SELECT * FROM players ORDER BY json_extract(player_data, "$.rating") DESC LIMIT 20')
             players = cursor.fetchall()
             
             leaderboard = []
