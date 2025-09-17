@@ -705,7 +705,8 @@
             'staff': { name: 'Staff', attack: 8, speed: 9, crit_chance: 0.07 },
             'knife': { name: 'Knife', attack: 9, speed: 12, crit_chance: 0.10 },
             'hammer': { name: 'Hammer', attack: 18, speed: 4, crit_chance: 0.02 },
-            'shield': { name: 'Shield', attack: 6, speed: 6, crit_chance: 0.01 }
+            'shield': { name: 'Shield', attack: 6, speed: 6, crit_chance: 0.01 },
+            'fists': { name: 'Fists', attack: 5, speed: 10, crit_chance: 0.05 }
         };
 
         let currentPlayer = null;
@@ -1248,9 +1249,21 @@
         }
 
         function updateSlotPreview(slot) {
-            const select = document.getElementById(`${slot}-select`);
+            // Map slot names to actual element IDs
+            const slotToElementId = {
+                'main_hand': 'main-hand-select',
+                'off_hand': 'off-hand-select',
+                'helmet': 'helmet-select',
+                'body': 'body-select',
+                'gloves': 'gloves-select',
+                'pants': 'pants-select',
+                'boots': 'boots-select'
+            };
+            
+            const elementId = slotToElementId[slot] || `${slot}-select`;
+            const select = document.getElementById(elementId);
             if (!select) {
-                console.warn(`updateSlotPreview: Element ${slot}-select not found`);
+                console.warn(`updateSlotPreview: Element ${elementId} not found for slot ${slot}`);
                 return;
             }
             const value = select.value;
@@ -1706,8 +1719,8 @@
 
             const factionData = FACTIONS[currentPlayer.faction];
             const armorData = ARMOR_BONUSES[currentPlayer.armor_type];
-            const weapon1Data = WEAPONS[currentPlayer.weapon1];
-            const weapon2Data = WEAPONS[currentPlayer.weapon2];
+            const weapon1Data = WEAPONS[currentPlayer.weapon1] || { name: 'Unknown Weapon', attack: 0, speed: 0, crit_chance: 0 };
+            const weapon2Data = WEAPONS[currentPlayer.weapon2] || { name: 'Unknown Weapon', attack: 0, speed: 0, crit_chance: 0 };
 
             const details = document.getElementById('character-details');
             details.innerHTML = `
