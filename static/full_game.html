@@ -1582,10 +1582,18 @@
                     return;
                 }
                 
-                // Use current player's armor type to preserve it
-                let armorType = currentPlayer.armor_type || 'cloth';
+                // Calculate armor type from selected equipment
+                let armorType = 'cloth'; // default
+                if (Object.keys(equipment).length > 0) {
+                    // Check all equipment pieces to determine armor type
+                    const equipmentNames = Object.values(equipment).map(eq => eq.name || '').join(' ');
+                    console.log('saveLoadout: Equipment names being checked:', equipmentNames);
+                    if (equipmentNames.includes('leather')) armorType = 'leather';
+                    else if (equipmentNames.includes('metal')) armorType = 'metal';
+                    // If no specific armor type found, keep default 'cloth'
+                }
                 
-                console.log('saveLoadout: Preserving armor_type:', armorType);
+                console.log('saveLoadout: Calculated armor_type:', armorType);
                 console.log('saveLoadout: Equipment being saved:', equipment);
                 console.log('saveLoadout: Weapons being saved:', {weapon1: mainHand, weapon2: offHand});
                 
