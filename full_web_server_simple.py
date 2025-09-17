@@ -1742,6 +1742,12 @@ def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
 
 def get_player_action(player: WebPlayer, round_number: int) -> str:
     """Get player action (ability or attack) based on alternating pattern"""
+    # Ensure player has abilities
+    if not player.abilities or len(player.abilities) == 0:
+        # Default abilities if none selected
+        default_abilities = ['divine_strike', 'healing_light', 'shadow_strike', 'earthquake']
+        player.abilities = default_abilities
+    
     # Alternating pattern: odd rounds use abilities, even rounds use normal attacks
     if round_number % 2 == 1 and player.abilities:
         # Odd rounds: use abilities
