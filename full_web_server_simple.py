@@ -1646,8 +1646,8 @@ def get_ability_icon(ability_name: str) -> str:
         # Try .PNG first, then .png as fallback
         icon_path = f'/assets/abilities/ability_{ability_name}.PNG'
     
-    # Create HTML img tag with fallback handling
-    return f'<img src="{icon_path}" width="20" height="20" style="vertical-align: middle;" onerror="this.style.display=\'none\'; this.nextSibling.style.display=\'inline\';"><span style="display: none;">⚡</span>'
+    # Create HTML img tag with fallback handling - use double quotes to avoid JSON escaping issues
+    return f'<img src="{icon_path}" width="20" height="20" style="vertical-align: middle;" onerror="this.style.display=&quot;none&quot;; this.nextSibling.style.display=&quot;inline&quot;;"><span style="display: none;">⚡</span>'
 
 def apply_round_passives(player: WebPlayer, duel_log: list):
     """Apply faction passive effects that trigger each round"""
@@ -1818,12 +1818,25 @@ def execute_ability(attacker: WebPlayer, defender: WebPlayer, ability_name: str,
     
     return {"log": log}
 
+def get_weapon_icon(weapon_name: str) -> str:
+    """Get weapon icon HTML"""
+    if weapon_name == 'fists':
+        return '👊'
+    
+    # Try to get weapon PNG
+    weapon_path = f'/assets/weapons/weapon_{weapon_name}.PNG'
+    return f'<img src="{weapon_path}" width="16" height="16" style="vertical-align: middle;" onerror="this.style.display=&quot;none&quot;; this.nextSibling.style.display=&quot;inline&quot;;"><span style="display: none;">⚔️</span>'
+
 def execute_attack(attacker: WebPlayer, defender: WebPlayer, attacker_type: str) -> dict:
     """Execute a regular attack"""
     log = []
     
     base_damage = attacker.get_total_damage()
     damage = base_damage
+    
+    # Get weapon icons for display
+    main_weapon_icon = get_weapon_icon(attacker.weapon1)
+    off_weapon_icon = get_weapon_icon(attacker.weapon2) if attacker.weapon2 != 'fists' else ''
     
     # Apply faction weapon bonuses
     faction_data = FACTION_DATA.get(attacker.faction, {})
@@ -1846,9 +1859,9 @@ def execute_attack(attacker: WebPlayer, defender: WebPlayer, attacker_type: str)
     
     if is_crit:
         damage *= 2
-        log.append(f"💥 {attacker.username} lands a critical hit for {damage} damage!")
+        log.append(f"{main_weapon_icon} {attacker.username} lands a critical hit for {damage} damage!")
     else:
-        log.append(f"⚔️ {attacker.username} attacks for {damage} damage!")
+        log.append(f"{main_weapon_icon} {attacker.username} attacks for {damage} damage!")
     
     # Apply damage reduction from faction passives
     if hasattr(defender, 'damage_reduction'):
@@ -2044,6 +2057,17 @@ async def test_assets():
         "asset_count": len(asset_files),
         "sample_assets": asset_files[:5],  # Show first 5 assets
         "message": f"Found {len(asset_files)} asset files"
+    }
+
+@app.get("/test-html")
+async def test_html():
+    """Test HTML rendering"""
+    from full_web_server_simple import get_ability_icon, get_weapon_icon
+    
+    return {
+        "ability_icon": get_ability_icon("divine_strike"),
+        "weapon_icon": get_weapon_icon("sword"),
+        "raw_html": '<img src="/assets/abilities/ability_divine_strike.PNG" width="20" height="20">'
     }
 
 @app.get("/debug-db")

@@ -600,6 +600,7 @@
 
             <div class="nav-buttons">
                 <button onclick="showLoadoutManagement()">Manage Loadout</button>
+                <button onclick="showAbilitySelection()">✨ Select Abilities</button>
                 <button onclick="startDuel()">⚔️ Duel</button>
                 <button onclick="showLeaderboard()">🏆 Leaderboard</button>
                 <button onclick="showCharacterInfo()">📊 Character Info</button>
@@ -1201,6 +1202,37 @@
             updatePlayerStats();
         }
 
+        function showAbilitySelection() {
+            hideAllSections();
+            document.getElementById('loadout-management').classList.add('active');
+            
+            // Scroll to ability selection section
+            setTimeout(() => {
+                const abilitySection = document.querySelector('.ability-section');
+                if (abilitySection) {
+                    abilitySection.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100);
+            
+            // Refresh player data from server to ensure we have the latest loadout
+            if (currentPlayer && currentPlayer.username) {
+                try {
+                    fetch(`/get-player/${currentPlayer.username}`)
+                        .then(response => response.json())
+                        .then(result => {
+                            if (result.success) {
+                                console.log('Refreshed player data from server:', result.player);
+                                currentPlayer = result.player;
+                                savePlayerData(); // Update localStorage with fresh data
+                                loadSelectedAbilities();
+                            }
+                        });
+                } catch (error) {
+                    console.error('Error refreshing player data:', error);
+                }
+            }
+        }
+
         async function showLoadoutManagement() {
             hideAllSections();
             document.getElementById('loadout-management').classList.add('active');
@@ -1559,6 +1591,13 @@
         async function startDuel() {
             if (duelInProgress) return;
             duelInProgress = true;
+            
+            // Check if player has selected abilities
+            if (!currentPlayer.selected_abilities || currentPlayer.selected_abilities.length === 0) {
+                showNotification('Please select 4 abilities first! Click "Select Abilities" to choose your abilities.', 'warning');
+                duelInProgress = false;
+                return;
+            }
             
             // Show duel screen
             hideAllSections();
