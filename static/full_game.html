@@ -512,6 +512,15 @@
         .ability-button span {
             font-weight: 500;
         }
+        
+        .ability-description {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 4px;
+            line-height: 1.2;
+            max-width: 200px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -1474,7 +1483,7 @@
             updateCompiledStats();
         }
 
-        function loadSelectedAbilities() {
+        async function loadSelectedAbilities() {
             if (!currentPlayer) return;
             
             // All abilities available to all players
@@ -1492,6 +1501,15 @@
             // Clear previous content
             abilitySelection.innerHTML = '';
             selectedList.innerHTML = '';
+            
+            // Fetch ability descriptions
+            let abilityDescriptions = {};
+            try {
+                const response = await fetch('/ability-descriptions');
+                abilityDescriptions = await response.json();
+            } catch (error) {
+                console.error('Error fetching ability descriptions:', error);
+            }
             
             // Create ability buttons for all abilities
             allAbilities.forEach(ability => {
@@ -1519,6 +1537,12 @@
                 const abilityText = document.createElement('span');
                 abilityText.textContent = ability.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
                 abilityButton.appendChild(abilityText);
+                
+                // Add description
+                const abilityDescription = document.createElement('div');
+                abilityDescription.className = 'ability-description';
+                abilityDescription.textContent = abilityDescriptions[ability] || 'No description available';
+                abilityButton.appendChild(abilityDescription);
                 
                 abilityButton.onclick = () => toggleAbility(ability, abilityButton);
                 
@@ -1682,8 +1706,12 @@
                 const logEntry = combatLog[currentIndex];
                 const p = document.createElement('p');
                 
-                // Handle HTML content (like ability icons)
-                if (logEntry.includes('<img')) {
+                // Handle asset paths and generate HTML
+                if (logEntry.includes('/assets/')) {
+                    // This is an asset path, generate HTML
+                    const assetPath = logEntry;
+                    p.innerHTML = `<img src="${assetPath}" width="20" height="20" style="vertical-align: middle;" onerror="this.style.display='none'; this.nextSibling.style.display='inline';"><span style="display: none;">⚡</span>`;
+                } else if (logEntry.includes('<img')) {
                     p.innerHTML = logEntry;
                 } else {
                     p.textContent = logEntry;

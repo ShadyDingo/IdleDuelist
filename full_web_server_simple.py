@@ -557,6 +557,24 @@ class WebPlayer:
             'hammer': 'masterwork'
         }
 
+        # Ability descriptions
+        ability_descriptions = {
+            'divine_strike': 'Deals damage based on Attack Power + Spell Power. Has a chance to stun the target.',
+            'healing_light': 'Heals the caster for a large amount based on Spell Power.',
+            'righteous_fury': 'Increases damage dealt for the next few rounds. Scales with Spell Power.',
+            'purification': 'Removes all negative effects and heals based on Spell Power.',
+            'shadow_strike': 'Deals high damage with increased crit chance. Scales with Attack Power.',
+            'shadow_clone': 'Creates a clone that attacks alongside you for several rounds.',
+            'assassinate': 'Deals massive damage if target is below 50% HP. Scales with Attack Power.',
+            'vanish': 'Makes you invisible for 2 rounds, causing attacks to miss.',
+            'earthquake': 'Deals area damage to all enemies. Scales with Attack Power + Spell Power.',
+            'thorn_barrier': 'Reflects damage back to attackers for several rounds.',
+            'wild_growth': 'Heals over time and increases max HP temporarily.',
+            'natures_wrath': 'Deals damage and applies poison over time. Scales with Spell Power.',
+            'shield_of_faith': 'Creates a protective barrier that absorbs damage.',
+            'spirit_form': 'Grants immunity to physical attacks for 2 rounds.'
+        }
+
         # Add armor stats
         if self.armor_type in armor_tiers:
             armor = armor_tiers[self.armor_type]
@@ -1646,8 +1664,8 @@ def get_ability_icon(ability_name: str) -> str:
         # Try .PNG first, then .png as fallback
         icon_path = f'/assets/abilities/ability_{ability_name}.PNG'
     
-    # Create HTML img tag with fallback handling - use double quotes to avoid JSON escaping issues
-    return f'<img src="{icon_path}" width="20" height="20" style="vertical-align: middle;" onerror="this.style.display=&quot;none&quot;; this.nextSibling.style.display=&quot;inline&quot;;"><span style="display: none;">⚡</span>'
+    # Return just the path - let frontend handle HTML generation
+    return icon_path
 
 def apply_round_passives(player: WebPlayer, duel_log: list):
     """Apply faction passive effects that trigger each round"""
@@ -1825,7 +1843,7 @@ def get_weapon_icon(weapon_name: str) -> str:
     
     # Try to get weapon PNG
     weapon_path = f'/assets/weapons/weapon_{weapon_name}.PNG'
-    return f'<img src="{weapon_path}" width="16" height="16" style="vertical-align: middle;" onerror="this.style.display=&quot;none&quot;; this.nextSibling.style.display=&quot;inline&quot;;"><span style="display: none;">⚔️</span>'
+    return weapon_path
 
 def execute_attack(attacker: WebPlayer, defender: WebPlayer, attacker_type: str) -> dict:
     """Execute a regular attack"""
@@ -2067,8 +2085,35 @@ async def test_html():
     return {
         "ability_icon": get_ability_icon("divine_strike"),
         "weapon_icon": get_weapon_icon("sword"),
-        "raw_html": '<img src="/assets/abilities/ability_divine_strike.PNG" width="20" height="20">'
+        "raw_html": '<img src="/assets/abilities/ability_divine_strike.PNG" width="20" height="20">',
+        "test_paths": [
+            "/assets/abilities/ability_divine_strike.PNG",
+            "/assets/abilities/ability_divine_strike.png",
+            "/assets/weapons/weapon_sword.PNG",
+            "/assets/weapons/weapon_hammer.PNG"
+        ]
     }
+
+@app.get("/ability-descriptions")
+async def get_ability_descriptions():
+    """Get all ability descriptions"""
+    ability_descriptions = {
+        'divine_strike': 'Deals damage based on Attack Power + Spell Power. Has a chance to stun the target.',
+        'healing_light': 'Heals the caster for a large amount based on Spell Power.',
+        'righteous_fury': 'Increases damage dealt for the next few rounds. Scales with Spell Power.',
+        'purification': 'Removes all negative effects and heals based on Spell Power.',
+        'shadow_strike': 'Deals high damage with increased crit chance. Scales with Attack Power.',
+        'shadow_clone': 'Creates a clone that attacks alongside you for several rounds.',
+        'assassinate': 'Deals massive damage if target is below 50% HP. Scales with Attack Power.',
+        'vanish': 'Makes you invisible for 2 rounds, causing attacks to miss.',
+        'earthquake': 'Deals area damage to all enemies. Scales with Attack Power + Spell Power.',
+        'thorn_barrier': 'Reflects damage back to attackers for several rounds.',
+        'wild_growth': 'Heals over time and increases max HP temporarily.',
+        'natures_wrath': 'Deals damage and applies poison over time. Scales with Spell Power.',
+        'shield_of_faith': 'Creates a protective barrier that absorbs damage.',
+        'spirit_form': 'Grants immunity to physical attacks for 2 rounds.'
+    }
+    return ability_descriptions
 
 @app.get("/debug-db")
 async def debug_database():
