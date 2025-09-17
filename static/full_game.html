@@ -495,108 +495,112 @@
             </div>
 
             <div class="loadout-screen">
-                <!-- Equipment Slots -->
-                <div class="equipment-slots">
-                    <!-- Left Column - Armor Slots -->
-                    <div class="armor-slots">
-                        <div class="equipment-slot" data-slot="helmet">
-                            <div class="slot-icon" id="helmet-icon">🪖</div>
-                            <div class="slot-label">helmet</div>
-                            <select class="slot-select" id="helmet-select" onchange="updateSlotPreview('helmet')">
-                                <option value="">Empty</option>
-                                <option value="cloth_helmet">Cloth Helmet</option>
-                                <option value="leather_helmet">Leather Helmet</option>
-                                <option value="metal_helmet">Metal Helmet</option>
-                            </select>
-                        </div>
-                        
-                        <div class="equipment-slot" data-slot="body">
-                            <div class="slot-icon" id="body-icon">🦺</div>
-                            <div class="slot-label">body</div>
-                            <select class="slot-select" id="body-select" onchange="updateSlotPreview('body')">
-                                <option value="">Empty</option>
-                                <option value="cloth_armor">Cloth Armor</option>
-                                <option value="leather_armor">Leather Armor</option>
-                                <option value="metal_armor">Metal Armor</option>
-                            </select>
-                        </div>
-                        
-                        <div class="equipment-slot" data-slot="gloves">
-                            <div class="slot-icon" id="gloves-icon">🧤</div>
-                            <div class="slot-label">gloves</div>
-                            <select class="slot-select" id="gloves-select" onchange="updateSlotPreview('gloves')">
-                                <option value="">Empty</option>
-                                <option value="cloth_gloves">Cloth Gloves</option>
-                                <option value="leather_gloves">Leather Gloves</option>
-                                <option value="metal_gloves">Metal Gloves</option>
-                            </select>
-                        </div>
-                        
-                        <div class="equipment-slot" data-slot="pants">
-                            <div class="slot-icon" id="pants-icon">👖</div>
-                            <div class="slot-label">pants</div>
-                            <select class="slot-select" id="pants-select" onchange="updateSlotPreview('pants')">
-                                <option value="">Empty</option>
-                                <option value="cloth_pants">Cloth Pants</option>
-                                <option value="leather_pants">Leather Pants</option>
-                                <option value="metal_pants">Metal Pants</option>
-                            </select>
-                        </div>
-                        
-                        <div class="equipment-slot" data-slot="boots">
-                            <div class="slot-icon" id="boots-icon">👢</div>
-                            <div class="slot-label">boots</div>
-                            <select class="slot-select" id="boots-select" onchange="updateSlotPreview('boots')">
-                                <option value="">Empty</option>
-                                <option value="cloth_boots">Cloth Boots</option>
-                                <option value="leather_boots">Leather Boots</option>
-                                <option value="metal_boots">Metal Boots</option>
-                            </select>
+                <!-- Simplified Equipment Selection -->
+                <div class="equipment-selection">
+                    <!-- Armor Tier Selection -->
+                    <div class="armor-tier-section">
+                        <h3>🛡️ Armor Tier</h3>
+                        <select id="armor-tier-select" onchange="updateArmorTier()">
+                            <option value="cloth">Cloth (+1 Str, +1 Dex, +1 Con, +1 Int)</option>
+                            <option value="leather">Leather (+2 Str, +2 Dex, +1 Con, +1 Int)</option>
+                            <option value="chain">Chain (+3 Str, +1 Dex, +2 Con, +1 Int)</option>
+                            <option value="plate">Plate (+4 Str, +1 Dex, +3 Con, +1 Int)</option>
+                            <option value="mystic">Mystic (+1 Str, +1 Dex, +1 Con, +4 Int)</option>
+                        </select>
+                        <div id="armor-description" class="equipment-description">
+                            Balanced starter armor
                         </div>
                     </div>
 
-                    <!-- Right Column - Weapon Slots -->
-                    <div class="weapon-slots">
-                        <div class="equipment-slot" data-slot="main_hand">
-                            <div class="slot-icon" id="main-hand-icon">⚔️</div>
-                            <div class="slot-label">main hand</div>
-                            <select class="slot-select" id="main-hand-select" onchange="handleMainHandChange()">
-                                <option value="">Empty</option>
-                                <option value="fists">Fists</option>
-                                <option value="sword">Sword</option>
-                                <option value="axe">Axe</option>
-                                <option value="bow">Bow</option>
-                                <option value="knife">Knife</option>
-                                <option value="mace">Mace</option>
-                                <option value="shield">Shield</option>
-                                <option value="hammer">Hammer (2H)</option>
-                                <option value="crossbow">Crossbow (2H)</option>
-                                <option value="staff">Staff (2H)</option>
-                            </select>
-                        </div>
-                        
-                        <div class="equipment-slot" data-slot="off_hand">
-                            <div class="slot-icon" id="off-hand-icon">🛡️</div>
-                            <div class="slot-label">off hand</div>
-                            <select class="slot-select" id="off-hand-select" onchange="updateSlotPreview('off_hand')">
-                                <option value="">Empty</option>
-                                <option value="fists">Fists</option>
-                                <option value="sword">Sword</option>
-                                <option value="axe">Axe</option>
-                                <option value="bow">Bow</option>
-                                <option value="knife">Knife</option>
-                                <option value="mace">Mace</option>
-                                <option value="shield">Shield</option>
-                            </select>
+                    <!-- Weapon Selection -->
+                    <div class="weapon-section">
+                        <h3>⚔️ Weapons</h3>
+                        <div class="weapon-slots">
+                            <div class="weapon-slot">
+                                <label>Main Hand:</label>
+                                <select id="main-hand-select" onchange="handleMainHandChange()">
+                                    <option value="fists">Fists</option>
+                                    <option value="sword">Sword</option>
+                                    <option value="axe">Axe</option>
+                                    <option value="mace">Mace</option>
+                                    <option value="knife">Knife</option>
+                                    <option value="shield">Shield</option>
+                                    <option value="bow">Bow (2H)</option>
+                                    <option value="crossbow">Crossbow (2H)</option>
+                                    <option value="staff">Staff (2H)</option>
+                                    <option value="hammer">Hammer (2H)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="weapon-slot">
+                                <label>Off Hand:</label>
+                                <select id="off-hand-select" onchange="updateSlotPreview('off_hand')">
+                                    <option value="fists">Fists</option>
+                                    <option value="sword">Sword</option>
+                                    <option value="axe">Axe</option>
+                                    <option value="mace">Mace</option>
+                                    <option value="knife">Knife</option>
+                                    <option value="shield">Shield</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Stats Display Area -->
-                <div class="stats-display">
-                    <h3>📊 Character Stats</h3>
+                <!-- Stats Preview -->
+                <div class="stats-preview">
+                    <h3>📊 Your Stats</h3>
                     <div id="compiled-stats">
-                        <p>All stats compiled here for quick reference so the player can see what changes once they change what's equipped.</p>
+                        <div class="stat-row">
+                            <div class="stat-item">
+                                <span class="stat-label">💪 Strength:</span>
+                                <span class="stat-value" id="display-strength">10</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">🏃 Dexterity:</span>
+                                <span class="stat-value" id="display-dexterity">10</span>
+                            </div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-item">
+                                <span class="stat-label">🛡️ Constitution:</span>
+                                <span class="stat-value" id="display-constitution">10</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">🧠 Intellect:</span>
+                                <span class="stat-value" id="display-intellect">10</span>
+                            </div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-item">
+                                <span class="stat-label">❤️ HP:</span>
+                                <span class="stat-value" id="display-hp">250</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">⚔️ Attack Power:</span>
+                                <span class="stat-value" id="display-attack-power">0</span>
+                            </div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-item">
+                                <span class="stat-label">✨ Spell Power:</span>
+                                <span class="stat-value" id="display-spell-power">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">💥 Crit Chance:</span>
+                                <span class="stat-value" id="display-crit-chance">0%</span>
+                            </div>
+                        </div>
+                        <div class="stat-row">
+                            <div class="stat-item">
+                                <span class="stat-label">🛡️ Parry Chance:</span>
+                                <span class="stat-value" id="display-parry-chance">0%</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">💨 Dodge Chance:</span>
+                                <span class="stat-value" id="display-dodge-chance">0%</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -696,18 +700,116 @@
             }
         };
 
-        const WEAPONS = {
-            'sword': { name: 'Sword', attack: 12, speed: 8, crit_chance: 0.05 },
-            'axe': { name: 'Axe', attack: 15, speed: 6, crit_chance: 0.03 },
-            'mace': { name: 'Mace', attack: 13, speed: 7, crit_chance: 0.04 },
-            'bow': { name: 'Bow', attack: 10, speed: 10, crit_chance: 0.08 },
-            'crossbow': { name: 'Crossbow', attack: 14, speed: 5, crit_chance: 0.06 },
-            'staff': { name: 'Staff', attack: 8, speed: 9, crit_chance: 0.07 },
-            'knife': { name: 'Knife', attack: 9, speed: 12, crit_chance: 0.10 },
-            'hammer': { name: 'Hammer', attack: 18, speed: 4, crit_chance: 0.02 },
-            'shield': { name: 'Shield', attack: 6, speed: 6, crit_chance: 0.01 },
-            'fists': { name: 'Fists', attack: 5, speed: 10, crit_chance: 0.05 }
+        // NEW STAT SYSTEM - Core Stats
+        const STAT_SCALING = {
+            strength: { attack_power: 2, hp: 2, parry_chance: 0.001 }, // 0.1% per point
+            dexterity: { attack_power: 2, crit_chance: 0.001, dodge_chance: 0.001 }, // 0.1% per point
+            constitution: { hp: 6, parry_chance: 0.002 }, // 0.2% per point
+            intellect: { spell_power: 2, hp: 1, crit_chance: 0.001 } // 0.1% per point
         };
+
+        const STAT_CAPS = {
+            parry_chance: 0.15, // 15% cap
+            crit_chance: 0.50,  // 50% cap
+            dodge_chance: 0.25  // 25% cap
+        };
+
+        // SIMPLIFIED EQUIPMENT SYSTEM
+        const ARMOR_TIERS = {
+            'cloth': { name: 'Cloth', str: 1, dex: 1, con: 1, int: 1, description: 'Balanced starter armor' },
+            'leather': { name: 'Leather', str: 2, dex: 2, con: 1, int: 1, description: 'Agility focused armor' },
+            'chain': { name: 'Chain', str: 3, dex: 1, con: 2, int: 1, description: 'Strength focused armor' },
+            'plate': { name: 'Plate', str: 4, dex: 1, con: 3, int: 1, description: 'Tank focused armor' },
+            'mystic': { name: 'Mystic', str: 1, dex: 1, con: 1, int: 4, description: 'Spell focused armor' }
+        };
+
+        const WEAPON_TIERS = {
+            'basic': { name: 'Basic', str: 1, dex: 1, description: 'Basic weapon' },
+            'enhanced': { name: 'Enhanced', str: 2, dex: 2, description: 'Enhanced weapon' },
+            'masterwork': { name: 'Masterwork', str: 3, dex: 3, description: 'Masterwork weapon' },
+            'legendary': { name: 'Legendary', str: 4, dex: 4, description: 'Legendary weapon' }
+        };
+
+        const WEAPONS = {
+            'sword': { name: 'Sword', tier: 'basic', two_handed: false },
+            'axe': { name: 'Axe', tier: 'basic', two_handed: false },
+            'mace': { name: 'Mace', tier: 'basic', two_handed: false },
+            'bow': { name: 'Bow', tier: 'enhanced', two_handed: true },
+            'crossbow': { name: 'Crossbow', tier: 'enhanced', two_handed: true },
+            'staff': { name: 'Staff', tier: 'enhanced', two_handed: true },
+            'knife': { name: 'Knife', tier: 'basic', two_handed: false },
+            'hammer': { name: 'Hammer', tier: 'masterwork', two_handed: true },
+            'shield': { name: 'Shield', tier: 'basic', two_handed: false },
+            'fists': { name: 'Fists', tier: 'basic', two_handed: false }
+        };
+
+        // STAT CALCULATION FUNCTIONS
+        function calculatePlayerStats(playerData) {
+            const baseStats = {
+                strength: 10,
+                dexterity: 10, 
+                constitution: 10,
+                intellect: 10,
+                hp: 250, // Increased base HP
+                attack_power: 0,
+                spell_power: 0,
+                crit_chance: 0,
+                dodge_chance: 0,
+                parry_chance: 0
+            };
+
+            // Add armor stats
+            const armorType = playerData.armor_type || 'cloth';
+            if (ARMOR_TIERS[armorType]) {
+                const armor = ARMOR_TIERS[armorType];
+                baseStats.strength += armor.str;
+                baseStats.dexterity += armor.dex;
+                baseStats.constitution += armor.con;
+                baseStats.intellect += armor.int;
+            }
+
+            // Add weapon stats
+            const weapon1 = playerData.weapon1 || 'fists';
+            const weapon2 = playerData.weapon2 || 'fists';
+            
+            if (WEAPONS[weapon1] && WEAPON_TIERS[WEAPONS[weapon1].tier]) {
+                const weapon1Tier = WEAPON_TIERS[WEAPONS[weapon1].tier];
+                baseStats.strength += weapon1Tier.str;
+                baseStats.dexterity += weapon1Tier.dex;
+            }
+            
+            if (weapon2 !== 'fists' && WEAPONS[weapon2] && WEAPON_TIERS[WEAPONS[weapon2].tier]) {
+                const weapon2Tier = WEAPON_TIERS[WEAPONS[weapon2].tier];
+                baseStats.strength += weapon2Tier.str;
+                baseStats.dexterity += weapon2Tier.dex;
+            }
+
+            // Calculate derived stats
+            baseStats.attack_power = baseStats.strength * STAT_SCALING.strength.attack_power + 
+                                   baseStats.dexterity * STAT_SCALING.dexterity.attack_power;
+            baseStats.spell_power = baseStats.intellect * STAT_SCALING.intellect.spell_power;
+            baseStats.hp += baseStats.strength * STAT_SCALING.strength.hp +
+                           baseStats.constitution * STAT_SCALING.constitution.hp +
+                           baseStats.intellect * STAT_SCALING.intellect.hp;
+            
+            // Calculate percentages with caps
+            baseStats.crit_chance = Math.min(
+                baseStats.dexterity * STAT_SCALING.dexterity.crit_chance + 
+                baseStats.intellect * STAT_SCALING.intellect.crit_chance,
+                STAT_CAPS.crit_chance
+            );
+            baseStats.dodge_chance = Math.min(
+                baseStats.dexterity * STAT_SCALING.dexterity.dodge_chance,
+                STAT_CAPS.dodge_chance
+            );
+            baseStats.parry_chance = Math.min(
+                baseStats.strength * STAT_SCALING.strength.parry_chance +
+                baseStats.constitution * STAT_SCALING.constitution.parry_chance,
+                STAT_CAPS.parry_chance
+            );
+
+            return baseStats;
+        }
 
         let currentPlayer = null;
         let duelInProgress = false;
@@ -1035,25 +1137,48 @@
             if (!currentPlayer) return;
 
             const statsContainer = document.getElementById('player-stats');
-            const weapon1Data = WEAPONS[currentPlayer.weapon1] || { attack: 0, speed: 0, crit_chance: 0 };
-            const weapon2Data = WEAPONS[currentPlayer.weapon2] || { attack: 0, speed: 0, crit_chance: 0 };
-            
-            const totalAttack = weapon1Data.attack + weapon2Data.attack;
-            const totalSpeed = Math.floor((weapon1Data.speed + weapon2Data.speed) / 2);
-            const totalCrit = ((weapon1Data.crit_chance + weapon2Data.crit_chance) / 2 * 100).toFixed(1);
+            const playerStats = calculatePlayerStats(currentPlayer);
 
             statsContainer.innerHTML = `
                 <div class="stat-card">
-                    <h4>⚔️ Attack</h4>
-                    <div class="stat-value">${totalAttack}</div>
+                    <h4>💪 Strength</h4>
+                    <div class="stat-value">${playerStats.strength}</div>
                 </div>
                 <div class="stat-card">
-                    <h4>🏃 Speed</h4>
-                    <div class="stat-value">${totalSpeed}</div>
+                    <h4>🏃 Dexterity</h4>
+                    <div class="stat-value">${playerStats.dexterity}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>🛡️ Constitution</h4>
+                    <div class="stat-value">${playerStats.constitution}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>🧠 Intellect</h4>
+                    <div class="stat-value">${playerStats.intellect}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>❤️ HP</h4>
+                    <div class="stat-value">${playerStats.hp}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>⚔️ Attack Power</h4>
+                    <div class="stat-value">${playerStats.attack_power}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>✨ Spell Power</h4>
+                    <div class="stat-value">${playerStats.spell_power}</div>
                 </div>
                 <div class="stat-card">
                     <h4>💥 Crit Chance</h4>
-                    <div class="stat-value">${totalCrit}%</div>
+                    <div class="stat-value">${(playerStats.crit_chance * 100).toFixed(1)}%</div>
+                </div>
+                <div class="stat-card">
+                    <h4>🛡️ Parry Chance</h4>
+                    <div class="stat-value">${(playerStats.parry_chance * 100).toFixed(1)}%</div>
+                </div>
+                <div class="stat-card">
+                    <h4>💨 Dodge Chance</h4>
+                    <div class="stat-value">${(playerStats.dodge_chance * 100).toFixed(1)}%</div>
                 </div>
                 <div class="stat-card">
                     <h4>🏆 Wins</h4>
@@ -1076,6 +1201,78 @@
             if (!currentPlayer) return 0;
             const total = (currentPlayer.wins || 0) + (currentPlayer.losses || 0);
             return total > 0 ? Math.round(((currentPlayer.wins || 0) / total) * 100) : 0;
+        }
+
+        // NEW LOADOUT SYSTEM FUNCTIONS
+        function updateArmorTier() {
+            const armorTier = document.getElementById('armor-tier-select').value;
+            const description = document.getElementById('armor-description');
+            
+            if (ARMOR_TIERS[armorTier]) {
+                description.textContent = ARMOR_TIERS[armorTier].description;
+            }
+            
+            updateCompiledStats();
+        }
+
+        function updateCompiledStats() {
+            if (!currentPlayer) return;
+            
+            // Get current selections
+            const armorTier = document.getElementById('armor-tier-select').value;
+            const mainHand = document.getElementById('main-hand-select').value;
+            const offHand = document.getElementById('off-hand-select').value;
+            
+            // Create temporary player data for stat calculation
+            const tempPlayer = {
+                ...currentPlayer,
+                armor_type: armorTier,
+                weapon1: mainHand,
+                weapon2: offHand
+            };
+            
+            const stats = calculatePlayerStats(tempPlayer);
+            
+            // Update display
+            document.getElementById('display-strength').textContent = stats.strength;
+            document.getElementById('display-dexterity').textContent = stats.dexterity;
+            document.getElementById('display-constitution').textContent = stats.constitution;
+            document.getElementById('display-intellect').textContent = stats.intellect;
+            document.getElementById('display-hp').textContent = stats.hp;
+            document.getElementById('display-attack-power').textContent = stats.attack_power;
+            document.getElementById('display-spell-power').textContent = stats.spell_power;
+            document.getElementById('display-crit-chance').textContent = (stats.crit_chance * 100).toFixed(1) + '%';
+            document.getElementById('display-parry-chance').textContent = (stats.parry_chance * 100).toFixed(1) + '%';
+            document.getElementById('display-dodge-chance').textContent = (stats.dodge_chance * 100).toFixed(1) + '%';
+        }
+
+        function loadCurrentEquipment() {
+            if (!currentPlayer) return;
+            
+            console.log('loadCurrentEquipment called with currentPlayer:', currentPlayer);
+            console.log('currentPlayer.armor_type:', currentPlayer.armor_type);
+            console.log('currentPlayer.weapon1:', currentPlayer.weapon1);
+            console.log('currentPlayer.weapon2:', currentPlayer.weapon2);
+            
+            // Set armor tier
+            const armorSelect = document.getElementById('armor-tier-select');
+            if (armorSelect && currentPlayer.armor_type) {
+                armorSelect.value = currentPlayer.armor_type;
+                updateArmorTier();
+            }
+            
+            // Set weapons
+            const mainHandSelect = document.getElementById('main-hand-select');
+            const offHandSelect = document.getElementById('off-hand-select');
+            
+            if (mainHandSelect && currentPlayer.weapon1) {
+                mainHandSelect.value = currentPlayer.weapon1;
+            }
+            if (offHandSelect && currentPlayer.weapon2) {
+                offHandSelect.value = currentPlayer.weapon2;
+            }
+            
+            updateCompiledStats();
         }
 
         async function startDuel() {
@@ -1549,57 +1746,25 @@
             }
             
             try {
-                // Collect all equipment selections
-                const equipment = {};
-                const armorSlots = ['helmet', 'body', 'gloves', 'pants', 'boots'];
-                
-                armorSlots.forEach(slot => {
-                    const select = document.getElementById(`${slot}-select`);
-                    if (select && select.value) {
-                        // Map slot names to equipment keys for storage
-                        const slotToKey = {
-                            'helmet': 'helmet',
-                            'body': 'armor',  // body slot stores as armor
-                            'gloves': 'gloves',
-                            'pants': 'pants',
-                            'boots': 'boots'
-                        };
-                        const storageKey = slotToKey[slot];
-                        equipment[storageKey] = {
-                            name: select.options[select.selectedIndex].text,
-                            slot: storageKey,
-                            rarity: 'rare'
-                        };
-                    }
-                });
-                
+                // Get current selections from simplified UI
+                const armorTier = document.getElementById('armor-tier-select').value;
                 const mainHand = document.getElementById('main-hand-select').value;
                 const offHand = document.getElementById('off-hand-select').value;
                 
                 // Check for two-handed weapon conflicts
-                if (mainHand && ['hammer', 'crossbow', 'staff'].includes(mainHand) && offHand) {
+                if (mainHand && ['hammer', 'crossbow', 'staff', 'bow'].includes(mainHand) && offHand && offHand !== 'fists') {
                     showNotification('Two-handed weapons cannot be used with off-hand items!', 'error');
                     return;
                 }
                 
-                // Calculate armor type from selected equipment
-                let armorType = 'cloth'; // default
-                if (Object.keys(equipment).length > 0) {
-                    // Check all equipment pieces to determine armor type
-                    const equipmentNames = Object.values(equipment).map(eq => eq.name || '').join(' ');
-                    console.log('saveLoadout: Equipment names being checked:', equipmentNames);
-                    if (equipmentNames.includes('leather')) armorType = 'leather';
-                    else if (equipmentNames.includes('metal')) armorType = 'metal';
-                    // If no specific armor type found, keep default 'cloth'
-                }
-                
-                console.log('saveLoadout: Calculated armor_type:', armorType);
-                console.log('saveLoadout: Equipment being saved:', equipment);
-                console.log('saveLoadout: Weapons being saved:', {weapon1: mainHand, weapon2: offHand});
+                console.log('saveLoadout: Saving simplified loadout:', {
+                    armor_type: armorTier,
+                    weapon1: mainHand,
+                    weapon2: offHand
+                });
                 
                 // Update player data
-                currentPlayer.equipment = equipment;
-                currentPlayer.armor_type = armorType;
+                currentPlayer.armor_type = armorTier;
                 currentPlayer.weapon1 = mainHand || 'fists';
                 currentPlayer.weapon2 = offHand || 'fists';
                 
@@ -1609,47 +1774,33 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         username: currentPlayer.username,
-                        equipment: equipment,
+                        armor_type: currentPlayer.armor_type,
                         weapon1: currentPlayer.weapon1,
-                        weapon2: currentPlayer.weapon2,
-                        armor_type: armorType
+                        weapon2: currentPlayer.weapon2
                     })
                 });
                 
                 const result = await response.json();
+                
                 if (result.success) {
-                    // Update local player data with server response
                     console.log('Loadout save successful, updating currentPlayer:', result.player);
                     
-                    // Ensure our local changes are preserved
+                    // Update currentPlayer with server response
                     if (result.player) {
-                        currentPlayer = result.player;
-                        // Double-check that our changes are in the server response
-                        if (result.player.armor_type !== armorType) {
-                            currentPlayer.armor_type = armorType;
-                        }
-                        if (result.player.weapon1 !== (mainHand || 'fists')) {
-                            currentPlayer.weapon1 = mainHand || 'fists';
-                        }
-                        if (result.player.weapon2 !== (offHand || 'fists')) {
-                            currentPlayer.weapon2 = offHand || 'fists';
-                        }
-                        if (JSON.stringify(result.player.equipment) !== JSON.stringify(equipment)) {
-                            currentPlayer.equipment = equipment;
-                        }
+                        currentPlayer.armor_type = result.player.armor_type;
+                        currentPlayer.weapon1 = result.player.weapon1;
+                        currentPlayer.weapon2 = result.player.weapon2;
                     }
                     
                     savePlayerData();
                     updatePlayerStats();
-                    // Show subtle success message
                     showNotification('Loadout saved successfully!', 'success');
                 } else {
-                    showNotification('Error saving loadout: ' + result.error, 'error');
+                    showNotification(`Failed to save loadout: ${result.error}`, 'error');
                 }
-                
             } catch (error) {
-                console.error('Save loadout error:', error);
-                showNotification('Error saving loadout: ' + error.message, 'error');
+                console.error('Error saving loadout:', error);
+                showNotification('Error saving loadout. Please try again.', 'error');
             }
         }
 

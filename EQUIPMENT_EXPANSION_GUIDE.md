@@ -289,3 +289,5 @@ This framework makes it incredibly easy to add new equipment to Idle Duelist:
 Happy equipment crafting! ⚔️🛡️
 
 
+
+

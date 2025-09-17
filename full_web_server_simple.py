@@ -98,49 +98,61 @@ ARMOR_SET_BONUSES = {
     }
 }
 
-# Ability System
+# NEW ABILITY SYSTEM WITH PROPER SCALING
 ABILITY_DATA = {
+    # ORDER OF THE SILVER CRUSADE
     'divine_strike': {
         'name': 'Divine Strike',
-        'description': 'Holy attack that ignores armor',
-        'damage_multiplier': 1.5,
-        'armor_penetration': 999,  # Ignores all armor
+        'description': 'Holy attack that scales with both attack and spell power',
+        'attack_scaling': 0.8,  # 80% attack power
+        'spell_scaling': 0.6,   # 60% spell power
+        'base_damage': 20,
+        'armor_penetration': 0.5,  # Ignores 50% armor
         'cooldown': 3,
         'faction': 'order_of_the_silver_crusade'
     },
     'shield_of_faith': {
         'name': 'Shield of Faith',
-        'description': 'Grants temporary invulnerability',
-        'damage_reduction': 1.0,  # 100% damage reduction
+        'description': 'Grants damage reduction based on spell power',
+        'spell_scaling': 0.4,   # 40% spell power
+        'base_reduction': 0.3,   # 30% base reduction
         'duration': 2,
         'cooldown': 5,
         'faction': 'order_of_the_silver_crusade'
     },
     'healing_light': {
         'name': 'Healing Light',
-        'description': 'Restores health over time',
-        'healing': {'amount': 15, 'duration': 3},
+        'description': 'Restores health based on spell power',
+        'spell_scaling': 0.8,   # 80% spell power
+        'base_healing': 25,
+        'duration': 3,
         'cooldown': 4,
         'faction': 'order_of_the_silver_crusade'
     },
     'righteous_fury': {
         'name': 'Righteous Fury',
-        'description': 'Increases damage for next attack',
-        'damage_multiplier': 1.8,
+        'description': 'Increases next attack damage with spell power',
+        'spell_scaling': 0.6,   # 60% spell power
+        'base_multiplier': 1.5, # 50% damage increase
         'cooldown': 3,
         'faction': 'order_of_the_silver_crusade'
     },
     'purification': {
         'name': 'Purification',
         'description': 'Removes all negative effects',
+        'spell_scaling': 0.2,   # 20% spell power (utility)
         'cleanse': True,
         'cooldown': 4,
         'faction': 'order_of_the_silver_crusade'
     },
+    
+    # SHADOW COVENANT
     'shadow_strike': {
         'name': 'Shadow Strike',
-        'description': 'Guaranteed critical hit from shadows',
-        'damage_multiplier': 1.8,
+        'description': 'Guaranteed critical hit scaling with attack power',
+        'attack_scaling': 1.0,  # 100% attack power
+        'spell_scaling': 0.3,   # 30% spell power
+        'base_damage': 15,
         'guaranteed_crit': True,
         'cooldown': 4,
         'faction': 'shadow_covenant'
@@ -148,52 +160,67 @@ ABILITY_DATA = {
     'vanish': {
         'name': 'Vanish',
         'description': 'Become invisible for 2 turns',
+        'spell_scaling': 0.3,   # 30% spell power (utility)
         'effects': {'invisible': 2},
         'cooldown': 5,
         'faction': 'shadow_covenant'
     },
     'poison_blade': {
         'name': 'Poison Blade',
-        'description': 'Poisons enemy for damage over time',
+        'description': 'Poisons enemy with attack power scaling',
+        'attack_scaling': 0.6,  # 60% attack power
+        'spell_scaling': 0.4,   # 40% spell power
+        'base_damage': 10,
         'effects': {'poison': 3},
         'cooldown': 3,
         'faction': 'shadow_covenant'
     },
     'assassinate': {
         'name': 'Assassinate',
-        'description': 'High damage attack that ignores buffs',
-        'damage_multiplier': 2.0,
+        'description': 'High damage attack that scales with attack power',
+        'attack_scaling': 1.2,  # 120% attack power
+        'spell_scaling': 0.2,   # 20% spell power
+        'base_damage': 30,
         'ignores_buffs': True,
         'cooldown': 5,
         'faction': 'shadow_covenant'
     },
     'shadow_clone': {
         'name': 'Shadow Clone',
-        'description': 'Creates a clone that attacks once',
+        'description': 'Creates a clone that attacks with spell power',
+        'spell_scaling': 0.7,   # 70% spell power
+        'attack_scaling': 0.3,  # 30% attack power
+        'base_damage': 20,
         'clone_attack': True,
         'cooldown': 6,
         'faction': 'shadow_covenant'
     },
+    
+    # WILDERNESS TRIBE
     'natures_wrath': {
         'name': "Nature's Wrath",
-        'description': 'Powerful nature attack that reveals stealth',
-        'damage_multiplier': 1.6,
+        'description': 'Powerful nature attack scaling with both powers',
+        'attack_scaling': 0.7,  # 70% attack power
+        'spell_scaling': 0.8,   # 80% spell power
+        'base_damage': 25,
         'reveals_stealth': True,
         'cooldown': 4,
         'faction': 'wilderness_tribe'
     },
     'thorn_barrier': {
         'name': 'Thorn Barrier',
-        'description': 'Reflects damage back to attackers',
-        'damage_reflect': 0.3,
+        'description': 'Reflects damage based on spell power',
+        'spell_scaling': 0.5,   # 50% spell power
+        'base_reflect': 0.2,    # 20% base reflect
         'duration': 3,
         'cooldown': 4,
         'faction': 'wilderness_tribe'
     },
     'wild_growth': {
         'name': 'Wild Growth',
-        'description': 'Increases all stats temporarily',
-        'effects': {'stat_buff': 0.2},
+        'description': 'Increases all stats with spell power',
+        'spell_scaling': 0.4,   # 40% spell power
+        'base_buff': 0.15,      # 15% stat increase
         'duration': 3,
         'cooldown': 5,
         'faction': 'wilderness_tribe'
@@ -201,15 +228,18 @@ ABILITY_DATA = {
     'earthquake': {
         'name': 'Earthquake',
         'description': 'Stuns enemy and deals area damage',
-        'damage_multiplier': 1.4,
+        'attack_scaling': 0.5,  # 50% attack power
+        'spell_scaling': 0.7,   # 70% spell power
+        'base_damage': 20,
         'effects': {'stun': 1},
         'cooldown': 5,
         'faction': 'wilderness_tribe'
     },
     'spirit_form': {
         'name': 'Spirit Form',
-        'description': 'Reduces incoming damage and immune to stun',
-        'damage_reduction': 0.4,
+        'description': 'Reduces incoming damage with spell power',
+        'spell_scaling': 0.6,   # 60% spell power
+        'base_reduction': 0.2,   # 20% base reduction
         'stun_immunity': True,
         'duration': 3,
         'cooldown': 6,
@@ -443,8 +473,8 @@ class WebPlayer:
         self.rating = 1200
         self.wins = 0
         self.losses = 0
-        self.current_hp = 100
-        self.max_hp = 100
+        self.current_hp = 250
+        self.max_hp = 250
         self.weapon1 = 'fists'  # Default to fists if no weapons
         self.weapon2 = 'fists'  # Default to fists if no weapons
         self.active_buffs = {}
@@ -483,8 +513,8 @@ class WebPlayer:
         player.rating = data.get('rating', 1200)
         player.wins = data.get('wins', 0)
         player.losses = data.get('losses', 0)
-        player.current_hp = data.get('current_hp', 100)
-        player.max_hp = data.get('max_hp', 100)
+        player.current_hp = data.get('current_hp', 250)
+        player.max_hp = data.get('max_hp', 250)
         player.weapon1 = data.get('weapon1', 'fists')
         player.weapon2 = data.get('weapon2', 'fists')
         player.active_buffs = data.get('active_buffs', {})
@@ -494,7 +524,7 @@ class WebPlayer:
 
     def get_total_hp(self):
         """Calculate total HP"""
-        base_hp = 100
+        base_hp = 250
         constitution_bonus = 0
         
         # Add equipment bonuses
@@ -1346,7 +1376,7 @@ def calculatePlayerStats(player_data: dict) -> dict:
     weapon2 = player_data['weapon2']
     
     # Base stats
-    hp = 100
+    hp = 250
     attack = 20
     defense = 10
     speed = 10
@@ -1517,7 +1547,7 @@ def processStatusEffects(player_name: str, current_hp: int, active_buffs: dict, 
     # Process healing over time
     if 'healing' in status_effects:
         heal_amount = status_effects['healing']
-        current_hp = min(100, current_hp + heal_amount)  # Assuming max HP is 100
+        current_hp = min(250, current_hp + heal_amount)  # Assuming max HP is 250
         log.append(f"💚 {player_name} heals for {heal_amount} HP!")
         status_effects['healing'] -= 1
         if status_effects['healing'] <= 0:
