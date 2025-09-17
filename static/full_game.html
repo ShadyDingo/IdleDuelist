@@ -638,7 +638,7 @@
                 <!-- Duel Status -->
                 <div class="duel-status">
                     <div class="player-info">
-                        <h3>${currentPlayer ? currentPlayer.username : 'Player'}</h3>
+                        <h3 id="duel-player-name">Player</h3>
                         <div class="hp-bar">
                             <div class="hp-fill" id="player-hp-bar"></div>
                             <span class="hp-text" id="player-hp-text">250/250</span>
@@ -1295,8 +1295,13 @@
         function loadSelectedAbilities() {
             if (!currentPlayer) return;
             
-            // Populate ability selection based on faction
-            const factionData = FACTIONS[currentPlayer.faction];
+            // All abilities available to all players
+            const allAbilities = [
+                'divine_strike', 'healing_light', 'righteous_fury', 'purification',
+                'shadow_strike', 'shadow_clone', 'vanish', 'assassinate',
+                'earthquake', 'wild_growth', 'thorn_barrier', 'spirit_form'
+            ];
+            
             const abilitySelection = document.getElementById('ability-selection');
             const selectedList = document.getElementById('selected-abilities-list');
             
@@ -1306,11 +1311,11 @@
             abilitySelection.innerHTML = '';
             selectedList.innerHTML = '';
             
-            // Create ability buttons
-            factionData.abilities.forEach(ability => {
+            // Create ability buttons for all abilities
+            allAbilities.forEach(ability => {
                 const abilityButton = document.createElement('button');
                 abilityButton.className = 'ability-button';
-                abilityButton.textContent = ability;
+                abilityButton.textContent = ability.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
                 abilityButton.onclick = () => toggleAbility(ability, abilityButton);
                 
                 // Check if already selected
@@ -1386,6 +1391,12 @@
             // Show duel screen
             hideAllSections();
             document.getElementById('duel-screen').classList.add('active');
+            
+            // Set player name
+            const playerNameElement = document.getElementById('duel-player-name');
+            if (playerNameElement && currentPlayer) {
+                playerNameElement.textContent = currentPlayer.username;
+            }
             
             const startBtn = document.getElementById('start-duel-btn');
             const againBtn = document.getElementById('duel-again-btn');
@@ -1950,10 +1961,14 @@
                 currentPlayer.weapon1 = mainHand || 'fists';
                 currentPlayer.weapon2 = offHand || 'fists';
                 
-                // Ensure selected abilities are saved (default to first 4 faction abilities if none selected)
+                // Ensure selected abilities are saved (default to first 4 abilities if none selected)
                 if (!currentPlayer.selected_abilities || currentPlayer.selected_abilities.length === 0) {
-                    const factionData = FACTIONS[currentPlayer.faction];
-                    currentPlayer.selected_abilities = factionData.abilities.slice(0, 4);
+                    const allAbilities = [
+                        'divine_strike', 'healing_light', 'righteous_fury', 'purification',
+                        'shadow_strike', 'shadow_clone', 'vanish', 'assassinate',
+                        'earthquake', 'wild_growth', 'thorn_barrier', 'spirit_form'
+                    ];
+                    currentPlayer.selected_abilities = allAbilities.slice(0, 4);
                 }
                 
                 // Save to server

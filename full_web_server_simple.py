@@ -26,10 +26,10 @@ FACTION_DATA = {
     'order_of_the_silver_crusade': {
         'name': 'Order of the Silver Crusade',
         'description': 'Holy warriors focused on defense and healing',
-        'passive': 'divine_protection',  # 10% damage reduction
-        'passive_value': 0.10,
-        'secondary_passive': 'holy_resistance',  # Immune to poison effects
-        'secondary_value': True,
+        'passive': 'divine_protection',  # 15% damage reduction + healing
+        'passive_value': 0.15,
+        'secondary_passive': 'righteous_weapons',  # Swords/maces deal 25% more damage
+        'secondary_value': 0.25,
         'abilities': ['divine_strike', 'shield_of_faith', 'healing_light', 'righteous_fury', 'purification'],
         'theme_colors': {'primary': (0.8, 0.8, 1.0), 'secondary': (1.0, 1.0, 0.8)}
     },
@@ -46,10 +46,10 @@ FACTION_DATA = {
     'wilderness_tribe': {
         'name': 'Wilderness Tribe',
         'description': 'Nature mages focused on adaptability',
-        'passive': 'natures_blessing',  # 5% HP regeneration per turn
-        'passive_value': 0.05,
-        'secondary_passive': 'nature_affinity',  # +10% damage vs slowed enemies
-        'secondary_value': 0.10,
+        'passive': 'nature_resilience',  # 20% more HP + 3% regeneration per turn
+        'passive_value': 0.20,
+        'secondary_passive': 'primal_weapons',  # Axes/hammers have 25% stun chance
+        'secondary_value': 0.25,
         'abilities': ['natures_wrath', 'thorn_barrier', 'wild_growth', 'earthquake', 'spirit_form'],
         'theme_colors': {'primary': (0.2, 0.8, 0.2), 'secondary': (0.4, 0.6, 0.2)}
     }
@@ -1611,11 +1611,51 @@ def processStatusEffects(player_name: str, current_hp: int, active_buffs: dict, 
     
     return current_hp, active_buffs, status_effects
 
+def apply_faction_passives(player: WebPlayer):
+    """Apply faction passive effects to player stats"""
+    faction_data = FACTION_DATA.get(player.faction, {})
+    passive = faction_data.get('passive')
+    passive_value = faction_data.get('passive_value', 0)
+    
+    if passive == 'divine_protection':
+        # Order: 15% damage reduction + healing per round
+        player.damage_reduction = passive_value
+        player.healing_per_round = 0.05  # 5% of max HP
+    elif passive == 'shadow_mastery':
+        # Shadow: 15% dodge + 20% crit bonus
+        player.dodge_bonus = passive_value
+        player.crit_bonus = 0.20
+    elif passive == 'nature_resilience':
+        # Wilderness: 20% more HP + 3% regeneration
+        player.hp_bonus = passive_value
+        player.regeneration = 0.03  # 3% of max HP per round
+
+def apply_round_passives(player: WebPlayer, duel_log: list):
+    """Apply faction passive effects that trigger each round"""
+    faction_data = FACTION_DATA.get(player.faction, {})
+    passive = faction_data.get('passive')
+    
+    if passive == 'divine_protection' and hasattr(player, 'healing_per_round'):
+        # Order: Heal 5% of max HP each round
+        heal_amount = int(player.max_hp * player.healing_per_round)
+        player.current_hp = min(player.max_hp, player.current_hp + heal_amount)
+        duel_log.append(f"✨ {player.username}'s Divine Protection heals for {heal_amount} HP!")
+    
+    elif passive == 'nature_resilience' and hasattr(player, 'regeneration'):
+        # Wilderness: Regenerate 3% of max HP each round
+        regen_amount = int(player.max_hp * player.regeneration)
+        player.current_hp = min(player.max_hp, player.current_hp + regen_amount)
+        duel_log.append(f"🌿 {player.username}'s Nature Resilience regenerates {regen_amount} HP!")
+
 def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
     """Execute a duel using the main game's combat logic"""
     # Reset health for duel
     player1.current_hp = player1.get_total_hp()
     player2.current_hp = player2.get_total_hp()
+    
+    # Apply faction passives
+    apply_faction_passives(player1)
+    apply_faction_passives(player2)
     
     # Determine turn order based on speed
     if player1.get_total_speed() >= player2.get_total_speed():
@@ -1639,7 +1679,7 @@ def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
         # etc.
         
         # Turn 1: Faster player (attacker) goes first
-        duel_log.append(f"Turn {round_count * 2 - 1}: {attacker.username}'s action")
+        duel_log.append(f"{attacker.username}'s action")
         action = get_player_action(attacker, round_count)
         
         if action.startswith('ability_'):
@@ -1657,7 +1697,7 @@ def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
             break
         
         # Turn 2: Slower player (defender) goes second
-        duel_log.append(f"Turn {round_count * 2}: {defender.username}'s action")
+        duel_log.append(f"{defender.username}'s action")
         action = get_player_action(defender, round_count)
         
         if action.startswith('ability_'):
@@ -1673,6 +1713,10 @@ def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
         # Check if duel is over after second attack
         if attacker.current_hp <= 0:
             break
+        
+        # Apply faction passives at end of each round
+        apply_round_passives(player1, duel_log)
+        apply_round_passives(player2, duel_log)
     
     # Determine winner
     if player1.current_hp > 0:
@@ -1718,7 +1762,8 @@ def execute_ability(attacker: WebPlayer, defender: WebPlayer, ability_name: str,
     elif ability_name == 'poison_blade':
         ability_icon = f"<img src='/assets/abilities/ability_poison_blade.png' width='20' height='20'>"
     else:
-        ability_icon = f"<img src='/assets/abilities/ability_{ability_name}.PNG' width='20' height='20'>"
+        # Try .PNG first, then .png as fallback
+        ability_icon = f"<img src='/assets/abilities/ability_{ability_name}.PNG' width='20' height='20' onerror=\"this.src='/assets/abilities/ability_{ability_name}.png'; this.onerror=null;\">"
     
     log.append(f"{ability_icon} {attacker.username} uses {ability['name']}!")
     
@@ -1761,8 +1806,23 @@ def execute_attack(attacker: WebPlayer, defender: WebPlayer, attacker_type: str)
     base_damage = attacker.get_total_damage()
     damage = base_damage
     
-    # Check for critical hit
+    # Apply faction weapon bonuses
+    faction_data = FACTION_DATA.get(attacker.faction, {})
+    secondary_passive = faction_data.get('secondary_passive')
+    secondary_value = faction_data.get('secondary_value', 0)
+    
+    if secondary_passive == 'righteous_weapons' and attacker.weapon1 in ['sword', 'mace']:
+        damage = int(damage * (1 + secondary_value))
+        log.append(f"⚔️ {attacker.username}'s Righteous Weapons deal {secondary_value*100:.0f}% more damage!")
+    elif secondary_passive == 'primal_weapons' and attacker.weapon1 in ['axe', 'hammer']:
+        if random.random() < secondary_value:
+            log.append(f"💥 {attacker.username}'s Primal Weapons stun {defender.username}!")
+            defender.stunned = True
+    
+    # Check for critical hit (with faction bonus)
     crit_chance = attacker.get_total_crit_chance()
+    if hasattr(attacker, 'crit_bonus'):
+        crit_chance += attacker.crit_bonus
     is_crit = random.random() < crit_chance
     
     if is_crit:
@@ -1770,6 +1830,11 @@ def execute_attack(attacker: WebPlayer, defender: WebPlayer, attacker_type: str)
         log.append(f"💥 {attacker.username} lands a critical hit for {damage} damage!")
     else:
         log.append(f"⚔️ {attacker.username} attacks for {damage} damage!")
+    
+    # Apply damage reduction from faction passives
+    if hasattr(defender, 'damage_reduction'):
+        damage = int(damage * (1 - defender.damage_reduction))
+        log.append(f"🛡️ {defender.username}'s Divine Protection reduces damage by {defender.damage_reduction*100:.0f}%!")
     
     # Apply damage
     defender.current_hp = max(0, defender.current_hp - damage)
