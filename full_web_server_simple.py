@@ -523,16 +523,67 @@ class WebPlayer:
         return player
 
     def get_total_hp(self):
-        """Calculate total HP"""
-        base_hp = 250
-        constitution_bonus = 0
+        """Calculate total HP using new stat system"""
+        # Base stats (matching frontend)
+        base_stats = {
+            'strength': 10,
+            'dexterity': 10, 
+            'constitution': 10,
+            'intellect': 10,
+            'hp': 250  # Base HP
+        }
+
+        # Armor tier bonuses (matching frontend ARMOR_TIERS)
+        armor_tiers = {
+            'cloth': {'str': 1, 'dex': 1, 'con': 1, 'int': 1},
+            'leather': {'str': 2, 'dex': 2, 'con': 1, 'int': 1},
+            'chain': {'str': 3, 'dex': 1, 'con': 2, 'int': 1},
+            'plate': {'str': 4, 'dex': 1, 'con': 3, 'int': 1},
+            'mystic': {'str': 1, 'dex': 1, 'con': 1, 'int': 4}
+        }
+
+        # Weapon tier bonuses (matching frontend WEAPON_TIERS)
+        weapon_tiers = {
+            'basic': {'str': 1, 'dex': 1, 'con': 0, 'int': 0},
+            'enhanced': {'str': 2, 'dex': 2, 'con': 1, 'int': 1},
+            'masterwork': {'str': 3, 'dex': 3, 'con': 2, 'int': 2},
+            'legendary': {'str': 4, 'dex': 4, 'con': 3, 'int': 3}
+        }
+
+        # Weapon tier mapping (matching frontend WEAPONS)
+        weapon_tier_map = {
+            'sword': 'basic', 'axe': 'basic', 'mace': 'basic', 'knife': 'basic', 'shield': 'basic', 'fists': 'basic',
+            'bow': 'enhanced', 'crossbow': 'enhanced', 'staff': 'enhanced',
+            'hammer': 'masterwork'
+        }
+
+        # Add armor stats
+        if self.armor_type in armor_tiers:
+            armor = armor_tiers[self.armor_type]
+            base_stats['strength'] += armor['str']
+            base_stats['dexterity'] += armor['dex']
+            base_stats['constitution'] += armor['con']
+            base_stats['intellect'] += armor['int']
+
+        # Add weapon stats
+        if self.weapon1 in weapon_tier_map:
+            weapon1_tier = weapon_tiers[weapon_tier_map[self.weapon1]]
+            base_stats['strength'] += weapon1_tier['str']
+            base_stats['dexterity'] += weapon1_tier['dex']
+            base_stats['constitution'] += weapon1_tier['con']
+            base_stats['intellect'] += weapon1_tier['int']
         
-        # Add equipment bonuses
-        for item in self.equipment.values():
-            if 'constitution' in item:
-                constitution_bonus += item['constitution']
+        if self.weapon2 != 'fists' and self.weapon2 in weapon_tier_map:
+            weapon2_tier = weapon_tiers[weapon_tier_map[self.weapon2]]
+            base_stats['strength'] += weapon2_tier['str']
+            base_stats['dexterity'] += weapon2_tier['dex']
+            base_stats['constitution'] += weapon2_tier['con']
+            base_stats['intellect'] += weapon2_tier['int']
+
+        # Calculate total HP (matching frontend calculation)
+        total_hp = base_stats['hp'] + base_stats['strength'] * 2 + base_stats['constitution'] * 6 + base_stats['intellect'] * 1
         
-        return base_hp + constitution_bonus
+        return total_hp
 
     def get_total_damage(self):
         """Calculate total damage"""
@@ -1574,15 +1625,22 @@ def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
         attacker, defender = player2, player1
         attacker_type, defender_type = "opponent", "player"
     
-    turn_count = 0
-    max_turns = 50  # Prevent infinite loops
+    round_count = 0
+    max_rounds = 30  # Increased from 15 to 30 rounds
     duel_log = []
     
-    while player1.current_hp > 0 and player2.current_hp > 0 and turn_count < max_turns:
-        turn_count += 1
+    while player1.current_hp > 0 and player2.current_hp > 0 and round_count < max_rounds:
+        round_count += 1
+        duel_log.append(f"--- Round {round_count} ---")
         
-        # Get action (ability or attack)
-        action = get_player_action(attacker)
+        # Round structure: faster player goes first, then slower player
+        # Round 1: faster player attacks, slower player attacks
+        # Round 2: faster player attacks, slower player attacks
+        # etc.
+        
+        # Turn 1: Faster player (attacker) goes first
+        duel_log.append(f"Turn {round_count * 2 - 1}: {attacker.username}'s action")
+        action = get_player_action(attacker, round_count)
         
         if action.startswith('ability_'):
             ability_name = action.replace('ability_', '')
@@ -1594,13 +1652,27 @@ def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
             attack_result = execute_attack(attacker, defender, attacker_type)
             duel_log.extend(attack_result.get('log', []))
         
-        # Check if duel is over
+        # Check if duel is over after first attack
         if defender.current_hp <= 0:
             break
         
-        # Switch turns
-        attacker, defender = defender, attacker
-        attacker_type, defender_type = defender_type, attacker_type
+        # Turn 2: Slower player (defender) goes second
+        duel_log.append(f"Turn {round_count * 2}: {defender.username}'s action")
+        action = get_player_action(defender, round_count)
+        
+        if action.startswith('ability_'):
+            ability_name = action.replace('ability_', '')
+            if ability_name in defender.abilities:
+                ability_result = execute_ability(defender, attacker, defender_type, attacker_type)
+                duel_log.extend(ability_result.get('log', []))
+        else:
+            # Regular attack
+            attack_result = execute_attack(defender, attacker, defender_type)
+            duel_log.extend(attack_result.get('log', []))
+        
+        # Check if duel is over after second attack
+        if attacker.current_hp <= 0:
+            break
     
     # Determine winner
     if player1.current_hp > 0:
@@ -1614,18 +1686,20 @@ def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
         "winner": winner,
         "player1_hp": player1.current_hp,
         "player2_hp": player2.current_hp,
-        "turns": turn_count,
+        "rounds": round_count,
         "log": duel_log,
         "result": result_text
     }
 
-def get_player_action(player: WebPlayer) -> str:
-    """Get player action (ability or attack)"""
-    # 70% chance to use ability, 30% chance to attack
-    if random.random() < 0.7 and player.abilities:
+def get_player_action(player: WebPlayer, round_number: int) -> str:
+    """Get player action (ability or attack) based on alternating pattern"""
+    # Alternating pattern: odd rounds use abilities, even rounds use normal attacks
+    if round_number % 2 == 1 and player.abilities:
+        # Odd rounds: use abilities
         ability = random.choice(player.abilities)
         return f"ability_{ability}"
     else:
+        # Even rounds: use normal attacks
         return "attack"
 
 def execute_ability(attacker: WebPlayer, defender: WebPlayer, ability_name: str, attacker_type: str) -> dict:
@@ -1637,7 +1711,16 @@ def execute_ability(attacker: WebPlayer, defender: WebPlayer, ability_name: str,
         return {"log": log}
     
     ability = ABILITY_DATA[ability_name]
-    log.append(f"⚡ {attacker.username} uses {ability['name']}!")
+    
+    # Add ability icon to log - handle different file extensions
+    if ability_name == 'natures_wrath':
+        ability_icon = f"<img src='/assets/abilities/ability_nature's_wrath.png' width='20' height='20'>"
+    elif ability_name == 'poison_blade':
+        ability_icon = f"<img src='/assets/abilities/ability_poison_blade.png' width='20' height='20'>"
+    else:
+        ability_icon = f"<img src='/assets/abilities/ability_{ability_name}.PNG' width='20' height='20'>"
+    
+    log.append(f"{ability_icon} {attacker.username} uses {ability['name']}!")
     
     # Apply ability effects
     if 'damage_multiplier' in ability:
@@ -1702,6 +1785,7 @@ async def update_loadout(request: dict):
         weapon1 = request.get('weapon1')
         weapon2 = request.get('weapon2')
         armor_type = request.get('armor_type')
+        selected_abilities = request.get('selected_abilities', [])
         
         if not username:
             return JSONResponse({"success": False, "error": "Username required"})
@@ -1729,6 +1813,12 @@ async def update_loadout(request: dict):
             # Update armor type
             if armor_type:
                 player_data['armor_type'] = armor_type
+            
+            # Update selected abilities
+            if selected_abilities:
+                player_data['selected_abilities'] = selected_abilities
+                # Also update the abilities list for combat
+                player_data['abilities'] = selected_abilities
             
             # Recalculate stats with new equipment
             player_data['max_hp'] = calculatePlayerStats(player_data)['hp']

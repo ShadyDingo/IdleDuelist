@@ -545,6 +545,21 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Ability Selection -->
+                    <div class="ability-section">
+                        <h3>✨ Ability Selection</h3>
+                        <p>Choose 4 abilities from your faction's available abilities:</p>
+                        <div id="ability-selection" class="ability-grid">
+                            <!-- Abilities will be populated by JavaScript -->
+                        </div>
+                        <div class="selected-abilities">
+                            <h4>Selected Abilities (4/4):</h4>
+                            <div id="selected-abilities-list" class="selected-list">
+                                <!-- Selected abilities will be shown here -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Stats Preview -->
@@ -1271,7 +1286,97 @@
                 offHandSelect.value = currentPlayer.weapon2;
             }
             
+            // Load selected abilities
+            loadSelectedAbilities();
+            
             updateCompiledStats();
+        }
+
+        function loadSelectedAbilities() {
+            if (!currentPlayer) return;
+            
+            // Populate ability selection based on faction
+            const factionData = FACTIONS[currentPlayer.faction];
+            const abilitySelection = document.getElementById('ability-selection');
+            const selectedList = document.getElementById('selected-abilities-list');
+            
+            if (!abilitySelection || !selectedList) return;
+            
+            // Clear previous content
+            abilitySelection.innerHTML = '';
+            selectedList.innerHTML = '';
+            
+            // Create ability buttons
+            factionData.abilities.forEach(ability => {
+                const abilityButton = document.createElement('button');
+                abilityButton.className = 'ability-button';
+                abilityButton.textContent = ability;
+                abilityButton.onclick = () => toggleAbility(ability, abilityButton);
+                
+                // Check if already selected
+                if (currentPlayer.selected_abilities && currentPlayer.selected_abilities.includes(ability)) {
+                    abilityButton.classList.add('selected');
+                }
+                
+                abilitySelection.appendChild(abilityButton);
+            });
+            
+            // Update selected abilities display
+            updateSelectedAbilitiesDisplay();
+        }
+
+        function toggleAbility(ability, button) {
+            if (!currentPlayer) return;
+            
+            // Initialize selected_abilities if not exists
+            if (!currentPlayer.selected_abilities) {
+                currentPlayer.selected_abilities = [];
+            }
+            
+            const isSelected = button.classList.contains('selected');
+            
+            if (isSelected) {
+                // Remove ability
+                button.classList.remove('selected');
+                currentPlayer.selected_abilities = currentPlayer.selected_abilities.filter(a => a !== ability);
+            } else {
+                // Add ability (max 4)
+                if (currentPlayer.selected_abilities.length >= 4) {
+                    showNotification('You can only select 4 abilities!', 'error');
+                    return;
+                }
+                button.classList.add('selected');
+                currentPlayer.selected_abilities.push(ability);
+            }
+            
+            updateSelectedAbilitiesDisplay();
+        }
+
+        function updateSelectedAbilitiesDisplay() {
+            const selectedList = document.getElementById('selected-abilities-list');
+            if (!selectedList || !currentPlayer) return;
+            
+            const selectedAbilities = currentPlayer.selected_abilities || [];
+            const count = selectedAbilities.length;
+            
+            selectedList.innerHTML = '';
+            
+            if (selectedAbilities.length === 0) {
+                selectedList.innerHTML = '<p class="no-selection">No abilities selected</p>';
+            } else {
+                selectedAbilities.forEach(ability => {
+                    const abilityItem = document.createElement('div');
+                    abilityItem.className = 'selected-ability-item';
+                    abilityItem.textContent = ability;
+                    selectedList.appendChild(abilityItem);
+                });
+            }
+            
+            // Update count in header
+            const header = document.querySelector('.selected-abilities h4');
+            if (header) {
+                header.textContent = `Selected Abilities (${count}/4):`;
+            }
         }
 
         async function startDuel() {
@@ -1845,6 +1950,12 @@
                 currentPlayer.weapon1 = mainHand || 'fists';
                 currentPlayer.weapon2 = offHand || 'fists';
                 
+                // Ensure selected abilities are saved (default to first 4 faction abilities if none selected)
+                if (!currentPlayer.selected_abilities || currentPlayer.selected_abilities.length === 0) {
+                    const factionData = FACTIONS[currentPlayer.faction];
+                    currentPlayer.selected_abilities = factionData.abilities.slice(0, 4);
+                }
+                
                 // Save to server
                 const response = await fetch('/update-loadout', {
                     method: 'POST',
@@ -1853,7 +1964,8 @@
                         username: currentPlayer.username,
                         armor_type: currentPlayer.armor_type,
                         weapon1: currentPlayer.weapon1,
-                        weapon2: currentPlayer.weapon2
+                        weapon2: currentPlayer.weapon2,
+                        selected_abilities: currentPlayer.selected_abilities
                     })
                 });
                 
