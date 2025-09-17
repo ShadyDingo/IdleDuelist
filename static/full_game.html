@@ -962,8 +962,17 @@
         }
 
         function updateArmorBonuses() {
-            const armorType = document.getElementById('armor_type').value;
+            const armorTypeSelect = document.getElementById('armor_type');
+            if (!armorTypeSelect) {
+                console.warn('updateArmorBonuses: armor_type element not found');
+                return;
+            }
+            const armorType = armorTypeSelect.value;
             const bonusInfo = document.getElementById('bonus-info');
+            if (!bonusInfo) {
+                console.warn('updateArmorBonuses: bonus-info element not found');
+                return;
+            }
             
             if (armorType && ARMOR_BONUSES[armorType]) {
                 const armorData = ARMOR_BONUSES[armorType];
@@ -1240,6 +1249,10 @@
 
         function updateSlotPreview(slot) {
             const select = document.getElementById(`${slot}-select`);
+            if (!select) {
+                console.warn(`updateSlotPreview: Element ${slot}-select not found`);
+                return;
+            }
             const value = select.value;
             updateSlotIcon(slot, value);
             updateCompiledStats();
@@ -1556,14 +1569,12 @@
                     return;
                 }
                 
-                // Calculate armor type from equipment
-                let armorType = 'cloth'; // default
-                if (Object.keys(equipment).length > 0) {
-                    const firstEquipment = Object.values(equipment)[0];
-                    const equipmentName = typeof firstEquipment === 'string' ? firstEquipment : firstEquipment.name || '';
-                    if (equipmentName.includes('leather')) armorType = 'leather';
-                    else if (equipmentName.includes('metal')) armorType = 'metal';
-                }
+                // Use current player's armor type to preserve it
+                let armorType = currentPlayer.armor_type || 'cloth';
+                
+                console.log('saveLoadout: Preserving armor_type:', armorType);
+                console.log('saveLoadout: Equipment being saved:', equipment);
+                console.log('saveLoadout: Weapons being saved:', {weapon1: mainHand, weapon2: offHand});
                 
                 // Update player data
                 currentPlayer.equipment = equipment;
