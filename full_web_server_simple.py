@@ -925,8 +925,10 @@ async def duel(request: dict):
             if 'id' not in opponent_data:
                 opponent_data['id'] = opponent_row['id']
             
-            # Execute duel using turn-based combat system
-            duel_result = simulateTurnBasedCombat(player_data, opponent_data)
+            # Execute duel using new combat system
+            player_obj = WebPlayer.from_dict(player_data)
+            opponent_obj = WebPlayer.from_dict(opponent_data)
+            duel_result = execute_duel(player_obj, opponent_obj)
             
             # Update player stats
             player_wins = player_data.get('wins', 0)
@@ -934,7 +936,7 @@ async def duel(request: dict):
             
             opponent_username = opponent_data['username']
             
-            if duel_result['winner'] == username:
+            if duel_result['winner'] == player_obj.id:
                 player_wins += 1
                 result_text = f"🎉 {username} WINS THE DUEL!"
             else:
@@ -947,7 +949,7 @@ async def duel(request: dict):
             
             # Update rating based on win/loss (simple +25/-25 system)
             current_rating = player_data.get('rating', 1200)
-            if duel_result['winner'] == username:
+            if duel_result['winner'] == player_obj.id:
                 player_data['rating'] = current_rating + 25
             else:
                 player_data['rating'] = max(1000, current_rating - 25)  # Don't go below 1000
@@ -964,7 +966,7 @@ async def duel(request: dict):
                 opponent_losses = opponent_data.get('losses', 0)
                 opponent_rating = opponent_data.get('rating', 1200)
                 
-                if duel_result['winner'] == opponent_username:
+                if duel_result['winner'] == opponent_obj.id:
                     opponent_wins += 1
                     opponent_data['rating'] = opponent_rating + 25
                 else:
@@ -983,10 +985,13 @@ async def duel(request: dict):
             
             return JSONResponse({
                 "success": True,
-                "combat_log": duel_result['combat_log'],
+                "combat_log": duel_result['log'],
                 "player_wins": player_wins,
                 "player_losses": player_losses,
-                "result": result_text
+                "result": result_text,
+                "player_hp": duel_result['player1_hp'],
+                "opponent_hp": duel_result['player2_hp'],
+                "rounds": duel_result['rounds']
             })
             
     except Exception as e:
@@ -1756,14 +1761,25 @@ def execute_ability(attacker: WebPlayer, defender: WebPlayer, ability_name: str,
     
     ability = ABILITY_DATA[ability_name]
     
-    # Add ability icon to log - handle different file extensions
-    if ability_name == 'natures_wrath':
-        ability_icon = f"<img src='/assets/abilities/ability_nature's_wrath.png' width='20' height='20'>"
-    elif ability_name == 'poison_blade':
-        ability_icon = f"<img src='/assets/abilities/ability_poison_blade.png' width='20' height='20'>"
-    else:
-        # Try .PNG first, then .png as fallback
-        ability_icon = f"<img src='/assets/abilities/ability_{ability_name}.PNG' width='20' height='20' onerror=\"this.src='/assets/abilities/ability_{ability_name}.png'; this.onerror=null;\">"
+    # Add ability icon to log - use simple emoji icons for now
+    ability_icons = {
+        'divine_strike': '⚡',
+        'healing_light': '💚',
+        'righteous_fury': '🔥',
+        'purification': '✨',
+        'shadow_strike': '🌑',
+        'shadow_clone': '👥',
+        'vanish': '💨',
+        'assassinate': '🗡️',
+        'earthquake': '🌍',
+        'wild_growth': '🌿',
+        'thorn_barrier': '🌹',
+        'spirit_form': '👻',
+        'poison_blade': '☠️',
+        'natures_wrath': '⚡'
+    }
+    
+    ability_icon = ability_icons.get(ability_name, '⚡')
     
     log.append(f"{ability_icon} {attacker.username} uses {ability['name']}!")
     
