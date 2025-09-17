@@ -1635,6 +1635,20 @@ def apply_faction_passives(player: WebPlayer):
         player.hp_bonus = passive_value
         player.regeneration = 0.03  # 3% of max HP per round
 
+def get_ability_icon(ability_name: str) -> str:
+    """Get ability icon HTML with proper PNG asset handling"""
+    # Handle special cases with different file names
+    if ability_name == 'natures_wrath':
+        icon_path = '/assets/abilities/ability_nature\'s_wrath.png'
+    elif ability_name == 'poison_blade':
+        icon_path = '/assets/abilities/ability_poison_blade.png'
+    else:
+        # Try .PNG first, then .png as fallback
+        icon_path = f'/assets/abilities/ability_{ability_name}.PNG'
+    
+    # Create HTML img tag with fallback handling
+    return f'<img src="{icon_path}" width="20" height="20" style="vertical-align: middle;" onerror="this.style.display=\'none\'; this.nextSibling.style.display=\'inline\';"><span style="display: none;">⚡</span>'
+
 def apply_round_passives(player: WebPlayer, duel_log: list):
     """Apply faction passive effects that trigger each round"""
     faction_data = FACTION_DATA.get(player.faction, {})
@@ -1767,25 +1781,8 @@ def execute_ability(attacker: WebPlayer, defender: WebPlayer, ability_name: str,
     
     ability = ABILITY_DATA[ability_name]
     
-    # Add ability icon to log - use simple emoji icons for now
-    ability_icons = {
-        'divine_strike': '⚡',
-        'healing_light': '💚',
-        'righteous_fury': '🔥',
-        'purification': '✨',
-        'shadow_strike': '🌑',
-        'shadow_clone': '👥',
-        'vanish': '💨',
-        'assassinate': '🗡️',
-        'earthquake': '🌍',
-        'wild_growth': '🌿',
-        'thorn_barrier': '🌹',
-        'spirit_form': '👻',
-        'poison_blade': '☠️',
-        'natures_wrath': '⚡'
-    }
-    
-    ability_icon = ability_icons.get(ability_name, '⚡')
+    # Add ability icon to log - use PNG assets
+    ability_icon = get_ability_icon(ability_name)
     
     log.append(f"{ability_icon} {attacker.username} uses {ability['name']}!")
     
@@ -2028,6 +2025,26 @@ async def health_check():
 async def healthz():
     """Kubernetes-style health check endpoint"""
     return JSONResponse({"status": "ok"})
+
+@app.get("/test-assets")
+async def test_assets():
+    """Test asset accessibility"""
+    import os
+    asset_files = []
+    
+    # Check ability assets
+    abilities_dir = "assets/abilities"
+    if os.path.exists(abilities_dir):
+        for file in os.listdir(abilities_dir):
+            if file.endswith(('.png', '.PNG')):
+                asset_files.append(f"/assets/abilities/{file}")
+    
+    return {
+        "status": "OK",
+        "asset_count": len(asset_files),
+        "sample_assets": asset_files[:5],  # Show first 5 assets
+        "message": f"Found {len(asset_files)} asset files"
+    }
 
 @app.get("/debug-db")
 async def debug_database():

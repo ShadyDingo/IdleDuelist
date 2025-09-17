@@ -474,6 +474,44 @@
             50% { transform: scale(1.1); opacity: 1; }
             100% { transform: scale(1); opacity: 1; }
         }
+        
+        /* Ability Selection Styling */
+        .ability-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .ability-button {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .ability-button:hover {
+            border-color: #3498db;
+            background: #f8f9fa;
+        }
+        
+        .ability-button.selected {
+            border-color: #2ecc71;
+            background: #d5f4e6;
+        }
+        
+        .ability-button img {
+            border-radius: 4px;
+        }
+        
+        .ability-button span {
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -1427,7 +1465,29 @@
             allAbilities.forEach(ability => {
                 const abilityButton = document.createElement('button');
                 abilityButton.className = 'ability-button';
-                abilityButton.textContent = ability.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                
+                // Create ability icon
+                const abilityIcon = document.createElement('img');
+                abilityIcon.src = `/assets/abilities/ability_${ability}.PNG`;
+                abilityIcon.alt = ability;
+                abilityIcon.width = 24;
+                abilityIcon.height = 24;
+                abilityIcon.onerror = function() {
+                    // Fallback to .png if .PNG fails
+                    this.src = `/assets/abilities/ability_${ability}.png`;
+                    this.onerror = function() {
+                        // Final fallback to text
+                        this.style.display = 'none';
+                        abilityButton.textContent = ability.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    };
+                };
+                
+                // Add icon and text
+                abilityButton.appendChild(abilityIcon);
+                const abilityText = document.createElement('span');
+                abilityText.textContent = ability.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                abilityButton.appendChild(abilityText);
+                
                 abilityButton.onclick = () => toggleAbility(ability, abilityButton);
                 
                 // Check if already selected
