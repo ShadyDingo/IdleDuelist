@@ -508,7 +508,7 @@ class WebPlayer:
         player = cls(data['id'], data['username'])
         player.faction = data.get('faction', 'order_of_the_silver_crusade')
         player.armor_type = data.get('armor_type', 'cloth')
-        player.abilities = data.get('abilities', [])
+        player.abilities = data.get('selected_abilities', data.get('abilities', []))
         player.equipment = data.get('equipment', {})
         player.rating = data.get('rating', 1200)
         player.wins = data.get('wins', 0)
@@ -1740,7 +1740,7 @@ def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
         if action.startswith('ability_'):
             ability_name = action.replace('ability_', '')
             if ability_name in defender.abilities:
-                ability_result = execute_ability(defender, attacker, defender_type, attacker_type)
+                ability_result = execute_ability(defender, attacker, ability_name, defender_type)
                 duel_log.extend(ability_result.get('log', []))
         else:
             # Regular attack
@@ -1774,19 +1774,25 @@ def execute_duel(player1: WebPlayer, player2: WebPlayer) -> dict:
 
 def get_player_action(player: WebPlayer, round_number: int) -> str:
     """Get player action (ability or attack) based on alternating pattern"""
+    # Debug: print player abilities
+    print(f"DEBUG: Player {player.username} abilities: {player.abilities}")
+    
     # Ensure player has abilities
     if not player.abilities or len(player.abilities) == 0:
         # Default abilities if none selected
         default_abilities = ['divine_strike', 'healing_light', 'shadow_strike', 'earthquake']
         player.abilities = default_abilities
+        print(f"DEBUG: Set default abilities for {player.username}: {player.abilities}")
     
     # Alternating pattern: odd rounds use abilities, even rounds use normal attacks
     if round_number % 2 == 1 and player.abilities:
         # Odd rounds: use abilities
         ability = random.choice(player.abilities)
+        print(f"DEBUG: {player.username} using ability: {ability}")
         return f"ability_{ability}"
     else:
         # Even rounds: use normal attacks
+        print(f"DEBUG: {player.username} using normal attack")
         return "attack"
 
 def execute_ability(attacker: WebPlayer, defender: WebPlayer, ability_name: str, attacker_type: str) -> dict:
