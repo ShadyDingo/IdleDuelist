@@ -521,6 +521,92 @@
             max-width: 200px;
             text-align: center;
         }
+        
+        /* Tournament Styles */
+        .tournament-info {
+            margin-bottom: 20px;
+        }
+        
+        .tournament-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .tournament-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.5em;
+        }
+        
+        .tournament-card p {
+            margin: 5px 0;
+        }
+        
+        .tournament-leaderboard {
+            margin-bottom: 20px;
+        }
+        
+        .leaderboard-table {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .leaderboard-header {
+            background: #2c3e50;
+            color: white;
+            display: grid;
+            grid-template-columns: 60px 1fr 80px 80px 100px 100px 120px;
+            padding: 15px;
+            font-weight: bold;
+        }
+        
+        .leaderboard-row {
+            display: grid;
+            grid-template-columns: 60px 1fr 80px 80px 100px 100px 120px;
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s;
+        }
+        
+        .leaderboard-row:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .leaderboard-row.top-three {
+            background: linear-gradient(90deg, #ffd700, #ffed4e);
+        }
+        
+        .leaderboard-row.top-three:nth-child(2) {
+            background: linear-gradient(90deg, #c0c0c0, #e8e8e8);
+        }
+        
+        .leaderboard-row.top-three:nth-child(3) {
+            background: linear-gradient(90deg, #cd7f32, #daa520);
+        }
+        
+        .tournament-actions {
+            text-align: center;
+        }
+        
+        .tournament-actions button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: transform 0.2s;
+        }
+        
+        .tournament-actions button:hover {
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
@@ -611,7 +697,8 @@
                 <button onclick="showLoadoutManagement()">Manage Loadout</button>
                 <button onclick="showAbilitySelection()">✨ Select Abilities</button>
                 <button onclick="startDuel()">⚔️ Duel</button>
-                <button onclick="showLeaderboard()">🏆 Leaderboard</button>
+                <button onclick="showTournament()">🏆 Tournament</button>
+                <button onclick="showLeaderboard()">📈 Leaderboard</button>
                 <button onclick="showCharacterInfo()">📊 Character Info</button>
             </div>
 
@@ -838,6 +925,27 @@
                 <button onclick="loadLeaderboard()">Refresh</button>
             </div>
             <div id="leaderboard" class="leaderboard"></div>
+        </div>
+
+        <!-- Tournament Screen -->
+        <div id="tournament-screen" class="game-section">
+            <h2>🏆 Tournament</h2>
+            <div class="nav-buttons">
+                <button onclick="showGameInterface()">← Back to Game</button>
+            </div>
+            
+            <div id="tournament-info" class="tournament-info">
+                <!-- Tournament info will be populated here -->
+            </div>
+            
+            <div id="tournament-leaderboard" class="tournament-leaderboard">
+                <!-- Tournament leaderboard will be populated here -->
+            </div>
+            
+            <div class="tournament-actions">
+                <button id="join-tournament-btn" onclick="joinTournament()" style="display: none;">Join Tournament</button>
+                <button id="leave-tournament-btn" onclick="leaveTournament()" style="display: none;">Leave Tournament</button>
+            </div>
         </div>
 
         <!-- Character Info -->
@@ -1276,6 +1384,135 @@
             hideAllSections();
             document.getElementById('character-info').classList.add('active');
             displayCharacterInfo();
+        }
+
+        function showTournament() {
+            hideAllSections();
+            document.getElementById('tournament-screen').classList.add('active');
+            loadTournamentInfo();
+        }
+
+        async function loadTournamentInfo() {
+            try {
+                // Load current tournament
+                const response = await fetch('/tournament/current');
+                const result = await response.json();
+                
+                const tournamentInfo = document.getElementById('tournament-info');
+                const leaderboard = document.getElementById('tournament-leaderboard');
+                const joinBtn = document.getElementById('join-tournament-btn');
+                const leaveBtn = document.getElementById('leave-tournament-btn');
+                
+                if (result.success) {
+                    const tournament = result.tournament;
+                    
+                    // Display tournament info
+                    tournamentInfo.innerHTML = `
+                        <div class="tournament-card">
+                            <h3>${tournament.name}</h3>
+                            <p><strong>Prize Pool:</strong> ${tournament.prize_pool.toLocaleString()} Gold</p>
+                            <p><strong>Status:</strong> ${tournament.status}</p>
+                            <p><strong>Ends:</strong> ${new Date(tournament.end_date).toLocaleString()}</p>
+                        </div>
+                    `;
+                    
+                    // Load leaderboard
+                    await loadTournamentLeaderboard();
+                    
+                    // Show appropriate buttons
+                    joinBtn.style.display = 'inline-block';
+                    leaveBtn.style.display = 'none';
+                } else {
+                    tournamentInfo.innerHTML = `
+                        <div class="tournament-card">
+                            <h3>No Active Tournament</h3>
+                            <p>No tournament is currently running. Check back later!</p>
+                        </div>
+                    `;
+                    leaderboard.innerHTML = '';
+                    joinBtn.style.display = 'none';
+                    leaveBtn.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading tournament info:', error);
+                showNotification('Error loading tournament info', 'error');
+            }
+        }
+
+        async function loadTournamentLeaderboard() {
+            try {
+                const response = await fetch('/tournament/leaderboard');
+                const result = await response.json();
+                
+                const leaderboard = document.getElementById('tournament-leaderboard');
+                
+                if (result.success && result.participants.length > 0) {
+                    leaderboard.innerHTML = `
+                        <h3>Tournament Leaderboard</h3>
+                        <div class="leaderboard-table">
+                            <div class="leaderboard-header">
+                                <span>Rank</span>
+                                <span>Player</span>
+                                <span>Wins</span>
+                                <span>Losses</span>
+                                <span>Win Rate</span>
+                                <span>Rating</span>
+                                <span>Prize</span>
+                            </div>
+                            ${result.participants.map((player, index) => `
+                                <div class="leaderboard-row ${index < 3 ? 'top-three' : ''}">
+                                    <span class="rank">${index + 1}</span>
+                                    <span class="player">${player.username}</span>
+                                    <span class="wins">${player.wins}</span>
+                                    <span class="losses">${player.losses}</span>
+                                    <span class="win-rate">${player.win_rate}%</span>
+                                    <span class="rating">${player.rating}</span>
+                                    <span class="prize">${player.prize_earned.toLocaleString()}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    leaderboard.innerHTML = `
+                        <h3>Tournament Leaderboard</h3>
+                        <p>No participants yet. Be the first to join!</p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading tournament leaderboard:', error);
+            }
+        }
+
+        async function joinTournament() {
+            if (!currentPlayer) {
+                showNotification('Please log in first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/tournament/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentPlayer.username })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Successfully joined tournament!', 'success');
+                    await loadTournamentLeaderboard();
+                } else {
+                    showNotification(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error joining tournament:', error);
+                showNotification('Error joining tournament', 'error');
+            }
+        }
+
+        async function leaveTournament() {
+            // TODO: Implement leave tournament functionality
+            showNotification('Leave tournament feature coming soon!', 'info');
         }
 
         function hideAllSections() {

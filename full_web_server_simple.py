@@ -360,6 +360,61 @@ def init_database():
                 )
             ''')
             
+            # Tournament system tables
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tournaments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    start_date TIMESTAMP NOT NULL,
+                    end_date TIMESTAMP NOT NULL,
+                    status TEXT DEFAULT 'active',
+                    prize_pool INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tournament_participants (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tournament_id INTEGER NOT NULL,
+                    player_id TEXT NOT NULL,
+                    wins INTEGER DEFAULT 0,
+                    losses INTEGER DEFAULT 0,
+                    rating INTEGER DEFAULT 1200,
+                    prize_earned INTEGER DEFAULT 0,
+                    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (tournament_id) REFERENCES tournaments (id),
+                    FOREIGN KEY (player_id) REFERENCES players (id)
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS tournament_matches (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tournament_id INTEGER NOT NULL,
+                    player1_id TEXT NOT NULL,
+                    player2_id TEXT NOT NULL,
+                    winner_id TEXT,
+                    match_log TEXT,
+                    round_number INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (tournament_id) REFERENCES tournaments (id)
+                )
+            ''')
+            
+            # Player progression and rewards
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS player_rewards (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_id TEXT NOT NULL,
+                    reward_type TEXT NOT NULL,
+                    reward_data TEXT,
+                    claimed BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (player_id) REFERENCES players (id)
+                )
+            ''')
+            
             conn.commit()
             print("✅ Full game database initialized")
             
@@ -2155,6 +2210,329 @@ async def get_ability_descriptions():
         'spirit_form': 'Grants immunity to physical attacks for 2 rounds.'
     }
     return ability_descriptions
+
+# Tournament System Functions
+def get_current_tournament():
+    """Get the current active tournament"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM tournaments 
+            WHERE status = 'active' 
+            AND datetime('now') BETWEEN start_date AND end_date
+            ORDER BY created_at DESC LIMIT 1
+        ''')
+        tournament = cursor.fetchone()
+        return tournament
+
+def create_weekly_tournament():
+    """Create a new weekly tournament"""
+    from datetime import datetime, timedelta
+    import pytz
+    
+    # Get EST timezone
+    est = pytz.timezone('US/Eastern')
+    now = datetime.now(est)
+    
+    # Calculate next Sunday at 12am EST
+    days_until_sunday = (6 - now.weekday()) % 7
+    if days_until_sunday == 0 and now.hour >= 0:  # If it's Sunday and past midnight
+        days_until_sunday = 7
+    
+    next_sunday = now + timedelta(days=days_until_sunday)
+    next_sunday = next_sunday.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Tournament runs for 7 days
+    end_date = next_sunday + timedelta(days=7)
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # End current tournament if exists
+        cursor.execute('UPDATE tournaments SET status = "completed" WHERE status = "active"')
+        
+        # Create new tournament
+        tournament_name = f"Weekly Tournament - {next_sunday.strftime('%B %d, %Y')}"
+        cursor.execute('''
+            INSERT INTO tournaments (name, start_date, end_date, status, prize_pool)
+            VALUES (?, ?, ?, 'active', 10000)
+        ''', (tournament_name, next_sunday.isoformat(), end_date.isoformat()))
+        
+        conn.commit()
+        print(f"✅ Created new weekly tournament: {tournament_name}")
+        return cursor.lastrowid
+
+def join_tournament(player_id: str, tournament_id: int = None):
+    """Join a player to the current tournament"""
+    if tournament_id is None:
+        tournament = get_current_tournament()
+        if not tournament:
+            return {"success": False, "error": "No active tournament"}
+        tournament_id = tournament['id']
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Check if already joined
+        cursor.execute('''
+            SELECT id FROM tournament_participants 
+            WHERE tournament_id = ? AND player_id = ?
+        ''', (tournament_id, player_id))
+        
+        if cursor.fetchone():
+            return {"success": False, "error": "Already joined this tournament"}
+        
+        # Add player to tournament
+        cursor.execute('''
+            INSERT INTO tournament_participants (tournament_id, player_id, rating)
+            VALUES (?, ?, 1200)
+        ''', (tournament_id, player_id))
+        
+        conn.commit()
+        return {"success": True, "message": "Successfully joined tournament"}
+
+def get_tournament_leaderboard(tournament_id: int = None):
+    """Get tournament leaderboard"""
+    if tournament_id is None:
+        tournament = get_current_tournament()
+        if not tournament:
+            return {"success": False, "error": "No active tournament"}
+        tournament_id = tournament['id']
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT p.username, tp.wins, tp.losses, tp.rating, tp.prize_earned,
+                   (tp.wins + tp.losses) as total_matches,
+                   CASE WHEN (tp.wins + tp.losses) > 0 
+                        THEN ROUND((tp.wins * 100.0) / (tp.wins + tp.losses), 1)
+                        ELSE 0 END as win_rate
+            FROM tournament_participants tp
+            JOIN players p ON tp.player_id = p.id
+            WHERE tp.tournament_id = ?
+            ORDER BY tp.wins DESC, tp.rating DESC
+        ''', (tournament_id,))
+        
+        participants = cursor.fetchall()
+        return {
+            "success": True,
+            "tournament_id": tournament_id,
+            "participants": [
+                {
+                    "username": p['username'],
+                    "wins": p['wins'],
+                    "losses": p['losses'],
+                    "rating": p['rating'],
+                    "prize_earned": p['prize_earned'],
+                    "total_matches": p['total_matches'],
+                    "win_rate": p['win_rate']
+                }
+                for p in participants
+            ]
+        }
+
+def record_tournament_match(player1_id: str, player2_id: str, winner_id: str, match_log: str, tournament_id: int = None):
+    """Record a tournament match"""
+    if tournament_id is None:
+        tournament = get_current_tournament()
+        if not tournament:
+            return {"success": False, "error": "No active tournament"}
+        tournament_id = tournament['id']
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Record the match
+        cursor.execute('''
+            INSERT INTO tournament_matches (tournament_id, player1_id, player2_id, winner_id, match_log)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (tournament_id, player1_id, player2_id, winner_id, match_log))
+        
+        # Update participant stats
+        if winner_id == player1_id:
+            cursor.execute('''
+                UPDATE tournament_participants 
+                SET wins = wins + 1, rating = rating + 25
+                WHERE tournament_id = ? AND player_id = ?
+            ''', (tournament_id, player1_id))
+            cursor.execute('''
+                UPDATE tournament_participants 
+                SET losses = losses + 1, rating = rating - 15
+                WHERE tournament_id = ? AND player_id = ?
+            ''', (tournament_id, player2_id))
+        else:
+            cursor.execute('''
+                UPDATE tournament_participants 
+                SET wins = wins + 1, rating = rating + 25
+                WHERE tournament_id = ? AND player_id = ?
+            ''', (tournament_id, player2_id))
+            cursor.execute('''
+                UPDATE tournament_participants 
+                SET losses = losses + 1, rating = rating - 15
+                WHERE tournament_id = ? AND player_id = ?
+            ''', (tournament_id, player1_id))
+        
+        conn.commit()
+        return {"success": True, "message": "Tournament match recorded"}
+
+def distribute_tournament_rewards(tournament_id: int):
+    """Distribute rewards at the end of a tournament"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get tournament info
+        cursor.execute('SELECT prize_pool FROM tournaments WHERE id = ?', (tournament_id,))
+        tournament = cursor.fetchone()
+        if not tournament:
+            return {"success": False, "error": "Tournament not found"}
+        
+        prize_pool = tournament['prize_pool']
+        
+        # Get top participants
+        cursor.execute('''
+            SELECT player_id, wins, losses, rating
+            FROM tournament_participants
+            WHERE tournament_id = ?
+            ORDER BY wins DESC, rating DESC
+            LIMIT 10
+        ''', (tournament_id,))
+        
+        participants = cursor.fetchall()
+        
+        # Distribute prizes
+        rewards = []
+        for i, participant in enumerate(participants):
+            player_id = participant['player_id']
+            
+            # Prize distribution: 1st=30%, 2nd=20%, 3rd=15%, 4th-10th=5% each
+            if i == 0:
+                prize_amount = int(prize_pool * 0.30)
+            elif i == 1:
+                prize_amount = int(prize_pool * 0.20)
+            elif i == 2:
+                prize_amount = int(prize_pool * 0.15)
+            else:
+                prize_amount = int(prize_pool * 0.05)
+            
+            if prize_amount > 0:
+                # Update participant prize
+                cursor.execute('''
+                    UPDATE tournament_participants 
+                    SET prize_earned = prize_earned + ?
+                    WHERE tournament_id = ? AND player_id = ?
+                ''', (prize_amount, tournament_id, player_id))
+                
+                # Create reward record
+                reward_data = {
+                    "type": "tournament_prize",
+                    "amount": prize_amount,
+                    "position": i + 1,
+                    "tournament_id": tournament_id
+                }
+                cursor.execute('''
+                    INSERT INTO player_rewards (player_id, reward_type, reward_data)
+                    VALUES (?, 'tournament_prize', ?)
+                ''', (player_id, json.dumps(reward_data)))
+                
+                rewards.append({
+                    "player_id": player_id,
+                    "position": i + 1,
+                    "prize": prize_amount
+                })
+        
+        conn.commit()
+        return {"success": True, "rewards": rewards}
+
+# Tournament API Endpoints
+@app.get("/tournament/current")
+async def get_current_tournament_api():
+    """Get current tournament info"""
+    tournament = get_current_tournament()
+    if not tournament:
+        return JSONResponse({"success": False, "error": "No active tournament"})
+    
+    return JSONResponse({
+        "success": True,
+        "tournament": {
+            "id": tournament['id'],
+            "name": tournament['name'],
+            "start_date": tournament['start_date'],
+            "end_date": tournament['end_date'],
+            "prize_pool": tournament['prize_pool'],
+            "status": tournament['status']
+        }
+    })
+
+@app.post("/tournament/join")
+async def join_tournament_api(request: dict):
+    """Join current tournament"""
+    username = request.get('username')
+    if not username:
+        return JSONResponse({"success": False, "error": "Username required"})
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM players WHERE username = ?', (username,))
+        player_row = cursor.fetchone()
+        
+        if not player_row:
+            return JSONResponse({"success": False, "error": "Player not found"})
+        
+        player_id = player_row['id']
+        result = join_tournament(player_id)
+        return JSONResponse(result)
+
+@app.get("/tournament/leaderboard")
+async def get_tournament_leaderboard_api():
+    """Get tournament leaderboard"""
+    result = get_tournament_leaderboard()
+    return JSONResponse(result)
+
+@app.post("/tournament/create")
+async def create_tournament_api():
+    """Create a new weekly tournament (admin only)"""
+    try:
+        tournament_id = create_weekly_tournament()
+        return JSONResponse({
+            "success": True,
+            "message": "Tournament created successfully",
+            "tournament_id": tournament_id
+        })
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.post("/tournament/record-match")
+async def record_tournament_match_api(request: dict):
+    """Record a tournament match"""
+    player1_id = request.get('player1_id')
+    player2_id = request.get('player2_id')
+    winner_id = request.get('winner_id')
+    match_log = request.get('match_log', '')
+    
+    if not all([player1_id, player2_id, winner_id]):
+        return JSONResponse({
+            "success": False,
+            "error": "Missing required fields"
+        })
+    
+    result = record_tournament_match(player1_id, player2_id, winner_id, match_log)
+    return JSONResponse(result)
+
+@app.post("/tournament/distribute-rewards")
+async def distribute_rewards_api(request: dict):
+    """Distribute tournament rewards (admin only)"""
+    tournament_id = request.get('tournament_id')
+    if not tournament_id:
+        return JSONResponse({
+            "success": False,
+            "error": "Tournament ID required"
+        })
+    
+    result = distribute_tournament_rewards(tournament_id)
+    return JSONResponse(result)
 
 @app.get("/debug-db")
 async def debug_database():
