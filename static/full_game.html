@@ -1713,12 +1713,19 @@
                 
                 // Handle asset paths and generate HTML
                 if (logEntry.includes('/assets/')) {
-                    // This is an asset path, generate HTML
+                    // This is an asset path, generate HTML with fallback handling
                     const assetPath = logEntry;
-                    p.innerHTML = `<img src="${assetPath}" width="20" height="20" style="vertical-align: middle;" onerror="this.style.display='none'; this.nextSibling.style.display='inline';"><span style="display: none;">⚡</span>`;
+                    console.log('Creating HTML for asset path:', assetPath);
+                    p.innerHTML = `
+                        <img src="${assetPath}" width="20" height="20" style="vertical-align: middle;" 
+                             onerror="this.src='${assetPath.replace('.PNG', '.png')}'; this.onerror=function(){this.style.display='none'; this.nextSibling.style.display='inline';};">
+                        <span style="display: none;">⚡</span>
+                    `;
                 } else if (logEntry.includes('<img')) {
+                    console.log('Using existing HTML:', logEntry);
                     p.innerHTML = logEntry;
                 } else {
+                    console.log('Using text content:', logEntry);
                     p.textContent = logEntry;
                 }
                 
@@ -1783,12 +1790,32 @@
             const logContainer = document.getElementById('duel-combat-log');
             logContainer.innerHTML = '';
             
+            console.log('Displaying combat log:', combatLog);
+            
             // Display combat log incrementally with delays
             for (let i = 0; i < combatLog.length; i++) {
                 const entry = combatLog[i];
                 const logEntry = document.createElement('div');
                 logEntry.className = 'log-entry';
-                logEntry.textContent = entry;
+                
+                // Handle asset paths and generate HTML
+                if (entry.includes('/assets/')) {
+                    // This is an asset path, generate HTML with fallback handling
+                    const assetPath = entry;
+                    console.log('Creating HTML for asset path:', assetPath);
+                    logEntry.innerHTML = `
+                        <img src="${assetPath}" width="20" height="20" style="vertical-align: middle;" 
+                             onerror="this.src='${assetPath.replace('.PNG', '.png')}'; this.onerror=function(){this.style.display='none'; this.nextSibling.style.display='inline';};">
+                        <span style="display: none;">⚡</span>
+                    `;
+                } else if (entry.includes('<img')) {
+                    console.log('Using existing HTML:', entry);
+                    logEntry.innerHTML = entry;
+                } else {
+                    console.log('Using text content:', entry);
+                    logEntry.textContent = entry;
+                }
+                
                 logContainer.appendChild(logEntry);
                 logContainer.scrollTop = logContainer.scrollHeight;
                 
