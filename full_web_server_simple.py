@@ -460,6 +460,85 @@ def init_database():
                 )
             ''')
             
+            # Character Progression System
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS player_progression (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_id TEXT NOT NULL,
+                    level INTEGER DEFAULT 1,
+                    experience INTEGER DEFAULT 0,
+                    experience_to_next INTEGER DEFAULT 100,
+                    skill_points INTEGER DEFAULT 0,
+                    total_skill_points_earned INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (player_id) REFERENCES players (id)
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS player_skills (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_id TEXT NOT NULL,
+                    skill_name TEXT NOT NULL,
+                    skill_level INTEGER DEFAULT 0,
+                    skill_points_invested INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (player_id) REFERENCES players (id),
+                    UNIQUE(player_id, skill_name)
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS achievements (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    requirement_value INTEGER NOT NULL,
+                    reward_type TEXT NOT NULL,
+                    reward_value INTEGER NOT NULL,
+                    icon TEXT DEFAULT '🏆',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS player_achievements (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_id TEXT NOT NULL,
+                    achievement_id INTEGER NOT NULL,
+                    progress INTEGER DEFAULT 0,
+                    completed BOOLEAN DEFAULT FALSE,
+                    completed_at TIMESTAMP,
+                    claimed BOOLEAN DEFAULT FALSE,
+                    claimed_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (player_id) REFERENCES players (id),
+                    FOREIGN KEY (achievement_id) REFERENCES achievements (id),
+                    UNIQUE(player_id, achievement_id)
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS daily_quests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_id TEXT NOT NULL,
+                    quest_type TEXT NOT NULL,
+                    quest_description TEXT NOT NULL,
+                    target_value INTEGER NOT NULL,
+                    current_progress INTEGER DEFAULT 0,
+                    reward_type TEXT NOT NULL,
+                    reward_value INTEGER NOT NULL,
+                    completed BOOLEAN DEFAULT FALSE,
+                    claimed BOOLEAN DEFAULT FALSE,
+                    quest_date DATE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (player_id) REFERENCES players (id)
+                )
+            ''')
+            
             conn.commit()
             print("✅ Full game database initialized")
             
@@ -2488,6 +2567,145 @@ def distribute_tournament_rewards(tournament_id: int):
         conn.commit()
         return {"success": True, "rewards": rewards}
 
+# Character Progression System
+def get_player_progression(player_id: str):
+    """Get player progression data"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM player_progression WHERE player_id = ?', (player_id,))
+        progression_row = cursor.fetchone()
+        
+        if progression_row:
+            return {
+                "success": True,
+                "progression": {
+                    "level": progression_row[2],
+                    "experience": progression_row[3],
+                    "experience_to_next": progression_row[4],
+                    "skill_points": progression_row[5],
+                    "total_skill_points_earned": progression_row[6]
+                }
+            }
+        else:
+            # Create initial progression
+            cursor.execute('''
+                INSERT INTO player_progression (player_id, level, experience, experience_to_next, skill_points)
+                VALUES (?, 1, 0, 100, 0)
+            ''', (player_id,))
+            conn.commit()
+            
+            return {
+                "success": True,
+                "progression": {
+                    "level": 1,
+                    "experience": 0,
+                    "experience_to_next": 100,
+                    "skill_points": 0,
+                    "total_skill_points_earned": 0
+                }
+            }
+
+def add_experience(player_id: str, exp_amount: int):
+    """Add experience to player and handle level ups"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get current progression
+        cursor.execute('SELECT * FROM player_progression WHERE player_id = ?', (player_id,))
+        progression_row = cursor.fetchone()
+        
+        if not progression_row:
+            # Create initial progression
+            cursor.execute('''
+                INSERT INTO player_progression (player_id, level, experience, experience_to_next, skill_points)
+                VALUES (?, 1, 0, 100, 0)
+            ''', (player_id,))
+            conn.commit()
+            cursor.execute('SELECT * FROM player_progression WHERE player_id = ?', (player_id,))
+            progression_row = cursor.fetchone()
+        
+        current_level = progression_row[2]
+        current_exp = progression_row[3]
+        exp_to_next = progression_row[4]
+        skill_points = progression_row[5]
+        
+        # Add experience
+        new_exp = current_exp + exp_amount
+        new_level = current_level
+        new_exp_to_next = exp_to_next
+        new_skill_points = skill_points
+        
+        # Check for level ups
+        levels_gained = 0
+        while new_exp >= new_exp_to_next:
+            new_exp -= new_exp_to_next
+            new_level += 1
+            levels_gained += 1
+            new_exp_to_next = int(new_exp_to_next * 1.2)  # 20% increase per level
+            new_skill_points += 2  # 2 skill points per level
+        
+        # Update progression
+        cursor.execute('''
+            UPDATE player_progression SET 
+            level = ?, experience = ?, experience_to_next = ?, skill_points = ?,
+            total_skill_points_earned = total_skill_points_earned + ?,
+            updated_at = CURRENT_TIMESTAMP
+            WHERE player_id = ?
+        ''', (new_level, new_exp, new_exp_to_next, new_skill_points, levels_gained * 2, player_id))
+        
+        conn.commit()
+        
+        return {
+            "success": True,
+            "level_up": levels_gained > 0,
+            "levels_gained": levels_gained,
+            "skill_points_gained": levels_gained * 2,
+            "new_level": new_level,
+            "new_experience": new_exp,
+            "new_exp_to_next": new_exp_to_next
+        }
+
+def initialize_achievements():
+    """Initialize default achievements"""
+    achievements = [
+        # Combat Achievements
+        ("First Blood", "Win your first duel", "combat", 1, "experience", 50, "⚔️"),
+        ("Warrior", "Win 10 duels", "combat", 10, "experience", 200, "🛡️"),
+        ("Champion", "Win 50 duels", "combat", 50, "experience", 1000, "👑"),
+        ("Legend", "Win 100 duels", "combat", 100, "experience", 2500, "🌟"),
+        ("Streak Master", "Achieve a 10-win streak", "combat", 10, "skill_points", 5, "🔥"),
+        ("Perfect Victory", "Win a duel without taking damage", "combat", 1, "experience", 300, "✨"),
+        
+        # Progression Achievements
+        ("Rising Star", "Reach level 10", "progression", 10, "skill_points", 10, "⭐"),
+        ("Veteran", "Reach level 25", "progression", 25, "skill_points", 25, "🎖️"),
+        ("Master", "Reach level 50", "progression", 50, "skill_points", 50, "🏆"),
+        ("Grandmaster", "Reach level 100", "progression", 100, "skill_points", 100, "💎"),
+        
+        # Tournament Achievements
+        ("Tournament Rookie", "Join your first tournament", "tournament", 1, "experience", 100, "🏅"),
+        ("Tournament Veteran", "Join 10 tournaments", "tournament", 10, "experience", 500, "🥇"),
+        ("Tournament Champion", "Win a tournament", "tournament", 1, "skill_points", 20, "🏆"),
+        
+        # PVP Achievements
+        ("PVP Novice", "Complete 5 PVP matches", "pvp", 5, "experience", 150, "⚡"),
+        ("PVP Expert", "Complete 25 PVP matches", "pvp", 25, "experience", 750, "⚔️"),
+        ("PVP Master", "Complete 100 PVP matches", "pvp", 100, "skill_points", 15, "🎯"),
+    ]
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        for achievement in achievements:
+            cursor.execute('''
+                INSERT OR IGNORE INTO achievements 
+                (name, description, category, requirement_value, reward_type, reward_value, icon)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', achievement)
+        
+        conn.commit()
+        print(f"✅ Initialized {len(achievements)} achievements")
+
 # PVP Matchmaking System
 def join_matchmaking_queue(player_id: str, rating: int = 1200, faction: str = 'order_of_the_silver_crusade'):
     """Add player to matchmaking queue"""
@@ -2904,6 +3122,100 @@ async def record_pvp_match_api(request: dict):
         return JSONResponse({
             "success": True,
             "message": "PVP match recorded"
+        })
+
+# Progression API Endpoints
+@app.get("/progression/{username}")
+async def get_progression_api(username: str):
+    """Get player progression data"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM players WHERE username = ?', (username,))
+        player_row = cursor.fetchone()
+        
+        if not player_row:
+            return JSONResponse({"success": False, "error": "Player not found"})
+        
+        player_id = player_row['id']
+        result = get_player_progression(player_id)
+        return JSONResponse(result)
+
+@app.post("/progression/add-experience")
+async def add_experience_api(request: dict):
+    """Add experience to player"""
+    username = request.get('username')
+    exp_amount = request.get('experience', 0)
+    
+    if not username:
+        return JSONResponse({"success": False, "error": "Username required"})
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM players WHERE username = ?', (username,))
+        player_row = cursor.fetchone()
+        
+        if not player_row:
+            return JSONResponse({"success": False, "error": "Player not found"})
+        
+        player_id = player_row['id']
+        result = add_experience(player_id, exp_amount)
+        return JSONResponse(result)
+
+@app.get("/achievements/{username}")
+async def get_player_achievements_api(username: str):
+    """Get player achievements"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM players WHERE username = ?', (username,))
+        player_row = cursor.fetchone()
+        
+        if not player_row:
+            return JSONResponse({"success": False, "error": "Player not found"})
+        
+        player_id = player_row['id']
+        
+        # Get player achievements with achievement details
+        cursor.execute('''
+            SELECT a.name, a.description, a.icon, pa.progress, pa.completed, pa.claimed, a.requirement_value
+            FROM player_achievements pa
+            JOIN achievements a ON pa.achievement_id = a.id
+            WHERE pa.player_id = ?
+            ORDER BY pa.completed DESC, pa.progress DESC
+        ''', (player_id,))
+        
+        achievements = cursor.fetchall()
+        
+        achievement_list = []
+        for achievement in achievements:
+            achievement_list.append({
+                "name": achievement[0],
+                "description": achievement[1],
+                "icon": achievement[2],
+                "progress": achievement[3],
+                "completed": achievement[4],
+                "claimed": achievement[5],
+                "requirement": achievement[6],
+                "progress_percent": round((achievement[3] / achievement[6]) * 100, 1) if achievement[6] > 0 else 0
+            })
+        
+        return JSONResponse({
+            "success": True,
+            "achievements": achievement_list
+        })
+
+@app.post("/achievements/initialize")
+async def initialize_achievements_api():
+    """Initialize achievements (admin only)"""
+    try:
+        initialize_achievements()
+        return JSONResponse({
+            "success": True,
+            "message": "Achievements initialized successfully"
+        })
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
         })
 
 @app.get("/debug-db")

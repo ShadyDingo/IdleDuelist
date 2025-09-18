@@ -713,6 +713,137 @@
             color: #2c3e50;
             font-size: 1.1em;
         }
+        
+        /* Progression Styles */
+        .progression-bar {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .level-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .level {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .skill-points {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        .exp-bar {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 20px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+        
+        .exp-fill {
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            height: 100%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+        
+        .exp-text {
+            text-align: center;
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        /* Achievement Styles */
+        .achievements-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .achievement-item {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+        
+        .achievement-item:hover {
+            transform: translateY(-2px);
+        }
+        
+        .achievement-item.completed {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+        }
+        
+        .achievement-icon {
+            font-size: 2em;
+            margin-right: 15px;
+            min-width: 50px;
+            text-align: center;
+        }
+        
+        .achievement-info {
+            flex: 1;
+        }
+        
+        .achievement-name {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .achievement-desc {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .achievement-progress {
+            margin-top: 8px;
+        }
+        
+        .progress-bar {
+            background: #e0e0e0;
+            border-radius: 5px;
+            height: 8px;
+            overflow: hidden;
+            margin-bottom: 3px;
+        }
+        
+        .progress-fill {
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            font-size: 0.8em;
+            color: #666;
+            text-align: center;
+        }
+        
+        .more-achievements {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
@@ -2916,7 +3047,7 @@
             return icons[factionName] || '⚔️';
         }
 
-        function displayCharacterInfo() {
+        async function displayCharacterInfo() {
             if (!currentPlayer) {
                 console.log('displayCharacterInfo: No currentPlayer');
                 return;
@@ -2932,6 +3063,30 @@
             // Calculate current stats
             const playerStats = calculatePlayerStats(currentPlayer);
 
+            // Load progression data
+            let progressionData = null;
+            try {
+                const progressionResponse = await fetch(`/progression/${currentPlayer.username}`);
+                const progressionResult = await progressionResponse.json();
+                if (progressionResult.success) {
+                    progressionData = progressionResult.progression;
+                }
+            } catch (error) {
+                console.error('Error loading progression:', error);
+            }
+            
+            // Load achievements
+            let achievementsData = [];
+            try {
+                const achievementsResponse = await fetch(`/achievements/${currentPlayer.username}`);
+                const achievementsResult = await achievementsResponse.json();
+                if (achievementsResult.success) {
+                    achievementsData = achievementsResult.achievements;
+                }
+            } catch (error) {
+                console.error('Error loading achievements:', error);
+            }
+
             const details = document.getElementById('character-details');
             details.innerHTML = `
                 <div class="character-section">
@@ -2942,6 +3097,22 @@
                     <p><strong>Main Weapon:</strong> ${weapon1Data.name} (${weapon1Tier.name})</p>
                     <p><strong>Off-Hand Weapon:</strong> ${weapon2Data.name} (${weapon2Tier.name})</p>
                 </div>
+                
+                ${progressionData ? `
+                <div class="character-section">
+                    <h3>Character Progression</h3>
+                    <div class="progression-bar">
+                        <div class="level-info">
+                            <span class="level">Level ${progressionData.level}</span>
+                            <span class="skill-points">${progressionData.skill_points} Skill Points</span>
+                        </div>
+                        <div class="exp-bar">
+                            <div class="exp-fill" style="width: ${(progressionData.experience / progressionData.experience_to_next) * 100}%"></div>
+                        </div>
+                        <div class="exp-text">${progressionData.experience} / ${progressionData.experience_to_next} XP</div>
+                    </div>
+                </div>
+                ` : ''}
                 
                 <div class="character-section">
                     <h3>Core Attributes</h3>
@@ -3027,6 +3198,32 @@
                         </div>
                     </div>
                 </div>
+                
+                ${achievementsData.length > 0 ? `
+                <div class="character-section">
+                    <h3>Achievements</h3>
+                    <div class="achievements-grid">
+                        ${achievementsData.slice(0, 6).map(achievement => `
+                            <div class="achievement-item ${achievement.completed ? 'completed' : ''}">
+                                <div class="achievement-icon">${achievement.icon}</div>
+                                <div class="achievement-info">
+                                    <div class="achievement-name">${achievement.name}</div>
+                                    <div class="achievement-desc">${achievement.description}</div>
+                                    ${!achievement.completed ? `
+                                        <div class="achievement-progress">
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: ${achievement.progress_percent}%"></div>
+                                            </div>
+                                            <div class="progress-text">${achievement.progress}/${achievement.requirement}</div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ${achievementsData.length > 6 ? `<p class="more-achievements">+${achievementsData.length - 6} more achievements...</p>` : ''}
+                </div>
+                ` : ''}
             `;
         }
 
