@@ -1556,6 +1556,11 @@
             
             // Update selected abilities display
             updateSelectedAbilitiesDisplay();
+            
+            // Refresh character info if it's currently displayed
+            if (document.getElementById('character-info').classList.contains('active')) {
+                displayCharacterInfo();
+            }
         }
 
         function toggleAbility(ability, button) {
@@ -2244,6 +2249,12 @@
                     
                     savePlayerData();
                     updatePlayerStats();
+                    
+                    // Refresh character info if it's currently displayed
+                    if (document.getElementById('character-info').classList.contains('active')) {
+                        displayCharacterInfo();
+                    }
+                    
                     showNotification('Loadout saved successfully!', 'success');
                 } else {
                     showNotification(`Failed to save loadout: ${result.error}`, 'error');
@@ -2390,10 +2401,14 @@
                 </div>
                 
                 <div class="character-section">
-                    <h3>Faction Abilities</h3>
+                    <h3>Faction Passives</h3>
                     <p><strong>Primary Passive:</strong> ${factionData.passive}</p>
                     <p><strong>Secondary Passive:</strong> ${factionData.secondary_passive}</p>
-                    <p><strong>Abilities:</strong> ${factionData.abilities.join(', ')}</p>
+                </div>
+                
+                <div class="character-section">
+                    <h3>Selected Abilities</h3>
+                    <p><strong>Chosen Abilities:</strong> ${(currentPlayer.selected_abilities || []).map(ability => ability.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())).join(', ')}</p>
                 </div>
 
                 <div class="character-section">
