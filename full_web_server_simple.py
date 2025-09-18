@@ -415,6 +415,51 @@ def init_database():
                 )
             ''')
             
+            # PVP Matchmaking and Queue System
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS matchmaking_queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_id TEXT NOT NULL,
+                    rating INTEGER DEFAULT 1200,
+                    faction TEXT DEFAULT 'order_of_the_silver_crusade',
+                    queue_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status TEXT DEFAULT 'waiting',
+                    FOREIGN KEY (player_id) REFERENCES players (id)
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS pvp_matches (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player1_id TEXT NOT NULL,
+                    player2_id TEXT NOT NULL,
+                    winner_id TEXT,
+                    match_log TEXT,
+                    duration INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (player1_id) REFERENCES players (id),
+                    FOREIGN KEY (player2_id) REFERENCES players (id)
+                )
+            ''')
+            
+            # Player Statistics
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS player_stats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_id TEXT NOT NULL,
+                    total_duels INTEGER DEFAULT 0,
+                    wins INTEGER DEFAULT 0,
+                    losses INTEGER DEFAULT 0,
+                    win_streak INTEGER DEFAULT 0,
+                    best_win_streak INTEGER DEFAULT 0,
+                    total_damage_dealt INTEGER DEFAULT 0,
+                    total_damage_taken INTEGER DEFAULT 0,
+                    favorite_ability TEXT,
+                    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (player_id) REFERENCES players (id)
+                )
+            ''')
+            
             conn.commit()
             print("✅ Full game database initialized")
             
@@ -2443,6 +2488,201 @@ def distribute_tournament_rewards(tournament_id: int):
         conn.commit()
         return {"success": True, "rewards": rewards}
 
+# PVP Matchmaking System
+def join_matchmaking_queue(player_id: str, rating: int = 1200, faction: str = 'order_of_the_silver_crusade'):
+    """Add player to matchmaking queue"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Remove player from queue if already in it
+        cursor.execute('DELETE FROM matchmaking_queue WHERE player_id = ?', (player_id,))
+        
+        # Add player to queue
+        cursor.execute('''
+            INSERT INTO matchmaking_queue (player_id, rating, faction, status)
+            VALUES (?, ?, ?, 'waiting')
+        ''', (player_id, rating, faction))
+        
+        conn.commit()
+        return {"success": True, "message": "Joined matchmaking queue"}
+
+def leave_matchmaking_queue(player_id: str):
+    """Remove player from matchmaking queue"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM matchmaking_queue WHERE player_id = ?', (player_id,))
+        conn.commit()
+        return {"success": True, "message": "Left matchmaking queue"}
+
+def find_match(player_id: str):
+    """Find a match for the player"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get player's rating
+        cursor.execute('SELECT rating FROM matchmaking_queue WHERE player_id = ?', (player_id,))
+        player_row = cursor.fetchone()
+        if not player_row:
+            return {"success": False, "error": "Player not in queue"}
+        
+        player_rating = player_row[0]
+        
+        # Find opponent within rating range (±100 rating points)
+        rating_range = 100
+        cursor.execute('''
+            SELECT player_id, rating FROM matchmaking_queue 
+            WHERE player_id != ? AND status = 'waiting'
+            AND rating BETWEEN ? AND ?
+            ORDER BY ABS(rating - ?) ASC
+            LIMIT 1
+        ''', (player_id, player_rating - rating_range, player_rating + rating_range, player_rating))
+        
+        opponent_row = cursor.fetchone()
+        
+        if opponent_row:
+            opponent_id = opponent_row[0]
+            opponent_rating = opponent_row[1]
+            
+            # Update both players' status to 'matched'
+            cursor.execute('UPDATE matchmaking_queue SET status = "matched" WHERE player_id IN (?, ?)', 
+                         (player_id, opponent_id))
+            
+            conn.commit()
+            
+            return {
+                "success": True,
+                "match_found": True,
+                "opponent_id": opponent_id,
+                "player_rating": player_rating,
+                "opponent_rating": opponent_rating
+            }
+        else:
+            return {
+                "success": True,
+                "match_found": False,
+                "message": "No suitable opponent found"
+            }
+
+def get_queue_status(player_id: str):
+    """Get player's queue status"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT status, queue_time FROM matchmaking_queue WHERE player_id = ?', (player_id,))
+        row = cursor.fetchone()
+        
+        if row:
+            return {
+                "success": True,
+                "in_queue": True,
+                "status": row[0],
+                "queue_time": row[1]
+            }
+        else:
+            return {
+                "success": True,
+                "in_queue": False
+            }
+
+def update_player_stats(player_id: str, won: bool, damage_dealt: int = 0, damage_taken: int = 0, ability_used: str = None):
+    """Update player statistics after a match"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get or create player stats
+        cursor.execute('SELECT * FROM player_stats WHERE player_id = ?', (player_id,))
+        stats_row = cursor.fetchone()
+        
+        if stats_row:
+            # Update existing stats
+            if won:
+                new_win_streak = stats_row[4] + 1  # win_streak
+                new_best_streak = max(stats_row[5], new_win_streak)  # best_win_streak
+                cursor.execute('''
+                    UPDATE player_stats SET 
+                    total_duels = total_duels + 1,
+                    wins = wins + 1,
+                    win_streak = ?,
+                    best_win_streak = ?,
+                    total_damage_dealt = total_damage_dealt + ?,
+                    total_damage_taken = total_damage_taken + ?,
+                    favorite_ability = COALESCE(?, favorite_ability),
+                    last_active = CURRENT_TIMESTAMP
+                    WHERE player_id = ?
+                ''', (new_win_streak, new_best_streak, damage_dealt, damage_taken, ability_used, player_id))
+            else:
+                cursor.execute('''
+                    UPDATE player_stats SET 
+                    total_duels = total_duels + 1,
+                    losses = losses + 1,
+                    win_streak = 0,
+                    total_damage_dealt = total_damage_dealt + ?,
+                    total_damage_taken = total_damage_taken + ?,
+                    favorite_ability = COALESCE(?, favorite_ability),
+                    last_active = CURRENT_TIMESTAMP
+                    WHERE player_id = ?
+                ''', (damage_dealt, damage_taken, ability_used, player_id))
+        else:
+            # Create new stats
+            if won:
+                cursor.execute('''
+                    INSERT INTO player_stats (player_id, total_duels, wins, win_streak, best_win_streak, 
+                                           total_damage_dealt, total_damage_taken, favorite_ability)
+                    VALUES (?, 1, 1, 1, 1, ?, ?, ?)
+                ''', (player_id, damage_dealt, damage_taken, ability_used))
+            else:
+                cursor.execute('''
+                    INSERT INTO player_stats (player_id, total_duels, losses, total_damage_dealt, total_damage_taken, favorite_ability)
+                    VALUES (?, 1, 1, ?, ?, ?)
+                ''', (player_id, damage_dealt, damage_taken, ability_used))
+        
+        conn.commit()
+        return {"success": True}
+
+def get_player_stats(player_id: str):
+    """Get comprehensive player statistics"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM player_stats WHERE player_id = ?', (player_id,))
+        stats_row = cursor.fetchone()
+        
+        if stats_row:
+            total_duels = stats_row[2]
+            wins = stats_row[3]
+            losses = stats_row[4]
+            win_rate = (wins / total_duels * 100) if total_duels > 0 else 0
+            
+            return {
+                "success": True,
+                "stats": {
+                    "total_duels": total_duels,
+                    "wins": wins,
+                    "losses": losses,
+                    "win_rate": round(win_rate, 1),
+                    "win_streak": stats_row[5],
+                    "best_win_streak": stats_row[6],
+                    "total_damage_dealt": stats_row[7],
+                    "total_damage_taken": stats_row[8],
+                    "favorite_ability": stats_row[9],
+                    "last_active": stats_row[10]
+                }
+            }
+        else:
+            return {
+                "success": True,
+                "stats": {
+                    "total_duels": 0,
+                    "wins": 0,
+                    "losses": 0,
+                    "win_rate": 0,
+                    "win_streak": 0,
+                    "best_win_streak": 0,
+                    "total_damage_dealt": 0,
+                    "total_damage_taken": 0,
+                    "favorite_ability": None,
+                    "last_active": None
+                }
+            }
+
 # Tournament API Endpoints
 @app.get("/tournament/current")
 async def get_current_tournament_api():
@@ -2533,6 +2773,138 @@ async def distribute_rewards_api(request: dict):
     
     result = distribute_tournament_rewards(tournament_id)
     return JSONResponse(result)
+
+# PVP API Endpoints
+@app.post("/pvp/join-queue")
+async def join_pvp_queue_api(request: dict):
+    """Join PVP matchmaking queue"""
+    username = request.get('username')
+    if not username:
+        return JSONResponse({"success": False, "error": "Username required"})
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM players WHERE username = ?', (username,))
+        player_row = cursor.fetchone()
+        
+        if not player_row:
+            return JSONResponse({"success": False, "error": "Player not found"})
+        
+        player_id = player_row['id']
+        
+        # Get player rating from player_data
+        cursor.execute('SELECT player_data FROM players WHERE id = ?', (player_id,))
+        player_data_row = cursor.fetchone()
+        player_data = json.loads(player_data_row['player_data'])
+        rating = player_data.get('rating', 1200)
+        faction = player_data.get('faction', 'order_of_the_silver_crusade')
+        
+        result = join_matchmaking_queue(player_id, rating, faction)
+        return JSONResponse(result)
+
+@app.post("/pvp/leave-queue")
+async def leave_pvp_queue_api(request: dict):
+    """Leave PVP matchmaking queue"""
+    username = request.get('username')
+    if not username:
+        return JSONResponse({"success": False, "error": "Username required"})
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM players WHERE username = ?', (username,))
+        player_row = cursor.fetchone()
+        
+        if not player_row:
+            return JSONResponse({"success": False, "error": "Player not found"})
+        
+        player_id = player_row['id']
+        result = leave_matchmaking_queue(player_id)
+        return JSONResponse(result)
+
+@app.post("/pvp/find-match")
+async def find_pvp_match_api(request: dict):
+    """Find a PVP match"""
+    username = request.get('username')
+    if not username:
+        return JSONResponse({"success": False, "error": "Username required"})
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM players WHERE username = ?', (username,))
+        player_row = cursor.fetchone()
+        
+        if not player_row:
+            return JSONResponse({"success": False, "error": "Player not found"})
+        
+        player_id = player_row['id']
+        result = find_match(player_id)
+        return JSONResponse(result)
+
+@app.get("/pvp/queue-status/{username}")
+async def get_pvp_queue_status_api(username: str):
+    """Get PVP queue status"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM players WHERE username = ?', (username,))
+        player_row = cursor.fetchone()
+        
+        if not player_row:
+            return JSONResponse({"success": False, "error": "Player not found"})
+        
+        player_id = player_row['id']
+        result = get_queue_status(player_id)
+        return JSONResponse(result)
+
+@app.get("/pvp/stats/{username}")
+async def get_pvp_stats_api(username: str):
+    """Get player PVP statistics"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM players WHERE username = ?', (username,))
+        player_row = cursor.fetchone()
+        
+        if not player_row:
+            return JSONResponse({"success": False, "error": "Player not found"})
+        
+        player_id = player_row['id']
+        result = get_player_stats(player_id)
+        return JSONResponse(result)
+
+@app.post("/pvp/record-match")
+async def record_pvp_match_api(request: dict):
+    """Record a PVP match result"""
+    player1_id = request.get('player1_id')
+    player2_id = request.get('player2_id')
+    winner_id = request.get('winner_id')
+    match_log = request.get('match_log', '')
+    duration = request.get('duration', 0)
+    
+    if not all([player1_id, player2_id, winner_id]):
+        return JSONResponse({
+            "success": False,
+            "error": "Missing required fields"
+        })
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Record the match
+        cursor.execute('''
+            INSERT INTO pvp_matches (player1_id, player2_id, winner_id, match_log, duration)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (player1_id, player2_id, winner_id, match_log, duration))
+        
+        # Update player stats
+        # TODO: Calculate damage dealt/taken from match log
+        update_player_stats(player1_id, winner_id == player1_id, 0, 0)
+        update_player_stats(player2_id, winner_id == player2_id, 0, 0)
+        
+        conn.commit()
+        
+        return JSONResponse({
+            "success": True,
+            "message": "PVP match recorded"
+        })
 
 @app.get("/debug-db")
 async def debug_database():

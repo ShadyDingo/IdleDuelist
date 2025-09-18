@@ -607,6 +607,112 @@
         .tournament-actions button:hover {
             transform: translateY(-2px);
         }
+        
+        /* PVP Styles */
+        .pvp-status {
+            margin-bottom: 20px;
+        }
+        
+        .pvp-status-card {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .pvp-status-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.5em;
+        }
+        
+        .pvp-status-card p {
+            margin: 5px 0;
+        }
+        
+        .pvp-queue-info {
+            margin-bottom: 20px;
+        }
+        
+        .queue-info-card {
+            background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .queue-info-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.3em;
+        }
+        
+        .queue-info-card p {
+            margin: 5px 0;
+        }
+        
+        .pvp-actions {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .pvp-actions button {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: transform 0.2s;
+        }
+        
+        .pvp-actions button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .pvp-stats {
+            margin-bottom: 20px;
+        }
+        
+        .stats-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stats-card h3 {
+            margin: 0 0 15px 0;
+            color: #2c3e50;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .stat-label {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
     </style>
 </head>
 <body>
@@ -696,7 +802,8 @@
             <div class="nav-buttons">
                 <button onclick="showLoadoutManagement()">Manage Loadout</button>
                 <button onclick="showAbilitySelection()">✨ Select Abilities</button>
-                <button onclick="startDuel()">⚔️ Duel</button>
+                <button onclick="showPVP()">⚔️ PVP Duel</button>
+                <button onclick="startDuel()">🤖 vs AI</button>
                 <button onclick="showTournament()">🏆 Tournament</button>
                 <button onclick="showLeaderboard()">📈 Leaderboard</button>
                 <button onclick="showCharacterInfo()">📊 Character Info</button>
@@ -925,6 +1032,32 @@
                 <button onclick="loadLeaderboard()">Refresh</button>
             </div>
             <div id="leaderboard" class="leaderboard"></div>
+        </div>
+
+        <!-- PVP Screen -->
+        <div id="pvp-screen" class="game-section">
+            <h2>⚔️ PVP Duel</h2>
+            <div class="nav-buttons">
+                <button onclick="showGameInterface()">← Back to Game</button>
+            </div>
+            
+            <div id="pvp-status" class="pvp-status">
+                <!-- PVP status will be populated here -->
+            </div>
+            
+            <div id="pvp-queue-info" class="pvp-queue-info">
+                <!-- Queue info will be populated here -->
+            </div>
+            
+            <div class="pvp-actions">
+                <button id="join-queue-btn" onclick="joinPVPQueue()" style="display: none;">Join Matchmaking Queue</button>
+                <button id="leave-queue-btn" onclick="leavePVPQueue()" style="display: none;">Leave Queue</button>
+                <button id="find-match-btn" onclick="findPVPMatch()" style="display: none;">Find Match</button>
+            </div>
+            
+            <div id="pvp-stats" class="pvp-stats">
+                <!-- Player PVP stats will be populated here -->
+            </div>
         </div>
 
         <!-- Tournament Screen -->
@@ -1386,10 +1519,198 @@
             displayCharacterInfo();
         }
 
+        function showPVP() {
+            hideAllSections();
+            document.getElementById('pvp-screen').classList.add('active');
+            loadPVPInfo();
+        }
+
         function showTournament() {
             hideAllSections();
             document.getElementById('tournament-screen').classList.add('active');
             loadTournamentInfo();
+        }
+
+        async function loadPVPInfo() {
+            if (!currentPlayer) {
+                showNotification('Please log in first', 'error');
+                return;
+            }
+            
+            try {
+                // Load queue status
+                const queueResponse = await fetch(`/pvp/queue-status/${currentPlayer.username}`);
+                const queueResult = await queueResponse.json();
+                
+                // Load player stats
+                const statsResponse = await fetch(`/pvp/stats/${currentPlayer.username}`);
+                const statsResult = await statsResponse.json();
+                
+                const pvpStatus = document.getElementById('pvp-status');
+                const queueInfo = document.getElementById('pvp-queue-info');
+                const pvpStats = document.getElementById('pvp-stats');
+                const joinBtn = document.getElementById('join-queue-btn');
+                const leaveBtn = document.getElementById('leave-queue-btn');
+                const findBtn = document.getElementById('find-match-btn');
+                
+                // Display PVP status
+                if (queueResult.success && queueResult.in_queue) {
+                    pvpStatus.innerHTML = `
+                        <div class="pvp-status-card">
+                            <h3>🎯 In Matchmaking Queue</h3>
+                            <p><strong>Status:</strong> ${queueResult.status}</p>
+                            <p><strong>Queue Time:</strong> ${new Date(queueResult.queue_time).toLocaleString()}</p>
+                        </div>
+                    `;
+                    joinBtn.style.display = 'none';
+                    leaveBtn.style.display = 'inline-block';
+                    findBtn.style.display = 'inline-block';
+                } else {
+                    pvpStatus.innerHTML = `
+                        <div class="pvp-status-card">
+                            <h3>⚔️ Ready for PVP</h3>
+                            <p>Join the matchmaking queue to find opponents!</p>
+                        </div>
+                    `;
+                    joinBtn.style.display = 'inline-block';
+                    leaveBtn.style.display = 'none';
+                    findBtn.style.display = 'none';
+                }
+                
+                // Display queue info
+                queueInfo.innerHTML = `
+                    <div class="queue-info-card">
+                        <h3>📊 Matchmaking Info</h3>
+                        <p>• Rating-based matching (±100 points)</p>
+                        <p>• Fair faction distribution</p>
+                        <p>• Quick match finding</p>
+                    </div>
+                `;
+                
+                // Display player stats
+                if (statsResult.success) {
+                    const stats = statsResult.stats;
+                    pvpStats.innerHTML = `
+                        <div class="stats-card">
+                            <h3>📈 Your PVP Statistics</h3>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Duels:</span>
+                                    <span class="stat-value">${stats.total_duels}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Wins:</span>
+                                    <span class="stat-value">${stats.wins}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Losses:</span>
+                                    <span class="stat-value">${stats.losses}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Win Rate:</span>
+                                    <span class="stat-value">${stats.win_rate}%</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Current Streak:</span>
+                                    <span class="stat-value">${stats.win_streak}</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Best Streak:</span>
+                                    <span class="stat-value">${stats.best_win_streak}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading PVP info:', error);
+                showNotification('Error loading PVP info', 'error');
+            }
+        }
+
+        async function joinPVPQueue() {
+            if (!currentPlayer) {
+                showNotification('Please log in first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/pvp/join-queue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentPlayer.username })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Joined matchmaking queue!', 'success');
+                    await loadPVPInfo();
+                } else {
+                    showNotification(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error joining queue:', error);
+                showNotification('Error joining queue', 'error');
+            }
+        }
+
+        async function leavePVPQueue() {
+            if (!currentPlayer) {
+                showNotification('Please log in first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/pvp/leave-queue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentPlayer.username })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Left matchmaking queue', 'info');
+                    await loadPVPInfo();
+                } else {
+                    showNotification(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error leaving queue:', error);
+                showNotification('Error leaving queue', 'error');
+            }
+        }
+
+        async function findPVPMatch() {
+            if (!currentPlayer) {
+                showNotification('Please log in first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/pvp/find-match', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: currentPlayer.username })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (result.match_found) {
+                        showNotification(`Match found! Opponent rating: ${result.opponent_rating}`, 'success');
+                        // TODO: Start PVP duel
+                    } else {
+                        showNotification('No suitable opponent found. Keep waiting...', 'info');
+                    }
+                } else {
+                    showNotification(result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error finding match:', error);
+                showNotification('Error finding match', 'error');
+            }
         }
 
         async function loadTournamentInfo() {
