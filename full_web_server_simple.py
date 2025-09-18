@@ -1847,7 +1847,7 @@ def get_weapon_icon(weapon_name: str) -> str:
     if weapon_name == 'fists':
         return '👊'
     
-    # Try .PNG first, then .png as fallback
+    # Return the path - frontend will handle .PNG/.png fallback
     weapon_path = f'/assets/weapons/weapon_{weapon_name}.PNG'
     return weapon_path
 
@@ -2103,32 +2103,37 @@ async def test_html():
 @app.get("/test-combat-log")
 async def test_combat_log():
     """Test what the combat log actually returns"""
-    from full_web_server_simple import get_ability_icon, get_weapon_icon, execute_ability, execute_attack
-    
-    # Create test players
-    class TestPlayer:
-        def __init__(self, username, weapon1, abilities):
-            self.username = username
-            self.weapon1 = weapon1
-            self.abilities = abilities
-            self.current_hp = 250
-            self.faction = 'order_of_the_silver_crusade'
-    
-    player1 = TestPlayer("TestPlayer1", "sword", ["divine_strike", "healing_light"])
-    player2 = TestPlayer("TestPlayer2", "hammer", ["shadow_strike", "earthquake"])
-    
-    # Test ability execution
-    ability_result = execute_ability(player1, player2, "divine_strike")
-    
-    # Test attack execution  
-    attack_result = execute_attack(player1, player2, "attack")
-    
-    return {
-        "ability_log": ability_result["log"],
-        "attack_log": attack_result["log"],
-        "ability_icon_path": get_ability_icon("divine_strike"),
-        "weapon_icon_path": get_weapon_icon("sword")
-    }
+    try:
+        # Create test players
+        class TestPlayer:
+            def __init__(self, username, weapon1, abilities):
+                self.username = username
+                self.weapon1 = weapon1
+                self.abilities = abilities
+                self.current_hp = 250
+                self.faction = 'order_of_the_silver_crusade'
+                self.current_hp = 250
+                self.max_hp = 250
+                self.active_buffs = {}
+                self.status_effects = {}
+        
+        player1 = TestPlayer("TestPlayer1", "sword", ["divine_strike", "healing_light"])
+        player2 = TestPlayer("TestPlayer2", "hammer", ["shadow_strike", "earthquake"])
+        
+        # Test ability execution
+        ability_result = execute_ability(player1, player2, "divine_strike", "player")
+        
+        # Test attack execution  
+        attack_result = execute_attack(player1, player2, "player")
+        
+        return {
+            "ability_log": ability_result["log"],
+            "attack_log": attack_result["log"],
+            "ability_icon_path": get_ability_icon("divine_strike"),
+            "weapon_icon_path": get_weapon_icon("sword")
+        }
+    except Exception as e:
+        return {"error": str(e), "traceback": str(e.__traceback__)}
 
 @app.get("/ability-descriptions")
 async def get_ability_descriptions():

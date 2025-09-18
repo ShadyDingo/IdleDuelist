@@ -1713,12 +1713,17 @@
                 
                 // Handle asset paths and generate HTML
                 if (logEntry.includes('/assets/')) {
-                    // This is an asset path, generate HTML with fallback handling
+                    // This is an asset path, generate HTML with robust fallback handling
                     const assetPath = logEntry;
                     console.log('Creating HTML for asset path:', assetPath);
+                    
+                    // Create fallback paths for both extensions
+                    const pngPath = assetPath.replace('.PNG', '.png');
+                    const PNGPath = assetPath.replace('.png', '.PNG');
+                    
                     p.innerHTML = `
                         <img src="${assetPath}" width="20" height="20" style="vertical-align: middle;" 
-                             onerror="this.src='${assetPath.replace('.PNG', '.png')}'; this.onerror=function(){this.style.display='none'; this.nextSibling.style.display='inline';};">
+                             onerror="this.src='${pngPath}'; this.onerror=function(){this.src='${PNGPath}'; this.onerror=function(){this.style.display='none'; this.nextSibling.style.display='inline';};};">
                         <span style="display: none;">⚡</span>
                     `;
                 } else if (logEntry.includes('<img')) {
@@ -1800,12 +1805,17 @@
                 
                 // Handle asset paths and generate HTML
                 if (entry.includes('/assets/')) {
-                    // This is an asset path, generate HTML with fallback handling
+                    // This is an asset path, generate HTML with robust fallback handling
                     const assetPath = entry;
                     console.log('Creating HTML for asset path:', assetPath);
+                    
+                    // Create fallback paths for both extensions
+                    const pngPath = assetPath.replace('.PNG', '.png');
+                    const PNGPath = assetPath.replace('.png', '.PNG');
+                    
                     logEntry.innerHTML = `
                         <img src="${assetPath}" width="20" height="20" style="vertical-align: middle;" 
-                             onerror="this.src='${assetPath.replace('.PNG', '.png')}'; this.onerror=function(){this.style.display='none'; this.nextSibling.style.display='inline';};">
+                             onerror="this.src='${pngPath}'; this.onerror=function(){this.src='${PNGPath}'; this.onerror=function(){this.style.display='none'; this.nextSibling.style.display='inline';};};">
                         <span style="display: none;">⚡</span>
                     `;
                 } else if (entry.includes('<img')) {
