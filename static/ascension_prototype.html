@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ascension Prototype - Auto Battling Roguelite</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0f172a;
+            --bg-alt: #111d38;
+            --accent: #38bdf8;
+            --accent-soft: rgba(56, 189, 248, 0.18);
+            --panel: rgba(15, 23, 42, 0.82);
+            --border: rgba(148, 163, 184, 0.22);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --warning: #f59e0b;
+            --danger: #f87171;
+            --success: #34d399;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+            background: radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 60%),
+                        linear-gradient(160deg, rgba(15, 23, 42, 0.95), #030712 75%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: clamp(16px, 4vw, 32px);
+        }
+
+        .app-shell {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: clamp(16px, 4vw, 24px);
+        }
+
+        header {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: clamp(18px, 4vw, 28px);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            backdrop-filter: blur(12px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.27), transparent 60%);
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: clamp(1.6rem, 3.2vw, 2.6rem);
+            margin: 0;
+            letter-spacing: 0.02em;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: clamp(0.95rem, 2.1vw, 1.1rem);
+            max-width: 820px;
+        }
+
+        .panels {
+            display: grid;
+            gap: clamp(12px, 3vw, 20px);
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: clamp(16px, 3.5vw, 24px);
+            backdrop-filter: blur(12px);
+        }
+
+        .panel h2 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: clamp(1.1rem, 2.6vw, 1.4rem);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel h2 span {
+            font-size: 1.1rem;
+            color: var(--muted);
+        }
+
+        .meta-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .meta-pill {
+            background: var(--bg-alt);
+            padding: 10px 14px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--border);
+            font-size: 0.95rem;
+        }
+
+        .meta-pill strong {
+            color: var(--accent);
+        }
+
+        .meta-attributes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+        }
+
+        .attribute-card {
+            background: var(--bg-alt);
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .attribute-card header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+
+        .attribute-name {
+            font-weight: 600;
+            letter-spacing: 0.08em;
+        }
+
+        .attribute-value {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.95rem;
+            color: var(--muted);
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+            color: #0f172a;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+            box-shadow: 0 12px 24px -12px rgba(56, 189, 248, 0.55);
+        }
+
+        button:disabled {
+            background: rgba(148, 163, 184, 0.2);
+            color: rgba(148, 163, 184, 0.8);
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 16px 30px -18px rgba(56, 189, 248, 0.75);
+        }
+
+        button.secondary {
+            background: rgba(30, 41, 59, 0.9);
+            color: var(--text);
+            border: 1px solid rgba(148, 163, 184, 0.32);
+            box-shadow: none;
+        }
+
+        .style-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .style-card {
+            position: relative;
+            background: var(--bg-alt);
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .style-card:hover {
+            border-color: rgba(56, 189, 248, 0.6);
+            transform: translateY(-2px);
+            box-shadow: 0 16px 32px -24px rgba(56, 189, 248, 0.6);
+        }
+
+        .style-card.selected {
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+        }
+
+        .style-name {
+            font-size: 1.15rem;
+            font-weight: 600;
+        }
+
+        .style-desc {
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .style-focus {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .focus-pill {
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            background: rgba(148, 163, 184, 0.18);
+            border: 1px solid rgba(148, 163, 184, 0.26);
+        }
+
+        .style-attributes {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+            gap: 6px;
+            font-size: 0.88rem;
+            color: var(--muted);
+        }
+
+        .run-header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .run-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            letter-spacing: 0.04em;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            background: rgba(30, 41, 59, 0.5);
+        }
+
+        .badge.success {
+            border-color: rgba(52, 211, 153, 0.35);
+            background: rgba(34, 197, 94, 0.12);
+            color: var(--success);
+        }
+
+        .badge.warning {
+            border-color: rgba(245, 158, 11, 0.35);
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--warning);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+        }
+
+        .stat-card {
+            background: var(--bg-alt);
+            border-radius: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+
+        .stat-value {
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+
+        .stat-value span {
+            color: var(--muted);
+            font-size: 0.8rem;
+            margin-left: 6px;
+        }
+
+        .run-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .run-upgrades {
+            margin-top: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .upgrade-item {
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+        }
+
+        .log-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .log-container {
+            max-height: 360px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .log-entry {
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .log-entry.player {
+            border-color: rgba(52, 211, 153, 0.2);
+        }
+
+        .log-entry.enemy {
+            border-color: rgba(248, 113, 113, 0.2);
+        }
+
+        .log-entry.system {
+            border-color: rgba(56, 189, 248, 0.25);
+            background: rgba(56, 189, 248, 0.08);
+        }
+
+        .log-entry.warning {
+            border-color: rgba(245, 158, 11, 0.25);
+            background: rgba(245, 158, 11, 0.08);
+        }
+
+        .log-entry.summary {
+            border-color: rgba(56, 189, 248, 0.35);
+            background: rgba(56, 189, 248, 0.12);
+            font-weight: 600;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.86);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 100;
+        }
+
+        .modal {
+            width: min(620px, 100%);
+            background: rgba(15, 23, 42, 0.95);
+            border-radius: 18px;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            padding: clamp(18px, 4vw, 26px);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .modal h3 {
+            margin: 0;
+            font-size: clamp(1.2rem, 3vw, 1.5rem);
+        }
+
+        .upgrade-grid {
+            display: grid;
+            gap: 14px;
+        }
+
+        .upgrade-card {
+            background: rgba(15, 23, 42, 0.9);
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .upgrade-card.offense {
+            border-color: rgba(248, 113, 113, 0.35);
+        }
+
+        .upgrade-card.defense {
+            border-color: rgba(52, 211, 153, 0.35);
+        }
+
+        .upgrade-card.utility {
+            border-color: rgba(129, 140, 248, 0.35);
+        }
+
+        .upgrade-card button {
+            align-self: flex-start;
+        }
+
+        .summary-list {
+            display: grid;
+            gap: 6px;
+            font-size: 0.92rem;
+        }
+
+        .meta-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .notice {
+            font-size: 0.88rem;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        @media (max-width: 840px) {
+            .meta-summary {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .meta-pill {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .log-container {
+                max-height: 320px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 12px;
+            }
+
+            .panel, header {
+                padding: 16px;
+            }
+
+            .run-controls {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .style-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <header>
+            <h1>Ascension Prototype</h1>
+            <div class="subtitle">
+                Turn-based, auto-battling roguelite sandbox. Pick a fighting style, climb as high as you can, and reinvest earned attribute points into permanent power between runs.
+            </div>
+        </header>
+
+        <div class="panels">
+            <section class="panel" id="meta-panel">
+                <h2>Meta Progression <span>(persists between runs)</span></h2>
+                <div class="meta-summary">
+                    <div class="meta-pill">Attribute Points: <strong id="meta-points">0</strong></div>
+                    <div class="meta-pill">Best Floor: <strong id="meta-best">0</strong></div>
+                    <div class="meta-pill">Total Runs: <strong id="meta-runs">0</strong></div>
+                    <div class="meta-pill">Lifetime Points Earned: <strong id="meta-total-points">0</strong></div>
+                </div>
+                <div class="meta-attributes" id="meta-attributes"></div>
+                <div class="meta-actions">
+                    <button id="reset-meta" class="secondary">Reset Meta Progression</button>
+                    <button id="clear-storage" class="secondary">Clear Save Data</button>
+                </div>
+            </section>
+
+            <section class="panel" id="run-setup">
+                <h2>Choose Your Style</h2>
+                <div class="style-grid" id="style-grid"></div>
+                <div class="run-controls">
+                    <button id="start-run" disabled>Start New Run</button>
+                    <div class="notice">Tip: You can open this page on any phone or tablet on the same network. The prototype runs entirely client-side.</div>
+                </div>
+            </section>
+
+            <section class="panel hidden" id="run-panel">
+                <div class="run-header">
+                    <div>
+                        <div class="badge" id="run-style">Style: --</div>
+                        <div class="badge warning" id="run-floor">Floor 1</div>
+                    </div>
+                    <div class="run-badges">
+                        <div class="badge" id="run-hp">HP: --</div>
+                        <div class="badge" id="run-status">Preparing</div>
+                    </div>
+                </div>
+
+                <div class="stats-grid" id="player-stats"></div>
+
+                <div class="run-upgrades">
+                    <h3>Current Run Upgrades</h3>
+                    <div id="upgrade-list" class="notice">No upgrades yet. Survive to floors 5, 10, 15... to draft new power-ups.</div>
+                </div>
+
+                <div class="stats-grid" id="enemy-stats"></div>
+
+                <div id="run-summary" class="notice"></div>
+
+                <div class="run-controls">
+                    <button id="next-floor">Engage Next Encounter</button>
+                    <button id="abandon-run" class="secondary">Abandon Run</button>
+                </div>
+            </section>
+
+            <section class="panel log-panel" id="log-panel">
+                <h2>Combat Log</h2>
+                <div class="log-container" id="log-container"></div>
+            </section>
+        </div>
+    </div>
+
+    <div id="upgrade-overlay" class="overlay hidden">
+        <div class="modal">
+            <h3>Ascension Upgrade Draft</h3>
+            <div class="notice" id="upgrade-context">Choose one upgrade to power up this run.</div>
+            <div class="upgrade-grid" id="upgrade-options"></div>
+            <button id="skip-upgrade" class="secondary">Skip Upgrade</button>
+        </div>
+    </div>
+
+    <div id="run-complete-overlay" class="overlay hidden">
+        <div class="modal">
+            <h3 id="completion-title">Run Complete</h3>
+            <div class="summary-list" id="completion-summary"></div>
+            <div class="meta-summary">
+                <div class="meta-pill">Points Earned: <strong id="completion-points">0</strong></div>
+                <div class="meta-pill">Total Attribute Points: <strong id="completion-total">0</strong></div>
+            </div>
+            <button id="close-completion">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            const ATTRIBUTES = ['STR', 'DEX', 'INT', 'END', 'VIT', 'LCK', 'SPI'];
+            const META_STORAGE_KEY = 'ascension_meta_v1';
+            const MAX_LOG_ENTRIES = 120;
+
+            const STYLES = {
+                melee: {
+                    name: 'Melee Vanguard',
+                    description: 'Heavy frontline combatant who thrives on strength, armor, and attrition.',
+                    focus: ['STR', 'END', 'VIT'],
+                    baseAttributes: { STR: 9, DEX: 4, INT: 2, END: 7, VIT: 6, LCK: 3, SPI: 2 },
+                },
+                ranged: {
+                    name: 'Ranged Marksman',
+                    description: 'Agile sharpshooter leveraging speed, critical hits, and precision.',
+                    focus: ['DEX', 'LCK', 'STR'],
+                    baseAttributes: { STR: 5, DEX: 8, INT: 3, END: 4, VIT: 4, LCK: 6, SPI: 3 },
+                },
+                magic: {
+                    name: 'Arcane Weaver',
+                    description: 'Spellcaster who channels intelligence and spirit to unleash bursts of power.',
+                    focus: ['INT', 'SPI', 'LCK'],
+                    baseAttributes: { STR: 3, DEX: 4, INT: 9, END: 4, VIT: 5, LCK: 5, SPI: 7 },
+                },
+            };
+
+            const ENEMY_ARCHETYPES = [
+                {
+                    id: 'bruiser',
+                    name: 'Ironclad Bruiser',
+                    description: 'Durable frontline enemy that soaks damage and trades heavy blows.',
+                    attackType: 'physical',
+                    base: {
+                        maxHP: 140,
+                        attack: 20,
+                        speed: 8,
+                        armor: 20,
+                        resistance: 12,
+                        hitChance: 0.86,
+                        dodgeChance: 0.04,
+                        critChance: 0.10,
+                        critMultiplier: 1.5,
+                        blockChance: 0.08,
+                        damageReduction: 0.05,
+                    },
+                },
+                {
+                    id: 'skirmisher',
+                    name: 'Shadow Skirmisher',
+                    description: 'Fast and evasive foe that stacks chip damage and dodges blows.',
+                    attackType: 'physical',
+                    base: {
+                        maxHP: 110,
+                        attack: 18,
+                        speed: 11,
+                        armor: 12,
+                        resistance: 10,
+                        hitChance: 0.90,
+                        dodgeChance: 0.09,
+                        critChance: 0.14,
+                        critMultiplier: 1.6,
+                        blockChance: 0.04,
+                        damageReduction: 0.02,
+                    },
+                },
+                {
+                    id: 'warlock',
+                    name: 'Hexed Warlock',
+                    description: 'Arcane threat that hits harder the longer the battle lasts.',
+                    attackType: 'arcane',
+                    base: {
+                        maxHP: 120,
+                        attack: 22,
+                        speed: 9,
+                        armor: 10,
+                        resistance: 18,
+                        hitChance: 0.88,
+                        dodgeChance: 0.06,
+                        critChance: 0.12,
+                        critMultiplier: 1.7,
+                        blockChance: 0.03,
+                        damageReduction: 0.03,
+                    },
+                },
+            ];
+
+            const ENEMY_AFFIXES = [
+                {
+                    id: 'vampiric',
+                    name: 'Vampiric',
+                    description: 'Steals health equal to 25% of damage dealt.',
+                    apply(enemy) {
+                        enemy.stats.lifesteal = clamp(enemy.stats.lifesteal + 0.25, 0, 0.7);
+                        enemy.traits.push('Vampiric lifesteal');
+                    },
+                },
+                {
+                    id: 'swift',
+                    name: 'Swift',
+                    description: 'Acts faster and can occasionally strike twice.',
+                    apply(enemy) {
+                        enemy.stats.speed = Math.round(enemy.stats.speed * 1.18);
+                        enemy.stats.doubleStrikeChance = clamp(enemy.stats.doubleStrikeChance + 0.15, 0, 0.5);
+                        enemy.traits.push('Swift footwork');
+                    },
+                },
+                {
+                    id: 'bulwark',
+                    name: 'Bulwark',
+                    description: 'Greatly reduces incoming damage.',
+                    apply(enemy) {
+                        enemy.stats.damageReduction = clamp(enemy.stats.damageReduction + 0.2, 0, 0.6);
+                        enemy.stats.armor = Math.round(enemy.stats.armor * 1.25);
+                        enemy.traits.push('Heavy plating');
+                    },
+                },
+                {
+                    id: 'thorns',
+                    name: 'Thorns',
+                    description: 'Reflects a portion of damage back to attackers.',
+                    apply(enemy) {
+                        enemy.flags.thorns = 0.25;
+                        enemy.traits.push('Reactive thorns');
+                    },
+                },
+                {
+                    id: 'explosive',
+                    name: 'Volatile',
+                    description: 'Explodes on defeat, dealing heavy damage back.',
+                    apply(enemy) {
+                        enemy.flags.explodes = 0.18;
+                        enemy.traits.push('Explosive demise');
+                    },
+                },
+            ];
+
+            const UPGRADE_POOL = [
+                {
+                    id: 'brutal_momentum',
+                    name: 'Brutal Momentum',
+                    type: 'offense',
+                    description: '+20% attack power and +5 Strength for this run.',
+                    apply(run) {
+                        run.attributeBonuses.STR += 5;
+                        run.bonuses.attackMultiplier = (run.bonuses.attackMultiplier || 0) + 0.2;
+                        run.notes.push('STR +5, +20% attack');
+                    },
+                },
+                {
+                    id: 'precision_focus',
+                    name: 'Precision Focus',
+                    type: 'offense',
+                    description: '+10% crit chance and +20% crit damage.',
+                    apply(run) {
+                        run.bonuses.critChance = (run.bonuses.critChance || 0) + 0.10;
+                        run.bonuses.critMultiplier = (run.bonuses.critMultiplier || 0) + 0.2;
+                        run.notes.push('+10% crit chance, +20% crit damage');
+                    },
+                },
+                {
+                    id: 'rapid_assault',
+                    name: 'Rapid Assault',
+                    type: 'offense',
+                    description: '+15% speed and 12% chance to double strike.',
+                    apply(run) {
+                        run.bonuses.speedMultiplier = (run.bonuses.speedMultiplier || 0) + 0.15;
+                        run.bonuses.doubleStrikeChance = (run.bonuses.doubleStrikeChance || 0) + 0.12;
+                        run.notes.push('+15% speed, 12% double strike');
+                    },
+                },
+                {
+                    id: 'elemental_imbuement',
+                    name: 'Elemental Imbuement',
+                    type: 'offense',
+                    description: 'Attacks bypass 15% armor/resistance and gain +8 Intelligence.',
+                    apply(run) {
+                        run.attributeBonuses.INT += 8;
+                        run.bonuses.piercePercent = (run.bonuses.piercePercent || 0) + 0.15;
+                        run.notes.push('Pierce +15%, INT +8');
+                    },
+                },
+                {
+                    id: 'steel_skin',
+                    name: 'Steel Skin',
+                    type: 'defense',
+                    description: '+80 max HP and +18 armor.',
+                    apply(run) {
+                        run.bonuses.hpFlat = (run.bonuses.hpFlat || 0) + 80;
+                        run.bonuses.armorFlat = (run.bonuses.armorFlat || 0) + 18;
+                        run.notes.push('+80 HP, +18 armor');
+                    },
+                },
+                {
+                    id: 'mystic_barrier',
+                    name: 'Mystic Barrier',
+                    type: 'defense',
+                    description: '+15% damage reduction and +10 Spirit.',
+                    apply(run) {
+                        run.attributeBonuses.SPI += 10;
+                        run.bonuses.damageReduction = (run.bonuses.damageReduction || 0) + 0.15;
+                        run.notes.push('+15% damage reduction, SPI +10');
+                    },
+                },
+                {
+                    id: 'vital_resurgence',
+                    name: 'Vital Resurgence',
+                    type: 'defense',
+                    description: 'Restore 15% HP after each battle and +6 Vitality.',
+                    apply(run) {
+                        run.attributeBonuses.VIT += 6;
+                        run.bonuses.regenPercent = (run.bonuses.regenPercent || 0) + 0.15;
+                        run.notes.push('Post-battle heal 15%, VIT +6');
+                    },
+                },
+                {
+                    id: 'guardian_aegis',
+                    name: 'Guardian Aegis',
+                    type: 'defense',
+                    description: 'Gain 12% lifesteal and block 50% damage 15% of the time.',
+                    apply(run) {
+                        run.bonuses.lifesteal = (run.bonuses.lifesteal || 0) + 0.12;
+                        run.bonuses.blockChance = (run.bonuses.blockChance || 0) + 0.15;
+                        run.bonuses.blockPower = (run.bonuses.blockPower || 0) + 0.5;
+                        run.notes.push('Lifesteal +12%, block chance +15%');
+                    },
+                },
+                {
+                    id: 'tactical_insight',
+                    name: 'Tactical Insight',
+                    type: 'utility',
+                    description: 'Future upgrade drafts offer +1 option. Gain +5 Luck.',
+                    apply(run) {
+                        run.extraUpgradeChoices += 1;
+                        run.attributeBonuses.LCK += 5;
+                        run.notes.push('Upgrade choices +1, LCK +5');
+                    },
+                },
+                {
+                    id: 'arcane_efficiency',
+                    name: 'Arcane Efficiency',
+                    type: 'utility',
+                    description: '+12 Spirit and +6 Intelligence improve resource sustain.',
+                    apply(run) {
+                        run.attributeBonuses.SPI += 12;
+                        run.attributeBonuses.INT += 6;
+                        run.bonuses.regenPercent = (run.bonuses.regenPercent || 0) + 0.08;
+                        run.notes.push('SPI +12, INT +6, regen +8%');
+                    },
+                },
+                {
+                    id: 'lucky_strikes',
+                    name: 'Lucky Strikes',
+                    type: 'utility',
+                    description: '+10% crit chance and +10% hit chance. Gain +6 Luck.',
+                    apply(run) {
+                        run.attributeBonuses.LCK += 6;
+                        run.bonuses.critChance = (run.bonuses.critChance || 0) + 0.10;
+                        run.bonuses.hitChance = (run.bonuses.hitChance || 0) + 0.10;
+                        run.notes.push('Hit +10%, crit +10%, LCK +6');
+                    },
+                },
+                {
+                    id: 'adaptive_learning',
+                    name: 'Adaptive Learning',
+                    type: 'utility',
+                    description: 'Earn +1 attribute point for every 6 floors cleared this run.',
+                    apply(run) {
+                        run.bonuses.bonusPointEvery = 6;
+                        run.notes.push('+1 attribute point per 6 floors');
+                    },
+                },
+            ];
+
+            const DEFAULT_META = () => ({
+                version: 1,
+                attributes: ATTRIBUTES.reduce((acc, key) => ({ ...acc, [key]: 0 }), {}),
+                points: 0,
+                bestFloor: 0,
+                runs: 0,
+                totalPointsEarned: 0,
+            });
+
+            const state = {
+                meta: DEFAULT_META(),
+                selectedStyle: null,
+                run: null,
+            };
+
+            // DOM refs
+            const metaPointsEl = document.getElementById('meta-points');
+            const metaBestEl = document.getElementById('meta-best');
+            const metaRunsEl = document.getElementById('meta-runs');
+            const metaTotalPointsEl = document.getElementById('meta-total-points');
+            const metaAttributesEl = document.getElementById('meta-attributes');
+            const resetMetaBtn = document.getElementById('reset-meta');
+            const clearStorageBtn = document.getElementById('clear-storage');
+            const styleGridEl = document.getElementById('style-grid');
+            const startRunBtn = document.getElementById('start-run');
+            const runPanelEl = document.getElementById('run-panel');
+            const runStyleBadge = document.getElementById('run-style');
+            const runFloorBadge = document.getElementById('run-floor');
+            const runStatusBadge = document.getElementById('run-status');
+            const runHpBadge = document.getElementById('run-hp');
+            const playerStatsGrid = document.getElementById('player-stats');
+            const enemyStatsGrid = document.getElementById('enemy-stats');
+            const upgradeListEl = document.getElementById('upgrade-list');
+            const runSummaryEl = document.getElementById('run-summary');
+            const nextFloorBtn = document.getElementById('next-floor');
+            const abandonRunBtn = document.getElementById('abandon-run');
+            const logContainer = document.getElementById('log-container');
+            const upgradeOverlay = document.getElementById('upgrade-overlay');
+            const upgradeContextEl = document.getElementById('upgrade-context');
+            const upgradeOptionsEl = document.getElementById('upgrade-options');
+            const skipUpgradeBtn = document.getElementById('skip-upgrade');
+            const completionOverlay = document.getElementById('run-complete-overlay');
+            const completionTitle = document.getElementById('completion-title');
+            const completionSummary = document.getElementById('completion-summary');
+            const completionPoints = document.getElementById('completion-points');
+            const completionTotal = document.getElementById('completion-total');
+            const closeCompletionBtn = document.getElementById('close-completion');
+
+            init();
+
+            function init() {
+                loadMeta();
+                renderMeta();
+                renderStyles();
+                bindEvents();
+                logSystem('Welcome back. Configure your meta attributes and start a run.');
+            }
+
+            function bindEvents() {
+                metaAttributesEl.addEventListener('click', (event) => {
+                    const target = event.target;
+                    if (target.matches('[data-spend]')) {
+                        const attribute = target.getAttribute('data-spend');
+                        spendAttribute(attribute);
+                    }
+                });
+
+                resetMetaBtn.addEventListener('click', () => {
+                    if (confirm('Reset all allocated attribute points? This keeps earned points but refunds everything.')) {
+                        const refunded = Object.values(state.meta.attributes).reduce((a, b) => a + b, 0);
+                        state.meta.points += refunded;
+                        state.meta.attributes = ATTRIBUTES.reduce((acc, key) => ({ ...acc, [key]: 0 }), {});
+                        saveMeta();
+                        renderMeta();
+                        logSystem(`Meta attributes reset. Refunded ${refunded} points.`);
+                    }
+                });
+
+                clearStorageBtn.addEventListener('click', () => {
+                    if (confirm('Clear all prototype data (meta progression + last run)?')) {
+                        localStorage.removeItem(META_STORAGE_KEY);
+                        state.meta = DEFAULT_META();
+                        state.run = null;
+                        state.selectedStyle = null;
+                        document.querySelectorAll('.style-card.selected').forEach((card) => card.classList.remove('selected'));
+                        startRunBtn.disabled = true;
+                        hideRunPanel();
+                        renderMeta();
+                        logSystem('Local save cleared.');
+                    }
+                });
+
+                startRunBtn.addEventListener('click', () => {
+                    if (!state.selectedStyle) return;
+                    beginRun(state.selectedStyle);
+                });
+
+                nextFloorBtn.addEventListener('click', () => {
+                    if (!state.run) return;
+                    if (state.run.status === 'awaiting-upgrade') {
+                        showUpgradeDraft();
+                        return;
+                    }
+                    if (state.run.status !== 'running') return;
+                    engageFloor();
+                });
+
+                abandonRunBtn.addEventListener('click', () => {
+                    if (!state.run) return;
+                    if (confirm('Abandon the current run? You will earn reduced attribute points.')) {
+                        finalizeRun({ reason: 'abandoned', reduced: true });
+                    }
+                });
+
+                skipUpgradeBtn.addEventListener('click', () => {
+                    hideUpgradeDraft();
+                    state.run.status = 'running';
+                    logSystem('Upgrade skipped. You can continue climbing.');
+                    updateRunUI();
+                });
+
+                closeCompletionBtn.addEventListener('click', () => {
+                    completionOverlay.classList.add('hidden');
+                    hideRunPanel();
+                    state.run = null;
+                });
+            }
+
+            function loadMeta() {
+                try {
+                    const saved = localStorage.getItem(META_STORAGE_KEY);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        state.meta = { ...DEFAULT_META(), ...parsed };
+                    }
+                } catch (error) {
+                    console.error('Failed to load meta progression', error);
+                    state.meta = DEFAULT_META();
+                }
+            }
+
+            function saveMeta() {
+                localStorage.setItem(META_STORAGE_KEY, JSON.stringify(state.meta));
+            }
+
+            function renderMeta() {
+                metaPointsEl.textContent = state.meta.points;
+                metaBestEl.textContent = state.meta.bestFloor;
+                metaRunsEl.textContent = state.meta.runs;
+                metaTotalPointsEl.textContent = state.meta.totalPointsEarned;
+
+                metaAttributesEl.innerHTML = ATTRIBUTES.map((attr) => {
+                    const value = state.meta.attributes[attr] || 0;
+                    return `
+                        <div class="attribute-card">
+                            <header>
+                                <div class="attribute-name">${attr}</div>
+                                <button class="secondary" data-spend="${attr}" ${state.meta.points <= 0 ? 'disabled' : ''}>+1</button>
+                            </header>
+                            <div class="attribute-value">
+                                <span>Rank</span>
+                                <strong>${value}</strong>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            function spendAttribute(attribute) {
+                if (!ATTRIBUTES.includes(attribute)) return;
+                if (state.meta.points <= 0) return;
+                state.meta.points -= 1;
+                state.meta.attributes[attribute] = (state.meta.attributes[attribute] || 0) + 1;
+                saveMeta();
+                renderMeta();
+            }
+
+            function renderStyles() {
+                const metaBoosts = state.meta.attributes;
+                styleGridEl.innerHTML = Object.entries(STYLES).map(([key, style]) => {
+                    const attributesHtml = ATTRIBUTES.map((attr) => {
+                        const base = style.baseAttributes[attr];
+                        const bonus = metaBoosts[attr] || 0;
+                        const total = base + bonus;
+                        return `<div><strong>${attr}</strong> ${total}${bonus ? `<span>+${bonus}</span>` : ''}</div>`;
+                    }).join('');
+
+                    return `
+                        <article class="style-card" data-style="${key}">
+                            <div class="style-name">${style.name}</div>
+                            <div class="style-desc">${style.description}</div>
+                            <div class="style-focus">${style.focus.map((f) => `<span class="focus-pill">${f}</span>`).join('')}</div>
+                            <div class="style-attributes">${attributesHtml}</div>
+                        </article>
+                    `;
+                }).join('');
+
+                styleGridEl.querySelectorAll('.style-card').forEach((card) => {
+                    card.addEventListener('click', () => {
+                        document.querySelectorAll('.style-card').forEach((el) => el.classList.remove('selected'));
+                        card.classList.add('selected');
+                        state.selectedStyle = card.getAttribute('data-style');
+                        startRunBtn.disabled = false;
+                    });
+                });
+            }
+
+            function beginRun(styleKey) {
+                const style = STYLES[styleKey];
+                if (!style) return;
+
+                const baseAttributes = { ...style.baseAttributes };
+                const metaAttributes = state.meta.attributes;
+                const combinedAttributes = ATTRIBUTES.reduce((acc, attr) => {
+                    acc[attr] = (baseAttributes[attr] || 0) + (metaAttributes[attr] || 0);
+                    return acc;
+                }, {});
+
+                state.run = {
+                    styleKey,
+                    style,
+                    status: 'running',
+                    floor: 1,
+                    clearedFloors: 0,
+                    eliteCount: 0,
+                    totalDamageDealt: 0,
+                    totalDamageTaken: 0,
+                    notes: [],
+                    upgrades: [],
+                    extraUpgradeChoices: 0,
+                    bonuses: {},
+                    attributeBonuses: ATTRIBUTES.reduce((acc, attr) => ({ ...acc, [attr]: 0 }), {}),
+                    baseAttributes,
+                    metaAttributes: { ...metaAttributes },
+                    attributes: combinedAttributes,
+                    player: null,
+                    battleHistory: [],
+                    pendingBonusPoints: 0,
+                };
+
+                state.run.player = createPlayerCombatant(styleKey, combinedAttributes, state.run.bonuses);
+                state.run.player.currentHP = state.run.player.stats.maxHP;
+
+                runPanelEl.classList.remove('hidden');
+                runStyleBadge.textContent = `${style.name}`;
+                runStatusBadge.textContent = 'New run started';
+                runStatusBadge.classList.remove('success');
+                runStatusBadge.classList.remove('warning');
+                runFloorBadge.textContent = `Floor ${state.run.floor}`;
+                runHpBadge.textContent = `HP: ${state.run.player.currentHP}/${state.run.player.stats.maxHP}`;
+                runSummaryEl.textContent = '';
+                upgradeListEl.innerHTML = 'No upgrades yet. Survive to floors 5, 10, 15... to draft new power-ups.';
+                playerStatsGrid.innerHTML = '';
+                enemyStatsGrid.innerHTML = '';
+                logContainer.innerHTML = '';
+                state.run.log = [];
+                logSystem(`Run started as ${style.name}. Base attributes prepared.`);
+                updateRunUI();
+            }
+
+            function hideRunPanel() {
+                runPanelEl.classList.add('hidden');
+            }
+
+            function updateRunUI() {
+                if (!state.run) return;
+                const run = state.run;
+
+                runStyleBadge.textContent = `${run.style.name}`;
+                runFloorBadge.textContent = `Floor ${run.floor}`;
+
+                if (run.status === 'running') {
+                    runStatusBadge.textContent = 'In Progress';
+                    runStatusBadge.classList.remove('warning');
+                    runStatusBadge.classList.add('success');
+                } else if (run.status === 'awaiting-upgrade') {
+                    runStatusBadge.textContent = 'Upgrade Available';
+                    runStatusBadge.classList.add('warning');
+                    runStatusBadge.classList.remove('success');
+                } else {
+                    runStatusBadge.textContent = capitalize(run.status);
+                    runStatusBadge.classList.remove('success');
+                    runStatusBadge.classList.add('warning');
+                }
+
+                const player = run.player;
+                runHpBadge.textContent = `HP: ${Math.max(0, player.currentHP)}/${player.stats.maxHP}`;
+
+                playerStatsGrid.innerHTML = renderStatsGrid(player.stats, true);
+                if (run.currentEnemy) {
+                    enemyStatsGrid.innerHTML = renderStatsGrid(run.currentEnemy.stats, false, run.currentEnemy);
+                } else {
+                    enemyStatsGrid.innerHTML = '';
+                }
+
+                if (run.upgrades.length === 0) {
+                    upgradeListEl.innerHTML = 'No upgrades yet. Survive to floors 5, 10, 15... to draft new power-ups.';
+                } else {
+                    upgradeListEl.innerHTML = run.upgrades.map((upgrade, index) => `
+                        <div class="upgrade-item">${index + 1}. ${upgrade.name} — ${upgrade.description}</div>
+                    `).join('');
+                }
+
+                runSummaryEl.innerHTML = `
+                    Floors Cleared: <strong>${run.clearedFloors}</strong> • Elites Defeated: <strong>${run.eliteCount}</strong> • Damage Dealt: <strong>${run.totalDamageDealt}</strong>
+                `;
+
+                nextFloorBtn.textContent = run.status === 'awaiting-upgrade' ? 'Resolve Upgrade Draft' : 'Engage Next Encounter';
+                nextFloorBtn.disabled = run.status === 'ended';
+                abandonRunBtn.disabled = run.status === 'ended';
+            }
+
+            function renderStatsGrid(stats, isPlayer, enemy) {
+                if (!stats) return '';
+                const rows = [];
+                rows.push(statRow('HP', `${stats.maxHP}`, isPlayer ? `${Math.round((state.run.player.currentHP / stats.maxHP) * 100)}%` : enemy ? `${Math.round((enemy.currentHP / stats.maxHP) * 100)}%` : ''));
+                rows.push(statRow('Attack', `${stats.attack}`));
+                rows.push(statRow('Speed', `${stats.speed}`));
+                rows.push(statRow('Crit', `${Math.round(stats.critChance * 100)}%`, `×${stats.critMultiplier.toFixed(2)}`));
+                rows.push(statRow('Hit', `${Math.round(stats.hitChance * 100)}%`, `Dodge ${Math.round(stats.dodgeChance * 100)}%`));
+                rows.push(statRow('Armor', `${stats.armor}`));
+                rows.push(statRow('Resist', `${stats.resistance}`));
+                rows.push(statRow('Damage DR', `${Math.round(stats.damageReduction * 100)}%`));
+                rows.push(statRow('Lifesteal', `${Math.round((stats.lifesteal || 0) * 100)}%`));
+                rows.push(statRow('Block', `${Math.round((stats.blockChance || 0) * 100)}%`));
+                rows.push(statRow('Pierce', `${Math.round((stats.piercePercent || 0) * 100)}%`));
+                rows.push(statRow('Double Strike', `${Math.round((stats.doubleStrikeChance || 0) * 100)}%`));
+                if (enemy && enemy.traits.length > 0) {
+                    rows.push(`<div class="stat-card"><div class="stat-label">Traits</div><div class="stat-value" style="font-size:0.85rem; line-height:1.4;">${enemy.traits.join(', ')}</div></div>`);
+                }
+                return rows.join('');
+            }
+
+            function statRow(label, value, extra) {
+                return `
+                    <div class="stat-card">
+                        <div class="stat-label">${label}</div>
+                        <div class="stat-value">${value}${extra ? `<span>${extra}</span>` : ''}</div>
+                    </div>
+                `;
+            }
+
+            function createPlayerCombatant(styleKey, attributes, bonuses) {
+                const base = derivePlayerBaseStats(styleKey, attributes);
+                const stats = applyBonuses(base, bonuses);
+                return {
+                    styleKey,
+                    attributes,
+                    base,
+                    bonuses: { ...bonuses },
+                    stats,
+                    currentHP: stats.maxHP,
+                };
+            }
+
+            function derivePlayerBaseStats(styleKey, attributes) {
+                const STR = attributes.STR || 0;
+                const DEX = attributes.DEX || 0;
+                const INT = attributes.INT || 0;
+                const END = attributes.END || 0;
+                const VIT = attributes.VIT || 0;
+                const LCK = attributes.LCK || 0;
+                const SPI = attributes.SPI || 0;
+
+                const baseHP = 120 + STR * 1.8 + END * 6.5 + VIT * 4.5;
+                let attack;
+                if (styleKey === 'melee') {
+                    attack = 18 + STR * 2.7 + DEX * 0.8;
+                } else if (styleKey === 'ranged') {
+                    attack = 16 + DEX * 2.4 + STR * 1.1 + LCK * 0.6;
+                } else {
+                    attack = 15 + INT * 2.6 + SPI * 1.3 + LCK * 0.8;
+                }
+
+                const attackType = styleKey === 'magic' ? 'arcane' : 'physical';
+                const speed = 10 + DEX * 1.4 + LCK * 0.4 + (styleKey === 'ranged' ? 2 : 0) + (styleKey === 'magic' ? 1 : 0);
+                const critChance = clamp(0.08 + DEX * 0.012 + LCK * 0.01 + (styleKey === 'ranged' ? 0.06 : 0), 0, 0.6);
+                const critMultiplier = 1.6 + STR * 0.012 + LCK * 0.008 + (styleKey === 'magic' ? 0.1 : 0);
+                const hitChance = clamp(0.9 + DEX * 0.006 + LCK * 0.004 + (styleKey === 'ranged' ? 0.05 : 0), 0.5, 0.99);
+                const dodgeChance = clamp(0.04 + DEX * 0.003 + LCK * 0.002 + (styleKey === 'ranged' ? 0.03 : 0) + (styleKey === 'magic' ? 0.02 : 0), 0, 0.45);
+                const armor = 8 + END * 0.9 + STR * 0.35;
+                const resistance = 10 + SPI * 0.9 + VIT * 0.6;
+                const damageReduction = clamp((END * 0.004) + (VIT * 0.003), 0, 0.25);
+                const lifesteal = styleKey === 'magic' ? 0.04 + SPI * 0.002 : styleKey === 'melee' ? 0.03 + STR * 0.0015 : 0.02 + LCK * 0.001;
+                const blockChance = clamp(0.05 + END * 0.002 + (styleKey === 'melee' ? 0.04 : 0), 0, 0.35);
+                const blockPower = styleKey === 'melee' ? 0.6 : 0.45;
+                const regenPercent = 0.04 + VIT * 0.003 + SPI * 0.002;
+
+                return {
+                    maxHP: Math.round(baseHP),
+                    attack: Math.round(attack),
+                    attackType,
+                    speed: Math.round(speed),
+                    critChance,
+                    critMultiplier,
+                    hitChance,
+                    dodgeChance,
+                    armor: Math.round(armor),
+                    resistance: Math.round(resistance),
+                    damageReduction,
+                    lifesteal: clamp(lifesteal, 0, 0.3),
+                    blockChance,
+                    blockPower,
+                    regenPercent,
+                    regenFlat: 0,
+                    piercePercent: 0,
+                    doubleStrikeChance: 0.05 + (DEX * 0.001),
+                    shieldOnKillPercent: 0,
+                };
+            }
+
+            function applyBonuses(base, bonuses = {}) {
+                const stats = { ...base };
+                const hpFlat = bonuses.hpFlat || 0;
+                const hpMultiplier = bonuses.hpMultiplier || 0;
+                stats.maxHP = Math.round((base.maxHP + hpFlat) * (1 + hpMultiplier));
+
+                const attackFlat = bonuses.attackFlat || 0;
+                const attackMultiplier = bonuses.attackMultiplier || 0;
+                stats.attack = Math.round((base.attack + attackFlat) * (1 + attackMultiplier));
+
+                const speedFlat = bonuses.speedFlat || 0;
+                const speedMultiplier = bonuses.speedMultiplier || 0;
+                stats.speed = Math.max(4, Math.round((base.speed + speedFlat) * (1 + speedMultiplier)));
+
+                stats.critChance = clamp(base.critChance + (bonuses.critChance || 0), 0, 0.85);
+                stats.critMultiplier = base.critMultiplier + (bonuses.critMultiplier || 0);
+                stats.hitChance = clamp(base.hitChance + (bonuses.hitChance || 0), 0.5, 0.99);
+                stats.dodgeChance = clamp(base.dodgeChance + (bonuses.dodgeChance || 0), 0, 0.6);
+                stats.armor = Math.max(0, Math.round((base.armor + (bonuses.armorFlat || 0)) * (1 + (bonuses.armorMultiplier || 0))));
+                stats.resistance = Math.max(0, Math.round((base.resistance + (bonuses.resistanceFlat || 0)) * (1 + (bonuses.resistanceMultiplier || 0))));
+                stats.damageReduction = clamp(base.damageReduction + (bonuses.damageReduction || 0), 0, 0.75);
+                stats.lifesteal = clamp(base.lifesteal + (bonuses.lifesteal || 0), 0, 0.6);
+                stats.blockChance = clamp(base.blockChance + (bonuses.blockChance || 0), 0, 0.6);
+                stats.blockPower = clamp(base.blockPower + (bonuses.blockPower || 0), 0, 0.8);
+                stats.regenPercent = base.regenPercent + (bonuses.regenPercent || 0);
+                stats.regenFlat = base.regenFlat + (bonuses.regenFlat || 0);
+                stats.piercePercent = clamp(base.piercePercent + (bonuses.piercePercent || 0), 0, 0.6);
+                stats.doubleStrikeChance = clamp(base.doubleStrikeChance + (bonuses.doubleStrikeChance || 0), 0, 0.6);
+                stats.shieldOnKillPercent = clamp(base.shieldOnKillPercent + (bonuses.shieldOnKillPercent || 0), 0, 0.5);
+                stats.bonusPointEvery = bonuses.bonusPointEvery || 0;
+                return stats;
+            }
+
+            function engageFloor() {
+                const run = state.run;
+                if (!run) return;
+
+                // Recalculate stats to include latest attribute bonuses
+                recalcPlayer(run);
+
+                const enemy = generateEnemy(run.floor, run);
+                run.currentEnemy = enemy;
+
+                logSystem(`Floor ${run.floor}: ${enemy.name} (${enemy.archetype.name}) approaches.`);
+                enemy.traits.forEach((trait) => logSystem(`Enemy Trait: ${trait}`));
+
+                updateRunUI();
+
+                const battleResult = simulateBattle(run, enemy);
+                run.battleHistory.push(battleResult.summary);
+                emitBattleLog(battleResult.logEntries);
+
+                run.totalDamageDealt += battleResult.totalDamageDealt;
+                run.totalDamageTaken += battleResult.totalDamageTaken;
+
+                if (battleResult.outcome === 'victory') {
+                    run.clearedFloors += 1;
+                    run.floor += 1;
+
+                    if (enemy.isElite) {
+                        run.eliteCount += 1;
+                        logSystem('Elite defeated! Attribute point payout increased.');
+                    }
+
+                    applyPostBattleRecovery(run, enemy);
+
+                    if (run.bonuses.bonusPointEvery && run.clearedFloors % run.bonuses.bonusPointEvery === 0) {
+                        run.pendingBonusPoints += 1;
+                        logSystem(`Adaptive Learning triggered: +1 attribute point banked (${run.pendingBonusPoints} pending).`);
+                    }
+
+                    if (run.clearedFloors > 0 && run.clearedFloors % 5 === 0) {
+                        run.status = 'awaiting-upgrade';
+                        logSystem(`Milestone reached! Floor ${run.clearedFloors}. Upgrade draft ready.`);
+                        updateRunUI();
+                    } else {
+                        run.status = 'running';
+                        updateRunUI();
+                    }
+                } else if (battleResult.outcome === 'exploded') {
+                    finalizeRun({ reason: 'exploded' });
+                } else {
+                    finalizeRun({ reason: 'defeated' });
+                }
+            }
+
+            function recalcPlayer(run) {
+                const totalAttributes = ATTRIBUTES.reduce((acc, attr) => {
+                    acc[attr] = (run.baseAttributes[attr] || 0) + (run.metaAttributes[attr] || 0) + (run.attributeBonuses[attr] || 0);
+                    return acc;
+                }, {});
+                run.attributes = totalAttributes;
+                const previousMaxHP = run.player.stats.maxHP;
+                const hpRatio = Math.max(0, Math.min(1, run.player.currentHP / previousMaxHP));
+                run.player.base = derivePlayerBaseStats(run.styleKey, totalAttributes);
+                run.player.stats = applyBonuses(run.player.base, run.bonuses);
+                run.player.currentHP = Math.round(run.player.stats.maxHP * hpRatio);
+            }
+
+            function applyPostBattleRecovery(run, enemy) {
+                const player = run.player;
+                const regenAmount = Math.round(player.stats.maxHP * (player.stats.regenPercent || 0) + (player.stats.regenFlat || 0));
+                const healed = Math.min(player.stats.maxHP - player.currentHP, regenAmount);
+                if (healed > 0) {
+                    player.currentHP += healed;
+                    logSystem(`Recovered ${healed} HP after combat.`);
+                }
+                updateRunUI();
+            }
+
+            function generateEnemy(floor, run) {
+                const tier = Math.floor((floor - 1) / 5);
+                const archetype = chooseRandom(ENEMY_ARCHETYPES);
+                const isBoss = floor % 20 === 0;
+                const eliteChance = clamp(0.12 + floor * 0.01, 0.12, 0.45);
+                const isElite = isBoss || Math.random() < eliteChance;
+
+                const hpScale = Math.pow(1.1, floor - 1);
+                const attackScale = Math.pow(1.08, floor - 1);
+                const defenseScale = 1 + (floor - 1) * 0.04;
+                const speedScale = 1 + (floor - 1) * 0.018;
+                const tierMod = 1 + tier * 0.18;
+
+                const base = archetype.base;
+                const stats = {
+                    maxHP: Math.round(base.maxHP * hpScale * tierMod * (isElite ? 1.35 : 1)),
+                    attack: Math.round(base.attack * attackScale * tierMod * (isElite ? 1.22 : 1)),
+                    attackType: archetype.attackType,
+                    speed: Math.max(4, Math.round(base.speed * speedScale * (isElite ? 1.15 : 1))),
+                    critChance: clamp(base.critChance + tier * 0.012 + (isElite ? 0.05 : 0), 0.05, 0.4),
+                    critMultiplier: base.critMultiplier + tier * 0.05 + (isElite ? 0.2 : 0),
+                    hitChance: clamp(base.hitChance + tier * 0.012 + (isElite ? 0.04 : 0), 0.65, 0.97),
+                    dodgeChance: clamp(base.dodgeChance + tier * 0.006 + (isElite ? 0.04 : 0), 0, 0.4),
+                    armor: Math.round(base.armor * defenseScale * (isElite ? 1.22 : 1)),
+                    resistance: Math.round(base.resistance * defenseScale * (isElite ? 1.22 : 1)),
+                    damageReduction: clamp(base.damageReduction + tier * 0.01 + (isElite ? 0.08 : 0), 0, 0.6),
+                    lifesteal: 0,
+                    blockChance: clamp(base.blockChance + tier * 0.005 + (isElite ? 0.05 : 0), 0, 0.4),
+                    blockPower: 0.45 + (isElite ? 0.1 : 0),
+                    regenPercent: 0,
+                    regenFlat: 0,
+                    piercePercent: 0,
+                    doubleStrikeChance: isElite ? 0.1 : 0,
+                    shieldOnKillPercent: 0,
+                };
+
+                const enemy = {
+                    name: isBoss ? `Floor ${floor} Boss` : `Floor ${floor} Foe`,
+                    archetype,
+                    stats,
+                    currentHP: stats.maxHP,
+                    traits: [],
+                    flags: {},
+                    isElite,
+                    isBoss,
+                };
+
+                if (isBoss) {
+                    enemy.name = `Boss: ${archetype.name}`;
+                    enemy.traits.push('Boss: enhanced scaling');
+                    stats.blockChance = clamp(stats.blockChance + 0.1, 0, 0.5);
+                    stats.doubleStrikeChance = clamp(stats.doubleStrikeChance + 0.1, 0, 0.5);
+                    stats.piercePercent = 0.15;
+                }
+
+                const affixCount = isBoss ? 2 : isElite ? 1 + (Math.random() < 0.45 ? 1 : 0) : Math.random() < 0.25 ? 1 : 0;
+                const availableAffixes = shuffleArray(ENEMY_AFFIXES.slice());
+
+                for (let i = 0; i < affixCount; i++) {
+                    const affix = availableAffixes[i];
+                    if (!affix) break;
+                    affix.apply(enemy);
+                    enemy.traits.push(`${affix.name}`);
+                }
+
+                return enemy;
+            }
+
+            function simulateBattle(run, enemy) {
+                const logEntries = [];
+                const player = run.player;
+                const playerStats = player.stats;
+                const enemyStats = enemy.stats;
+
+                let playerNextTurn = 100 / playerStats.speed;
+                let enemyNextTurn = 100 / enemyStats.speed;
+                let currentTime = 0;
+                let turns = 0;
+                let totalDamageDealt = 0;
+                let totalDamageTaken = 0;
+
+                player.statuses = [];
+                enemy.statuses = [];
+
+                const MAX_TURNS = 160;
+
+                while (player.currentHP > 0 && enemy.currentHP > 0 && turns < MAX_TURNS) {
+                    if (playerNextTurn <= enemyNextTurn) {
+                        currentTime = playerNextTurn;
+                        playerNextTurn += 100 / playerStats.speed;
+                        const result = performAttack('player', player, enemy, run, logEntries);
+                        totalDamageDealt += result.damage;
+                        turns += 1;
+                        if (enemy.currentHP <= 0) break;
+                    } else {
+                        currentTime = enemyNextTurn;
+                        enemyNextTurn += 100 / enemyStats.speed;
+                        const result = performAttack('enemy', enemy, player, run, logEntries);
+                        totalDamageTaken += result.damage;
+                        turns += 1;
+                        if (player.currentHP <= 0) break;
+                    }
+                }
+
+                let outcome = 'victory';
+                if (player.currentHP <= 0) outcome = 'defeat';
+
+                if (outcome === 'victory' && enemy.flags.explodes) {
+                    const explosionDamage = Math.round(player.stats.maxHP * enemy.flags.explodes);
+                    player.currentHP = Math.max(0, player.currentHP - explosionDamage);
+                    logEntries.push(makeLog('warning', `The enemy explodes on death for ${explosionDamage} damage!`));
+                    totalDamageTaken += explosionDamage;
+                    if (player.currentHP <= 0) {
+                        outcome = 'exploded';
+                    }
+                }
+
+                const summary = {
+                    floor: run.floor,
+                    enemyName: enemy.name,
+                    turns,
+                    outcome,
+                    playerHP: player.currentHP,
+                    enemyHP: enemy.currentHP,
+                    damageDealt: totalDamageDealt,
+                    damageTaken: totalDamageTaken,
+                };
+
+                return { outcome, logEntries, summary, totalDamageDealt, totalDamageTaken };
+            }
+
+            function performAttack(actorType, attacker, defender, run, logEntries, isFollowUp = false) {
+                const attackerStats = attacker.stats;
+                const defenderStats = defender.stats;
+
+                const hitChance = clamp(attackerStats.hitChance - defenderStats.dodgeChance, 0.08, 0.98);
+                const hitRoll = Math.random();
+                if (hitRoll > hitChance) {
+                    logEntries.push(makeLog(actorType, `${actorType === 'player' ? 'You' : 'Enemy'} miss!`));
+                    return { damage: 0 };
+                }
+
+                const blockTriggered = Math.random() < defenderStats.blockChance;
+                const critTriggered = Math.random() < attackerStats.critChance;
+                const baseDamage = attackerStats.attack * randomRange(0.9, 1.12) * (critTriggered ? attackerStats.critMultiplier : 1);
+                const mitigationStat = attackerStats.attackType === 'arcane' ? defenderStats.resistance : defenderStats.armor;
+                const mitigation = mitigationStat / (mitigationStat + 120);
+                const pierce = attackerStats.piercePercent || 0;
+                const mitigated = baseDamage * (1 - mitigation * (1 - pierce));
+                let damage = mitigated * (1 - defenderStats.damageReduction);
+                if (blockTriggered) {
+                    damage *= (1 - (defenderStats.blockPower || 0.5));
+                }
+                damage = Math.max(1, Math.round(damage));
+
+                defender.currentHP = Math.max(0, defender.currentHP - damage);
+
+                if (attackerStats.lifesteal > 0) {
+                    const heal = Math.round(damage * attackerStats.lifesteal);
+                    attacker.currentHP = Math.min(attackerStats.maxHP, attacker.currentHP + heal);
+                    if (heal > 0) {
+                        logEntries.push(makeLog(actorType, `${actorType === 'player' ? 'You' : 'Enemy'} leech ${heal} HP.`));
+                    }
+                }
+
+                if (actorType === 'player' && defender.flags.thorns) {
+                    const thornDamage = Math.round(damage * defender.flags.thorns);
+                    const player = run.player;
+                    player.currentHP = Math.max(0, player.currentHP - thornDamage);
+                    logEntries.push(makeLog('warning', `Thorns reflect ${thornDamage} damage back at you!`));
+                }
+
+                const messageParts = [];
+                messageParts.push(actorType === 'player' ? 'You strike' : 'Enemy attacks');
+                if (critTriggered) messageParts.push('(CRIT)');
+                if (blockTriggered) messageParts.push('(blocked)');
+                messageParts.push(`for ${damage} damage.`);
+                messageParts.push(actorType === 'player' ? `Enemy HP: ${defender.currentHP}/${defenderStats.maxHP}` : `Your HP: ${defender.currentHP}/${defenderStats.maxHP}`);
+                logEntries.push(makeLog(actorType, messageParts.join(' ')));
+
+                if (defender.currentHP <= 0 && actorType === 'player' && attackerStats.shieldOnKillPercent) {
+                    const shieldHeal = Math.round(attackerStats.maxHP * attackerStats.shieldOnKillPercent);
+                    attacker.currentHP = Math.min(attackerStats.maxHP, attacker.currentHP + shieldHeal);
+                    logEntries.push(makeLog('player', `Kill surge restores ${shieldHeal} HP.`));
+                }
+
+                if (!isFollowUp && Math.random() < attackerStats.doubleStrikeChance) {
+                    logEntries.push(makeLog(actorType, 'Momentum! Immediate follow-up strike.'));
+                    const followUp = performAttack(actorType, attacker, defender, run, logEntries, true);
+                    damage += followUp.damage;
+                }
+
+                return { damage };
+            }
+
+            function emitBattleLog(entries) {
+                entries.forEach((entry) => {
+                    appendLog(entry);
+                });
+            }
+
+            function appendLog(entry) {
+                const logEl = document.createElement('div');
+                logEl.className = `log-entry ${entry.type}`;
+                logEl.textContent = entry.message;
+                logContainer.appendChild(logEl);
+                while (logContainer.childElementCount > MAX_LOG_ENTRIES) {
+                    logContainer.removeChild(logContainer.firstChild);
+                }
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            function logSystem(message) {
+                appendLog(makeLog('system', message));
+            }
+
+            function makeLog(type, message) {
+                return { type, message };
+            }
+
+            function showUpgradeDraft() {
+                if (!state.run) return;
+                const run = state.run;
+                const options = drawUpgrades(run);
+                upgradeOptionsEl.innerHTML = options.map((upgrade) => {
+                    return `
+                        <article class="upgrade-card ${upgrade.type}">
+                            <div><strong>${upgrade.name}</strong></div>
+                            <div class="notice">${upgrade.description}</div>
+                            <button data-upgrade="${upgrade.id}">Select Upgrade</button>
+                        </article>
+                    `;
+                }).join('');
+
+                upgradeOptionsEl.querySelectorAll('button[data-upgrade]').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const upgrade = options.find((opt) => opt.id === button.getAttribute('data-upgrade'));
+                        if (!upgrade) return;
+                        applyUpgrade(run, upgrade);
+                        hideUpgradeDraft();
+                        logSystem(`Upgrade chosen: ${upgrade.name}.`);
+                        run.status = 'running';
+                        updateRunUI();
+                    });
+                });
+
+                upgradeContextEl.textContent = `Milestone floor reached. Choose one of ${options.length} upgrades to empower this run.`;
+                upgradeOverlay.classList.remove('hidden');
+            }
+
+            function hideUpgradeDraft() {
+                upgradeOverlay.classList.add('hidden');
+                upgradeOptionsEl.innerHTML = '';
+            }
+
+            function drawUpgrades(run) {
+                const pool = UPGRADE_POOL.filter((upgrade) => !run.upgrades.some((u) => u.id === upgrade.id));
+                const count = Math.min(3 + run.extraUpgradeChoices, pool.length);
+                return shuffleArray(pool).slice(0, count);
+            }
+
+            function applyUpgrade(run, upgrade) {
+                run.upgrades.push(upgrade);
+                upgrade.apply(run);
+                recalcPlayer(run);
+                updateRunUI();
+            }
+
+            function finalizeRun({ reason, reduced = false }) {
+                const run = state.run;
+                if (!run) return;
+
+                run.status = 'ended';
+                updateRunUI();
+
+                const floorsCleared = run.clearedFloors;
+                const basePoints = Math.max(1, Math.floor(floorsCleared / 2));
+                const elitePoints = run.eliteCount * 2;
+                const bestBonus = floorsCleared > state.meta.bestFloor ? 2 : 0;
+                const pendingBonuses = run.pendingBonusPoints || 0;
+
+                let totalPoints = basePoints + elitePoints + bestBonus + pendingBonuses;
+                if (reduced) totalPoints = Math.max(1, Math.floor(totalPoints / 2));
+
+                state.meta.points += totalPoints;
+                state.meta.totalPointsEarned += totalPoints;
+                state.meta.runs += 1;
+                if (floorsCleared > state.meta.bestFloor) {
+                    state.meta.bestFloor = floorsCleared;
+                }
+                saveMeta();
+                renderMeta();
+
+                const reasonText = reason === 'defeated' ? 'Defeated' : reason === 'exploded' ? 'Perished in explosion' : reason === 'abandoned' ? 'Run abandoned early' : 'Run complete';
+                completionTitle.textContent = reasonText;
+
+                completionSummary.innerHTML = `
+                    <div>Floors cleared: <strong>${floorsCleared}</strong></div>
+                    <div>Elites defeated: <strong>${run.eliteCount}</strong></div>
+                    <div>Total damage dealt: <strong>${run.totalDamageDealt}</strong></div>
+                    <div>Total damage taken: <strong>${run.totalDamageTaken}</strong></div>
+                    <div>Upgrades chosen: <strong>${run.upgrades.length}</strong></div>
+                    <div>Pending bonus points: <strong>${pendingBonuses}</strong></div>
+                `;
+
+                completionPoints.textContent = totalPoints;
+                completionTotal.textContent = state.meta.points;
+
+                completionOverlay.classList.remove('hidden');
+                logSystem(`Run ended (${reasonText}). Earned ${totalPoints} attribute points.`);
+            }
+
+            function hideOverlay(overlay) {
+                overlay.classList.add('hidden');
+            }
+
+            function capitalize(text) {
+                return text.charAt(0).toUpperCase() + text.slice(1);
+            }
+
+            function randomRange(min, max) {
+                return Math.random() * (max - min) + min;
+            }
+
+            function clamp(value, min, max) {
+                return Math.min(Math.max(value, min), max);
+            }
+
+            function chooseRandom(array) {
+                return array[Math.floor(Math.random() * array.length)];
+            }
+
+            function shuffleArray(array) {
+                const clone = array.slice();
+                for (let i = clone.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [clone[i], clone[j]] = [clone[j], clone[i]];
+                }
+                return clone;
+            }
+
+            function emitRunSummary(run) {
+                if (!run) return;
+                appendLog(makeLog('summary', `Run summary → Floors: ${run.clearedFloors}, Elites: ${run.eliteCount}, Damage Dealt: ${run.totalDamageDealt}, Points Earned: ${state.meta.points}`));
+            }
+        })();
+    </script>
+</body>
+</html>
