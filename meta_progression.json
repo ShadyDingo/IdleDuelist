@@ -1,0 +1,13 @@
+{
+  "spent_attributes": {
+    "STR": 0,
+    "DEX": 0,
+    "INT": 0,
+    "END": 0,
+    "VIT": 0,
+    "LCK": 0,
+    "SPI": 0
+  },
+  "unspent_points": 10,
+  "best_floor": 0
+}
