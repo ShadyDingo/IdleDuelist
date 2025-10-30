@@ -1219,7 +1219,7 @@ def executeTurnBasedAction(attacker_name, attacker_faction, attacker_armor, atta
             
             # Add ability icon to log - handle different file extensions
             if ability == 'natures_wrath':
-                ability_icon = f"<img src='/assets/abilities/ability_nature's_wrath.png' width='20' height='20'>"
+                ability_icon = "<img src='/assets/abilities/ability_natures_wrath.png' width='20' height='20'>"
             elif ability == 'poison_blade':
                 ability_icon = f"<img src='/assets/abilities/ability_poison_blade.png' width='20' height='20'>"
             else:
