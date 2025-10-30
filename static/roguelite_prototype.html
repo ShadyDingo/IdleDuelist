@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ascendant Tactics – Auto-Battler Prototype</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0f172a;
+            --panel: #1e293bcc;
+            --accent: #38bdf8;
+            --accent-dark: #0ea5e9;
+            --danger: #f87171;
+            --success: #34d399;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border: #1e293b;
+            --card: #1e293bcc;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            background: radial-gradient(circle at top, #1d4ed8 0%, transparent 55%),
+                        radial-gradient(circle at bottom, #0f172a 0%, #020617 55%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app {
+            width: min(960px, 100%);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        header {
+            background: var(--panel);
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 20px 45px -30px #0ea5e966;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: clamp(1.6rem, 4vw, 2rem);
+        }
+
+        header p {
+            margin: 6px 0 0;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        section {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.15rem;
+            letter-spacing: 0.01em;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .meta-card {
+            background: var(--card);
+            border: 1px solid #1b2539;
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .meta-card strong {
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+        }
+
+        .meta-card .value {
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .meta-card button {
+            margin-top: 6px;
+        }
+
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            color: #0f172a;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+            box-shadow: 0 10px 25px -18px var(--accent);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 16px 32px -24px var(--accent);
+        }
+
+        button.secondary {
+            background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+            color: #0f172a;
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+            color: #0f172a;
+        }
+
+        button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .style-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .style-card {
+            background: var(--card);
+            border-radius: 14px;
+            border: 1px solid transparent;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: transform 0.15s ease, border 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 16px 35px -30px #000000;
+        }
+
+        .style-card.active {
+            border-color: var(--accent);
+            box-shadow: 0 18px 38px -26px #38bdf880;
+        }
+
+        .style-card h3 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .style-card ul {
+            margin: 0;
+            padding-left: 16px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .hud-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .hud-card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid #1b2539;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .hud-card .label {
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .hud-card .big {
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .stat-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 6px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .stat-list span {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .log-panel {
+            background: #02061766;
+            border-radius: 12px;
+            border: 1px solid #1b2539;
+            padding: 12px;
+            height: clamp(180px, 35vh, 280px);
+            overflow-y: auto;
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .log-line {
+            margin-bottom: 4px;
+            opacity: 0;
+            animation: fade-in 0.35s forwards;
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            background: rgba(148, 163, 184, 0.12);
+            color: var(--accent);
+        }
+
+        .upgrade-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .upgrade-card {
+            background: var(--card);
+            border-radius: 12px;
+            border: 1px solid #1b2539;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .upgrade-card h4 {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .chip {
+            background: rgba(148, 163, 184, 0.16);
+            color: var(--text-muted);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            width: fit-content;
+        }
+
+        .muted {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .flex {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .flex.wrap {
+            flex-wrap: wrap;
+        }
+
+        .divider {
+            height: 1px;
+            background: #1b2539;
+            margin: 6px 0;
+        }
+
+        .enemy-mods {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .status-bar {
+            width: 100%;
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(148, 163, 184, 0.18);
+            overflow: hidden;
+        }
+
+        .status-bar > span {
+            display: block;
+            height: 100%;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+        }
+
+        .status-bar.enemy span {
+            background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        }
+
+        .status-bar.buff span {
+            background: linear-gradient(135deg, var(--success) 0%, #0f766e 100%);
+        }
+
+        .pending-upgrade {
+            border: 1px dashed var(--accent);
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+            }
+
+            .hud-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <h1>Ascendant Tactics – Auto-Battler Prototype</h1>
+            <p>Choose a fighting style, push as many floors as you can, and let the combat AI do the work. Spend attribute points between runs to grow stronger. Crafted for quick mobile testing—just open this page in your phone’s browser.</p>
+        </header>
+
+        <section id="meta-panel">
+            <div class="flex wrap" style="justify-content: space-between; gap: 12px;">
+                <h2>Meta Progression</h2>
+                <div class="chip" id="best-floor-chip">Best Floor: 0</div>
+            </div>
+            <div class="flex wrap" style="justify-content: space-between; gap: 12px; align-items: center;">
+                <div class="chip" id="meta-points">Unspent Points: 0</div>
+                <div class="flex wrap" style="gap: 6px;">
+                    <button class="secondary" id="reset-meta-btn">Reset Meta</button>
+                    <button class="secondary" id="export-meta-btn">Export Save</button>
+                    <button class="secondary" id="import-meta-btn">Import Save</button>
+                </div>
+            </div>
+            <div class="meta-grid" id="meta-grid"></div>
+            <p class="muted">Meta points carry permanently between runs (stored in your browser). Tap a stat to invest points after a run.</p>
+        </section>
+
+        <section id="setup-panel">
+            <h2>Choose Your Fighting Style</h2>
+            <div class="style-grid" id="style-grid"></div>
+            <button id="start-run-btn">Start Run</button>
+            <p class="muted">Runs resolve automatically. You can pause to review logs or stop after any floor.</p>
+        </section>
+
+        <section id="run-panel" style="display: none;">
+            <div class="flex wrap" style="justify-content: space-between;">
+                <h2>Current Run</h2>
+                <div class="flex wrap" style="gap: 6px;">
+                    <button class="secondary" id="pause-btn">Pause</button>
+                    <button class="secondary" id="resume-btn" style="display:none;">Resume</button>
+                    <button class="danger" id="abort-btn">End Run</button>
+                </div>
+            </div>
+            <div class="hud-grid" id="hud-grid"></div>
+            <div class="divider"></div>
+            <div id="upgrade-container" style="display:none;"></div>
+            <div class="divider"></div>
+            <div>
+                <h3>Combat Log</h3>
+                <div class="log-panel" id="log-panel"></div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        /**
+         * Utility helpers
+         */
+        const ATTRIBUTES = ["STR", "DEX", "INT", "END", "VIT", "LCK", "SPI"];
+        const STORAGE_KEY = "ascendant_tactics_meta_v1";
+
+        const randFloat = (min, max) => Math.random() * (max - min) + min;
+        const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+        const choice = (array) => array[Math.floor(Math.random() * array.length)];
+        const shuffle = (array) => array.sort(() => Math.random() - 0.5);
+
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const deepCopy = (value) => (typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value)));
+
+        /**
+         * Game configuration
+         */
+        const META_DEFAULT = {
+            bestFloor: 0,
+            points: 0,
+            attributes: ATTRIBUTES.reduce((acc, key) => ({ ...acc, [key]: 0 }), {}),
+        };
+
+        const STYLES = {
+            melee: {
+                key: "melee",
+                name: "Melee Vanguard",
+                description: "Armor-clad bruiser with brutal finishers and sustained durability.",
+                baseAttributes: { STR: 7, DEX: 4, INT: 2, END: 6, VIT: 5, LCK: 3, SPI: 2 },
+                tags: ["Physical", "Brawler", "Tank"],
+            },
+            ranged: {
+                key: "ranged",
+                name: "Ranged Sharpshot",
+                description: "Precision strikes, crit stacking, and evasive maneuvers.",
+                baseAttributes: { STR: 4, DEX: 7, INT: 3, END: 3, VIT: 4, LCK: 5, SPI: 3 },
+                tags: ["Precision", "Crit", "Agile"],
+            },
+            magic: {
+                key: "magic",
+                name: "Arcane Savant",
+                description: "Burst casters with adaptive shielding and mana cycling.",
+                baseAttributes: { STR: 2, DEX: 3, INT: 7, END: 3, VIT: 4, LCK: 4, SPI: 6 },
+                tags: ["Spell", "Burst", "Control"],
+            },
+        };
+
+        const STYLE_SKILLS = {
+            melee: [
+                {
+                    id: "melee_basic",
+                    name: "Shield Bash",
+                    type: "physical",
+                    multiplier: 1.0,
+                    flat: 0,
+                    cooldown: 0,
+                    priority: 1,
+                    apply: () => ({})
+                },
+                {
+                    id: "melee_heavy",
+                    name: "Crescent Cleave",
+                    type: "physical",
+                    multiplier: 1.45,
+                    flat: 4,
+                    cooldown: 3,
+                    priority: 3,
+                    apply: (state) => {
+                        if (!state.attacker.buffs.find((b) => b.id === "cleaveBleed")) {
+                            state.target.statuses.push({
+                                id: "bleed",
+                                name: "Bleeding",
+                                type: "dot",
+                                source: state.attacker.name,
+                                duration: 3,
+                                potency: Math.round(state.damage * 0.25),
+                            });
+                        }
+                    }
+                },
+                {
+                    id: "melee_guard",
+                    name: "Bulwark Guard",
+                    type: "buff",
+                    multiplier: 0,
+                    flat: 0,
+                    cooldown: 4,
+                    priority: 2,
+                    apply: (state) => {
+                        state.attacker.buffs.push({
+                            id: "guard",
+                            name: "Bulwark",
+                            type: "armor",
+                            duration: 2,
+                            armorBonus: 12,
+                            mitigation: 0.12,
+                        });
+                        state.extraLog = `${state.attacker.name} braces behind an iron guard.`;
+                        state.preventAttack = true;
+                    }
+                },
+            ],
+            ranged: [
+                {
+                    id: "ranged_basic",
+                    name: "Twin Shot",
+                    type: "physical",
+                    multiplier: 0.7,
+                    flat: 0,
+                    cooldown: 0,
+                    priority: 1,
+                    hits: 2,
+                    apply: () => ({})
+                },
+                {
+                    id: "ranged_mark",
+                    name: "Target Lock",
+                    type: "debuff",
+                    multiplier: 0,
+                    flat: 0,
+                    cooldown: 4,
+                    priority: 2,
+                    apply: (state) => {
+                        state.target.statuses.push({
+                            id: "mark",
+                            name: "Marked",
+                            type: "vulnerability",
+                            duration: 3,
+                            damageTaken: 0.18,
+                        });
+                        state.extraLog = `${state.attacker.name} marks ${state.target.name} for focused fire!`;
+                        state.preventAttack = true;
+                    }
+                },
+                {
+                    id: "ranged_rapid",
+                    name: "Rapid Volley",
+                    type: "physical",
+                    multiplier: 0.55,
+                    flat: 0,
+                    cooldown: 5,
+                    priority: 3,
+                    hits: 4,
+                    apply: () => ({})
+                },
+            ],
+            magic: [
+                {
+                    id: "magic_basic",
+                    name: "Arc Lash",
+                    type: "magic",
+                    multiplier: 1.05,
+                    flat: 0,
+                    cooldown: 0,
+                    priority: 1,
+                    apply: () => ({})
+                },
+                {
+                    id: "magic_shield",
+                    name: "Prismatic Ward",
+                    type: "buff",
+                    multiplier: 0,
+                    flat: 0,
+                    cooldown: 4,
+                    priority: 2,
+                    apply: (state) => {
+                        state.attacker.buffs.push({
+                            id: "ward",
+                            name: "Prismatic Ward",
+                            type: "shield",
+                            duration: 3,
+                            shieldHp: Math.round(state.attacker.stats.maxHp * 0.2),
+                        });
+                        state.extraLog = `${state.attacker.name} conjures a shimmering ward.`;
+                        state.preventAttack = true;
+                    }
+                },
+                {
+                    id: "magic_nova",
+                    name: "Astral Nova",
+                    type: "magic",
+                    multiplier: 1.6,
+                    flat: 6,
+                    cooldown: 4,
+                    priority: 3,
+                    apply: (state) => {
+                        state.target.statuses.push({
+                            id: "burn",
+                            name: "Irradiated",
+                            type: "dot",
+                            duration: 3,
+                            potency: Math.round(state.damage * 0.3),
+                        });
+                    }
+                },
+            ],
+        };
+
+        const ENEMY_AFFIXES = [
+            {
+                id: "vamp",
+                name: "Vampiric",
+                description: "Heals for 30% of damage dealt.",
+                apply: (enemy) => { enemy.vampiric = 0.3; },
+            },
+            {
+                id: "swift",
+                name: "Swift",
+                description: "+18% speed, can act twice occasionally.",
+                apply: (enemy) => { enemy.stats.speed *= 1.18; enemy.swift = true; },
+            },
+            {
+                id: "bulwark",
+                name: "Bulwark",
+                description: "+25 armor and damage reduction.",
+                apply: (enemy) => { enemy.stats.armor += 25; enemy.bulwark = 0.12; },
+            },
+            {
+                id: "thorns",
+                name: "Thorns",
+                description: "Reflects 20% damage when struck.",
+                apply: (enemy) => { enemy.thorns = 0.2; },
+            },
+            {
+                id: "volatile",
+                name: "Explosive",
+                description: "On death, explodes for 30% max HP.",
+                apply: (enemy) => { enemy.explosive = 0.3; },
+            },
+            {
+                id: "frost",
+                name: "Frost Aura",
+                description: "Basic hits slow the target (-12% speed stacks).",
+                apply: (enemy) => { enemy.frost = 0.12; },
+            },
+        ];
+
+        const UPGRADE_POOL = [
+            {
+                id: "off_damage",
+                name: "Sharpened Edge",
+                category: "Offensive",
+                description: "+15% damage, +5% crit chance for this run.",
+                apply: (player) => {
+                    player.modifiers.damage += 0.15;
+                    player.modifiers.critChance += 0.05;
+                },
+            },
+            {
+                id: "off_cleave",
+                name: "Cleave Formation",
+                category: "Offensive",
+                description: "Skills hit an extra time for 30% damage (on-hit effects apply once).",
+                apply: (player) => {
+                    player.modifiers.extraHits.push({ multiplier: 0.3, applyStatuses: false });
+                },
+            },
+            {
+                id: "off_overload",
+                name: "Arcane Overload",
+                category: "Offensive",
+                description: "+25% magic damage, +10 flat spell power.",
+                apply: (player) => {
+                    player.modifiers.magicDamage += 0.25;
+                    player.modifiers.flatMagic += 10;
+                },
+            },
+            {
+                id: "def_hp",
+                name: "Titanblood",
+                category: "Defensive",
+                description: "+20% max HP and heal for 15% now.",
+                apply: (player) => {
+                    player.modifiers.hp += 0.2;
+                    const heal = Math.round(player.stats.maxHp * 0.15);
+                    player.currentHp = Math.min(player.stats.maxHp + Math.round(player.stats.maxHp * player.modifiers.hp), player.currentHp + heal);
+                },
+            },
+            {
+                id: "def_barrier",
+                name: "Adaptive Barrier",
+                category: "Defensive",
+                description: "Gain a 30% max HP shield that refreshes every floor.",
+                apply: (player) => {
+                    player.modifiers.refreshShield = 0.3;
+                },
+            },
+            {
+                id: "def_guardian",
+                name: "Guardian Rhythm",
+                category: "Defensive",
+                description: "Every third turn reduces incoming damage by 40%.",
+                apply: (player) => {
+                    player.modifiers.guardianRhythm = true;
+                },
+            },
+            {
+                id: "util_rally",
+                name: "Battle Rally",
+                category: "Utility",
+                description: "Gain +10% initiative and +10% resource regen.",
+                apply: (player) => {
+                    player.modifiers.speed += 0.1;
+                    player.modifiers.resource += 0.1;
+                },
+            },
+            {
+                id: "util_insight",
+                name: "Tactical Insight",
+                category: "Utility",
+                description: "Gain +1 upgrade choice each milestone.",
+                apply: (player) => {
+                    player.modifiers.extraChoice += 1;
+                },
+            },
+            {
+                id: "util_luck",
+                name: "Lucky Draw",
+                category: "Utility",
+                description: "+15 Luck and +5% crit damage.",
+                apply: (player) => {
+                    player.runAttributes.LCK += 15;
+                    player.modifiers.critDamage += 0.05;
+                },
+            },
+        ];
+
+        /**
+         * Meta persistence
+         */
+        const loadMeta = () => {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (!stored) return deepCopy(META_DEFAULT);
+                const parsed = JSON.parse(stored);
+                return {
+                    bestFloor: parsed.bestFloor ?? 0,
+                    points: parsed.points ?? 0,
+                    attributes: ATTRIBUTES.reduce((acc, key) => ({
+                        ...acc,
+                        [key]: parsed.attributes?.[key] ?? 0,
+                    }), {}),
+                };
+            } catch (err) {
+                console.warn("Failed to load meta, resetting", err);
+                return deepCopy(META_DEFAULT);
+            }
+        };
+
+        const saveMeta = () => {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(meta));
+            renderMeta();
+        };
+
+        const exportMeta = () => {
+            const blob = new Blob([JSON.stringify(meta)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = `ascendant-meta-${Date.now()}.json`;
+            anchor.click();
+            URL.revokeObjectURL(url);
+        };
+
+        const importMeta = async () => {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = "application/json";
+            input.onchange = async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const text = await file.text();
+                try {
+                    const parsed = JSON.parse(text);
+                    if (typeof parsed !== "object") throw new Error("Invalid file");
+                    meta = {
+                        bestFloor: parsed.bestFloor ?? 0,
+                        points: parsed.points ?? 0,
+                        attributes: ATTRIBUTES.reduce((acc, key) => ({
+                            ...acc,
+                            [key]: parsed.attributes?.[key] ?? 0,
+                        }), {}),
+                    };
+                    saveMeta();
+                    logMessage("Imported meta progression.");
+                } catch (err) {
+                    alert("Could not import file: " + err.message);
+                }
+            };
+            input.click();
+        };
+
+        /**
+         * UI rendering
+         */
+        const metaGridEl = document.getElementById("meta-grid");
+        const metaPointsEl = document.getElementById("meta-points");
+        const bestFloorEl = document.getElementById("best-floor-chip");
+        const styleGridEl = document.getElementById("style-grid");
+        const startRunBtn = document.getElementById("start-run-btn");
+        const runPanel = document.getElementById("run-panel");
+        const hudGridEl = document.getElementById("hud-grid");
+        const logPanelEl = document.getElementById("log-panel");
+        const upgradeContainerEl = document.getElementById("upgrade-container");
+        const pauseBtn = document.getElementById("pause-btn");
+        const resumeBtn = document.getElementById("resume-btn");
+        const abortBtn = document.getElementById("abort-btn");
+
+        let meta = loadMeta();
+        let selectedStyle = "melee";
+        let run = null;
+        let paused = false;
+        let abortRequested = false;
+
+        function renderMeta() {
+            metaPointsEl.textContent = `Unspent Points: ${meta.points}`;
+            bestFloorEl.textContent = `Best Floor: ${meta.bestFloor}`;
+
+            metaGridEl.innerHTML = ATTRIBUTES.map((attr) => {
+                return `<div class="meta-card">
+                    <strong>${attr}</strong>
+                    <div class="value">${meta.attributes[attr]}</div>
+                    <button data-attr="${attr}" ${meta.points <= 0 ? "disabled" : ""}>Invest</button>
+                </div>`;
+            }).join("");
+
+            metaGridEl.querySelectorAll("button").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const attr = btn.dataset.attr;
+                    if (!attr || meta.points <= 0) return;
+                    meta.points -= 1;
+                    meta.attributes[attr] += 1;
+                    saveMeta();
+                });
+            });
+        }
+
+        function renderStyles() {
+            styleGridEl.innerHTML = Object.values(STYLES).map((style) => {
+                const active = selectedStyle === style.key ? "active" : "";
+                return `<div class="style-card ${active}" data-style="${style.key}">
+                    <div class="flex" style="justify-content: space-between;">
+                        <h3>${style.name}</h3>
+                        <span class="badge">${style.tags.join(" · ")}</span>
+                    </div>
+                    <p class="muted">${style.description}</p>
+                    <div class="divider"></div>
+                    <ul>
+                        <li><strong>Primary focus:</strong> ${primaryAttributes(style.key).join(", ")}</li>
+                        <li><strong>Starting bonus:</strong> ${formatAttributes(style.baseAttributes, style.key)}</li>
+                    </ul>
+                </div>`;
+            }).join("");
+
+            styleGridEl.querySelectorAll(".style-card").forEach((card) => {
+                card.addEventListener("click", () => {
+                    selectedStyle = card.dataset.style;
+                    renderStyles();
+                });
+            });
+        }
+
+        const primaryAttributes = (styleKey) => {
+            switch (styleKey) {
+                case "melee": return ["STR", "END", "VIT"];
+                case "ranged": return ["DEX", "LCK", "STR"];
+                case "magic": return ["INT", "SPI", "LCK"];
+                default: return ["STR", "DEX"];
+            }
+        };
+
+        const formatAttributes = (attrs, styleKey) => {
+            const majors = primaryAttributes(styleKey);
+            return majors.map((attr) => `${attr}+${attrs[attr] ?? 0}`).join(" / ");
+        };
+
+        function renderHUD() {
+            if (!run) {
+                hudGridEl.innerHTML = "";
+                return;
+            }
+
+            const player = run.player;
+            const enemy = run.enemy;
+
+            const playerHpPercent = Math.max(0, Math.round((player.currentHp / player.stats.maxHp) * 100));
+            const enemyHpPercent = enemy ? Math.max(0, Math.round((enemy.currentHp / enemy.stats.maxHp) * 100)) : 0;
+
+            hudGridEl.innerHTML = `
+                <div class="hud-card">
+                    <div class="label">Floor</div>
+                    <div class="big">${run.floor}${run.isBoss ? " · Boss" : ""}</div>
+                    <div class="stat-list">
+                        <div>Run Style: <span>${player.styleName}</span></div>
+                        <div>Milestone Upgrades: <span>${run.upgrades.length}</span></div>
+                        <div>Turn Counter: <span>${run.turn}</span></div>
+                    </div>
+                </div>
+                <div class="hud-card">
+                    <div class="label">Player</div>
+                    <div>${player.name}</div>
+                    <div class="status-bar"><span style="width:${playerHpPercent}%;"></span></div>
+                    <div class="stat-list">
+                        <div>HP: <span>${player.currentHp}/${player.stats.maxHp}</span></div>
+                        <div>Damage: <span>${player.stats.attackPower}</span></div>
+                        <div>Magic: <span>${player.stats.magicPower}</span></div>
+                        <div>Speed: <span>${player.stats.speed.toFixed(1)}</span></div>
+                        <div>Crit: <span>${Math.round(player.stats.critChance * 100)}%</span></div>
+                        <div>Crit DMG: <span>${Math.round(player.stats.critDamage * 100)}%</span></div>
+                        <div>Armor: <span>${player.stats.armor}</span></div>
+                        <div>Resist: <span>${player.stats.resistance}</span></div>
+                    </div>
+                </div>
+                <div class="hud-card">
+                    <div class="label">Enemy</div>
+                    <div>${enemy ? enemy.name : "--"}</div>
+                    <div class="status-bar enemy"><span style="width:${enemy ? enemyHpPercent : 0}%;"></span></div>
+                    <div class="stat-list">
+                        <div>HP: <span>${enemy ? `${enemy.currentHp}/${enemy.stats.maxHp}` : "--"}</span></div>
+                        <div>Damage: <span>${enemy ? enemy.stats.attackPower : "--"}</span></div>
+                        <div>Speed: <span>${enemy ? enemy.stats.speed.toFixed(1) : "--"}</span></div>
+                        <div>Crit: <span>${enemy ? Math.round(enemy.stats.critChance * 100) + "%" : "--"}</span></div>
+                        <div>Armor: <span>${enemy ? enemy.stats.armor : "--"}</span></div>
+                        <div>Resist: <span>${enemy ? enemy.stats.resistance : "--"}</span></div>
+                    </div>
+                    <div class="enemy-mods">${enemy ? enemy.affixes.map((mod) => `<span class="chip">${mod}</span>`).join("") : ""}</div>
+                </div>
+            `;
+        }
+
+        function renderUpgrades() {
+            if (!run || !run.pendingUpgrades) {
+                upgradeContainerEl.style.display = "none";
+                upgradeContainerEl.innerHTML = "";
+                return;
+            }
+
+            upgradeContainerEl.style.display = "block";
+            upgradeContainerEl.innerHTML = `
+                <h3>Milestone Rewards (choose one)</h3>
+                <div class="upgrade-grid">
+                    ${run.pendingUpgrades.map((upgrade, index) => `
+                        <div class="upgrade-card pending-upgrade" data-upgrade-index="${index}">
+                            <h4>${upgrade.name}</h4>
+                            <span class="chip">${upgrade.category}</span>
+                            <p class="muted">${upgrade.description}</p>
+                            <button>Take Upgrade</button>
+                        </div>
+                    `).join("")}
+                </div>
+            `;
+
+            upgradeContainerEl.querySelectorAll("button").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const index = Number(btn.closest(".upgrade-card").dataset.upgradeIndex);
+                    chooseUpgrade(index);
+                });
+            });
+        }
+
+        function logMessage(message, type = "info") {
+            if (!logPanelEl) return;
+            const div = document.createElement("div");
+            div.className = `log-line log-${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            div.textContent = `[${timestamp}] ${message}`;
+            logPanelEl.appendChild(div);
+            logPanelEl.scrollTop = logPanelEl.scrollHeight;
+        }
+
+        function clearLog() {
+            logPanelEl.innerHTML = "";
+        }
+
+        /**
+         * Combat calculations
+         */
+        const computeDerivedStats = (attributes, styleKey, modifiers = {}) => {
+            const STR = attributes.STR ?? 0;
+            const DEX = attributes.DEX ?? 0;
+            const INT = attributes.INT ?? 0;
+            const END = attributes.END ?? 0;
+            const VIT = attributes.VIT ?? 0;
+            const LCK = attributes.LCK ?? 0;
+            const SPI = attributes.SPI ?? 0;
+
+            const maxHp = Math.round(120 + STR * 3 + END * 5 + VIT * 4);
+            const attackPower = Math.round(25 + STR * 4 + DEX * 2 + LCK * 1.5);
+            const magicPower = Math.round(25 + INT * 4 + SPI * 2.5 + LCK * 1.5);
+            const speedBase = 1 + DEX * 0.09 + SPI * 0.04 + (styleKey === "ranged" ? 0.15 : 0);
+            const speed = speedBase * (1 + (modifiers.speed ?? 0));
+            const critChance = clamp(0.05 + DEX * 0.01 + LCK * 0.008 + (modifiers.critChance ?? 0), 0.05, 0.6);
+            const critDamage = 1.5 + LCK * 0.01 + (modifiers.critDamage ?? 0);
+            const accuracy = 0.85 + DEX * 0.015 + LCK * 0.01;
+            const evasion = 0.05 + DEX * 0.008 + LCK * 0.005;
+            const armor = Math.round(END * 2 + VIT * 1.2 + (modifiers.flatArmor ?? 0));
+            const resistance = Math.round(END * 1.5 + SPI * 1.5 + (modifiers.flatResist ?? 0));
+
+            return {
+                maxHp: Math.round(maxHp * (1 + (modifiers.hp ?? 0))),
+                attackPower: Math.round((attackPower + (modifiers.flatAttack ?? 0)) * (1 + (modifiers.damage ?? 0))),
+                magicPower: Math.round((magicPower + (modifiers.flatMagic ?? 0)) * (1 + (modifiers.magicDamage ?? 0))),
+                speed,
+                critChance,
+                critDamage,
+                accuracy,
+                evasion,
+                armor,
+                resistance,
+            };
+        };
+
+        const rollHit = (attacker, target) => {
+            const hitChance = clamp(attacker.stats.accuracy - target.stats.evasion * 0.8, 0.15, 0.98);
+            return Math.random() <= hitChance;
+        };
+
+        const rollCrit = (attacker) => Math.random() <= attacker.stats.critChance;
+
+        const applyDamageMitigation = (damage, target, type) => {
+            let mitigated = damage;
+            const armor = type === "magic" ? target.stats.resistance : target.stats.armor;
+            mitigated = mitigated * (100 / (100 + armor));
+
+            if (type === "physical") {
+                const guard = target.buffs.find((b) => b.id === "guard");
+                if (guard) {
+                    mitigated *= (1 - guard.mitigation);
+                }
+            }
+
+            if (target.modifiers?.guardianRhythm) {
+                const threshold = 3;
+                if ((target.turnsTaken % threshold) === 0 && target.turnsTaken !== 0) {
+                    mitigated *= 0.6;
+                }
+            }
+
+            if (target.bulwark) {
+                mitigated *= (1 - target.bulwark);
+            }
+
+            return Math.max(1, Math.round(mitigated));
+        };
+
+        const applyStatuses = (entity, context) => {
+            let total = 0;
+            const remaining = [];
+            for (const status of entity.statuses) {
+                if (status.type === "dot") {
+                    const damage = Math.round(status.potency * (context?.dotModifier ?? 1));
+                    entity.currentHp = Math.max(0, entity.currentHp - damage);
+                    logMessage(`${status.name} deals ${damage} damage to ${entity.name}.`);
+                    total += damage;
+                }
+                if (status.type === "vulnerability" || status.type === "slow") {
+                    // Non-damage statuses persist
+                }
+                status.duration -= 1;
+                if (status.duration > 0) remaining.push(status);
+            }
+            entity.statuses = remaining;
+            return total;
+        };
+
+        const getSpeedMultiplier = (entity) => {
+            const slows = entity.statuses.filter((status) => status.id === "slow");
+            return slows.reduce((multiplier, status) => multiplier * (1 - clamp(status.slowAmount ?? 0.1, 0, 0.9)), 1);
+        };
+
+        const createPlayer = (styleKey) => {
+            const style = STYLES[styleKey];
+            const metaAttributes = ATTRIBUTES.reduce((acc, key) => ({
+                ...acc,
+                [key]: (style.baseAttributes[key] ?? 0) + (meta.attributes[key] ?? 0),
+            }), {});
+
+            const player = {
+                name: "You",
+                styleKey,
+                styleName: style.name,
+                baseAttributes: deepCopy(style.baseAttributes),
+                runAttributes: deepCopy(metaAttributes),
+                modifiers: {
+                    hp: 0,
+                    damage: 0,
+                    magicDamage: 0,
+                    speed: 0,
+                    critChance: 0,
+                    critDamage: 0,
+                    flatAttack: 0,
+                    flatMagic: 0,
+                    flatArmor: 0,
+                    flatResist: 0,
+                    extraHits: [],
+                    guardianRhythm: false,
+                    refreshShield: 0,
+                    resource: 0,
+                    extraChoice: 0,
+                },
+                shields: [],
+                buffs: [],
+                statuses: [],
+                turnsTaken: 0,
+                skills: STYLE_SKILLS[styleKey].map((skill) => ({
+                    ...deepCopy(skill),
+                    remaining: 0,
+                })),
+            };
+
+            player.stats = computeDerivedStats(player.runAttributes, styleKey, player.modifiers);
+            player.currentHp = player.stats.maxHp;
+            if (player.modifiers.refreshShield > 0) {
+                const shieldHp = Math.round(player.stats.maxHp * player.modifiers.refreshShield);
+                player.shields.push({ id: "upgrade-shield", amount: shieldHp });
+            }
+            return player;
+        };
+
+        const createEnemy = (floor) => {
+            const tier = Math.floor((floor - 1) / 5);
+            const isBoss = floor % 20 === 0;
+            const base = 3 + tier;
+            const scaling = 1 + (floor - 1) * 0.08;
+            const attributes = ATTRIBUTES.reduce((acc, key) => ({
+                ...acc,
+                [key]: Math.round((base + randFloat(0, 2)) * scaling),
+            }), {});
+
+            if (isBoss) {
+                for (const attr of ATTRIBUTES) {
+                    attributes[attr] = Math.round(attributes[attr] * 1.45 + 8);
+                }
+            }
+
+            const enemy = {
+                name: isBoss ? `Boss: ${choice(["Warden", "Oracle", "Warmonger", "Shade"])} of Tier ${tier + 1}` : choice(["Skirmisher", "Hexblade", "Ravager", "Arbalest", "Myrmidon"]),
+                floor,
+                affixes: [],
+                statuses: [],
+                buffs: [],
+                shields: [],
+                modifiers: {},
+                isElite: false,
+                skills: [
+                    {
+                        id: "enemy_basic",
+                        name: "Hostile Strike",
+                        type: floor % 3 === 0 ? "magic" : "physical",
+                        multiplier: 1 + tier * 0.05,
+                        flat: Math.round(2 + tier * 1.5),
+                        cooldown: 0,
+                        priority: 1,
+                        remaining: 0,
+                    },
+                    {
+                        id: "enemy_special",
+                        name: isBoss ? "Ruinous Pattern" : "Ferocity",
+                        type: floor % 4 === 0 ? "magic" : "physical",
+                        multiplier: isBoss ? 1.8 : 1.35,
+                        flat: isBoss ? 10 : 4,
+                        cooldown: isBoss ? 3 : 4,
+                        priority: 3,
+                        remaining: 0,
+                    },
+                ],
+                turnsTaken: 0,
+            };
+
+            enemy.stats = computeDerivedStats(attributes, "melee", {});
+            enemy.stats.maxHp = Math.round(enemy.stats.maxHp * (1 + (floor - 1) * 0.1));
+            enemy.stats.attackPower = Math.round(enemy.stats.attackPower * (1 + (floor - 1) * 0.08));
+            enemy.stats.magicPower = Math.round(enemy.stats.magicPower * (1 + (floor - 1) * 0.08));
+            enemy.stats.speed = enemy.stats.speed * (1 + (floor - 1) * 0.03);
+            enemy.stats.armor = Math.round(enemy.stats.armor * (1 + tier * 0.15));
+            enemy.stats.resistance = Math.round(enemy.stats.resistance * (1 + tier * 0.15));
+
+            enemy.currentHp = enemy.stats.maxHp;
+
+            const affixCount = isBoss ? 2 : (Math.random() < 0.35 ? 1 : 0);
+            for (let i = 0; i < affixCount; i += 1) {
+                const affix = choice(ENEMY_AFFIXES);
+                if (!enemy.affixes.includes(affix.name)) {
+                    affix.apply(enemy);
+                    enemy.affixes.push(affix.name);
+                }
+            }
+
+            enemy.isElite = !isBoss && enemy.affixes.length > 0;
+            if (enemy.isElite) {
+                enemy.name = `Elite ${enemy.name}`;
+            }
+
+            return enemy;
+        };
+
+        const chooseSkill = (entity) => {
+            const readySkills = entity.skills.filter((skill) => skill.remaining <= 0);
+            if (readySkills.length) {
+                readySkills.sort((a, b) => b.priority - a.priority);
+                return readySkills[0];
+            }
+            const fallback = [...entity.skills].sort((a, b) => a.remaining - b.remaining)[0];
+            return fallback;
+        };
+
+        const resolveSkill = (skill, attacker, defender) => {
+            const state = { attacker, target: defender, damage: 0, extraLog: null, preventAttack: false };
+            if (skill.type === "buff" || skill.type === "debuff") {
+                skill.apply(state);
+                return state;
+            }
+
+            const type = skill.type || "physical";
+            const basePower = type === "magic" ? attacker.stats.magicPower : attacker.stats.attackPower;
+            const hits = skill.hits ?? 1;
+            let totalDamage = 0;
+            let critCount = 0;
+
+            for (let i = 0; i < hits; i += 1) {
+                if (!rollHit(attacker, defender)) {
+                    logMessage(`${attacker.name}'s ${skill.name} misses ${defender.name}.`);
+                    continue;
+                }
+
+                let damage = (basePower + skill.flat) * skill.multiplier;
+
+                let isCrit = false;
+                if (rollCrit(attacker)) {
+                    isCrit = true;
+                    damage *= attacker.stats.critDamage;
+                }
+
+                const vulnerability = defender.statuses.find((s) => s.id === "mark");
+                if (vulnerability) {
+                    damage *= 1 + (vulnerability.damageTaken ?? 0.15);
+                }
+
+                damage = applyDamageMitigation(damage, defender, type);
+
+                // Shields absorb first
+                let remainingDamage = damage;
+                for (const shield of defender.shields) {
+                    const absorb = Math.min(shield.amount, remainingDamage);
+                    shield.amount -= absorb;
+                    remainingDamage -= absorb;
+                }
+                defender.shields = defender.shields.filter((shield) => shield.amount > 0);
+
+                defender.currentHp = Math.max(0, defender.currentHp - remainingDamage);
+                totalDamage += remainingDamage;
+                if (isCrit) critCount += 1;
+
+                if (attacker.modifiers?.extraHits) {
+                    for (const extra of attacker.modifiers.extraHits) {
+                        let extraDamage = damage * extra.multiplier;
+                        extraDamage = applyDamageMitigation(extraDamage, defender, type);
+                        let remaining = extraDamage;
+                        for (const shield of defender.shields) {
+                            const absorb = Math.min(shield.amount, remaining);
+                            shield.amount -= absorb;
+                            remaining -= absorb;
+                        }
+                        defender.shields = defender.shields.filter((shield) => shield.amount > 0);
+                        defender.currentHp = Math.max(0, defender.currentHp - remaining);
+                        totalDamage += remaining;
+                    }
+                }
+
+                if (attacker === run.player && defender.thorns && remainingDamage > 0) {
+                    const reflected = Math.round(remainingDamage * defender.thorns);
+                    attacker.currentHp = Math.max(0, attacker.currentHp - reflected);
+                    logMessage(`${defender.name}'s thorns reflect ${reflected} damage.`);
+                }
+
+                if (attacker === run.enemy && attacker.vampiric && remainingDamage > 0) {
+                    const leech = Math.round(remainingDamage * attacker.vampiric);
+                    attacker.currentHp = Math.min(attacker.stats.maxHp, attacker.currentHp + leech);
+                    logMessage(`${attacker.name} siphons ${leech} HP.`);
+                }
+
+                if (attacker === run.enemy && attacker.frost) {
+                    defender.statuses.push({
+                        id: "slow",
+                        name: "Frozen Veil",
+                        type: "slow",
+                        duration: 2,
+                        slowAmount: attacker.frost,
+                    });
+                }
+            }
+
+            state.damage = totalDamage;
+            if (critCount > 0) {
+                logMessage(`${attacker.name} unleashes ${skill.name} for ${totalDamage} damage ${critCount ? `(${critCount} crit!)` : ""}`);
+            } else {
+                logMessage(`${attacker.name} hits with ${skill.name} for ${totalDamage} damage.`);
+            }
+
+            if (skill.apply) {
+                skill.apply(state);
+                if (state.extraLog) logMessage(state.extraLog);
+            }
+
+            return state;
+        };
+
+        const tickCooldowns = (entity) => {
+            entity.skills.forEach((skill) => {
+                if (skill.remaining > 0) skill.remaining = Math.max(0, skill.remaining - 1);
+            });
+        };
+
+        /**
+         * Run management
+         */
+        async function startRun() {
+            clearLog();
+            abortRequested = false;
+            paused = false;
+            pauseBtn.style.display = "inline-flex";
+            resumeBtn.style.display = "none";
+
+            run = {
+                player: createPlayer(selectedStyle),
+                floor: 1,
+                turn: 0,
+                upgrades: [],
+                pendingUpgrades: null,
+                enemy: null,
+                isBoss: false,
+                rewardBuffer: 0,
+                eliteCount: 0,
+                bestFloorExceeded: false,
+            };
+
+            runPanel.style.display = "flex";
+            startRunBtn.disabled = true;
+            document.getElementById("setup-panel").scrollIntoView({ behavior: "smooth" });
+
+            logMessage(`Run begins as ${run.player.styleName}. Good luck!`);
+            await wait(300);
+            await advanceFloor();
+        }
+
+        async function advanceFloor() {
+            if (!run || abortRequested) return;
+
+            run.isBoss = run.floor % 20 === 0;
+            run.enemy = createEnemy(run.floor);
+            if (run.enemy.affixes.includes("Vampiric")) run.enemy.vampiric = 0.3;
+            renderHUD();
+            logMessage(`Floor ${run.floor} begins${run.isBoss ? " – Boss encounter!" : ""}.`);
+
+            if (run.player.modifiers.refreshShield) {
+                const shieldHp = Math.round(run.player.stats.maxHp * run.player.modifiers.refreshShield);
+                run.player.shields = [{ id: "upgrade-shield", amount: shieldHp }];
+                logMessage(`Your shield refreshes (${shieldHp} HP).`);
+            }
+
+            await runCombat();
+        }
+
+        async function runCombat() {
+            if (!run) return;
+            run.turn = 1;
+
+            while (run.player.currentHp > 0 && run.enemy.currentHp > 0) {
+                if (abortRequested) return endRun("aborted");
+                while (paused) {
+                    await wait(200);
+                }
+
+                const actors = [run.player, run.enemy]
+                    .map((actor) => ({
+                        actor,
+                        initiative: (actor.stats.speed || 1) * getSpeedMultiplier(actor) * (1 + Math.random() * 0.05),
+                    }))
+                    .sort((a, b) => b.initiative - a.initiative)
+                    .map((entry) => entry.actor);
+
+                for (const actor of actors) {
+                    if (run.player.currentHp <= 0 || run.enemy.currentHp <= 0) break;
+
+                    const target = actor === run.player ? run.enemy : run.player;
+                    tickCooldowns(actor);
+                    applyStatuses(actor, { dotModifier: actor === run.player ? (1 + run.player.modifiers.dotBonus ?? 0) : 1 });
+                    if (actor.currentHp <= 0) break;
+
+                    const skill = chooseSkill(actor);
+                    if (!skill) continue;
+
+                    const state = resolveSkill(skill, actor, target);
+                    skill.remaining = skill.cooldown;
+                    actor.turnsTaken += 1;
+
+                    renderHUD();
+                    if (state.preventAttack) {
+                        continue;
+                    }
+
+                    if (target.currentHp <= 0) {
+                        logMessage(`${target.name} is defeated.`);
+                        if (target === run.enemy && run.enemy.isElite) {
+                            run.eliteCount += 1;
+                        }
+                        break;
+                    }
+
+                    if (actor.swift && actor === run.enemy && target.currentHp > 0 && Math.random() < 0.22) {
+                        logMessage(`${actor.name} capitalizes on their speed for a second strike!`);
+                        const basicSkill = actor.skills.find((s) => s.id === "enemy_basic") || skill;
+                        const storedCooldown = basicSkill.remaining;
+                        basicSkill.remaining = 0;
+                        const followUp = resolveSkill(basicSkill, actor, target);
+                        basicSkill.remaining = Math.max(storedCooldown, 0);
+                        renderHUD();
+                        if (target.currentHp <= 0) {
+                            logMessage(`${target.name} is overwhelmed by the flurry.`);
+                            if (target === run.enemy && run.enemy.isElite) {
+                                run.eliteCount += 1;
+                            }
+                            break;
+                        }
+                        if (followUp.preventAttack) {
+                            continue;
+                        }
+                    }
+                    await wait(320);
+                }
+
+                run.turn += 1;
+            }
+
+            if (run.player.currentHp <= 0) {
+                if (run.enemy.explosive) {
+                    const blast = Math.round(run.enemy.stats.maxHp * run.enemy.explosive);
+                    run.player.currentHp = Math.max(0, run.player.currentHp - blast);
+                    logMessage(`${run.enemy.name} detonates for ${blast} damage!`);
+                }
+                renderHUD();
+                await endRun("defeat");
+                return;
+            }
+
+            run.rewardBuffer += Math.round(3 + run.floor * 1.2);
+            logMessage(`Floor ${run.floor} cleared!`);
+            if (run.floor % 5 === 0) {
+                await presentUpgrades();
+            }
+
+            run.floor += 1;
+            if (run.floor > meta.bestFloor) run.bestFloorExceeded = true;
+            await wait(400);
+            await advanceFloor();
+        }
+
+        async function presentUpgrades() {
+            const choices = shuffle([...UPGRADE_POOL]).slice(0, 3 + run.player.modifiers.extraChoice);
+            run.pendingUpgrades = choices;
+            renderUpgrades();
+            paused = true;
+            pauseBtn.style.display = "none";
+            resumeBtn.style.display = "inline-flex";
+            logMessage(`Milestone reached. Choose an upgrade to proceed.`);
+            while (run.pendingUpgrades) await wait(200);
+            paused = false;
+            pauseBtn.style.display = "inline-flex";
+            resumeBtn.style.display = "none";
+        }
+
+        function chooseUpgrade(index) {
+            if (!run?.pendingUpgrades) return;
+            const upgrade = run.pendingUpgrades[index];
+            if (!upgrade) return;
+            upgrade.apply(run.player);
+            run.upgrades.push(upgrade);
+            logMessage(`Upgrade chosen: ${upgrade.name}`);
+            run.player.stats = computeDerivedStats(run.player.runAttributes, run.player.styleKey, run.player.modifiers);
+            run.player.currentHp = Math.min(run.player.currentHp, run.player.stats.maxHp);
+            if (run.player.modifiers.refreshShield) {
+                const shieldHp = Math.round(run.player.stats.maxHp * run.player.modifiers.refreshShield);
+                const existing = run.player.shields.find((shield) => shield.id === "upgrade-shield");
+                if (existing) {
+                    existing.amount = shieldHp;
+                } else {
+                    run.player.shields.push({ id: "upgrade-shield", amount: shieldHp });
+                }
+                logMessage(`Protective barrier refreshed for ${shieldHp} HP.`);
+            }
+            run.pendingUpgrades = null;
+            renderUpgrades();
+            renderHUD();
+        }
+
+        async function endRun(reason) {
+            if (!run) return;
+            const floorCleared = run.player.currentHp > 0 ? run.floor : run.floor - 1;
+            const basePoints = Math.max(2, Math.floor(floorCleared * 0.6));
+            const bonus = run.bestFloorExceeded ? 3 : 0;
+            const reward = basePoints + run.eliteCount + bonus;
+
+            let summary = ``;
+            switch (reason) {
+                case "defeat":
+                    summary = `Run ended on floor ${floorCleared}. You earned ${reward} meta points.`;
+                    break;
+                case "aborted":
+                    summary = `Run aborted on floor ${floorCleared}. You keep ${Math.floor(reward * 0.6)} meta points.`;
+                    break;
+                default:
+                    summary = `Run completed.`;
+            }
+
+            logMessage(summary, "summary");
+
+            if (reason === "aborted") {
+                meta.points += Math.floor(reward * 0.6);
+            } else {
+                meta.points += reward;
+            }
+            if (floorCleared > meta.bestFloor) {
+                meta.bestFloor = floorCleared;
+                logMessage(`New best floor reached: ${floorCleared}!`);
+            }
+            saveMeta();
+
+            startRunBtn.disabled = false;
+            pauseBtn.style.display = "none";
+            resumeBtn.style.display = "none";
+            run = null;
+            renderHUD();
+            renderUpgrades();
+        }
+
+        /**
+         * Controls
+         */
+        startRunBtn.addEventListener("click", () => {
+            if (run) return;
+            startRun();
+        });
+
+        pauseBtn.addEventListener("click", () => {
+            if (!run) return;
+            paused = true;
+            pauseBtn.style.display = "none";
+            resumeBtn.style.display = "inline-flex";
+            logMessage("Run paused.");
+        });
+
+        resumeBtn.addEventListener("click", () => {
+            if (!run) return;
+            paused = false;
+            pauseBtn.style.display = "inline-flex";
+            resumeBtn.style.display = "none";
+            logMessage("Run resumed.");
+        });
+
+        abortBtn.addEventListener("click", () => {
+            if (!run) return;
+            abortRequested = true;
+            logMessage("Run abort requested. Finishing current turn...", "warning");
+        });
+
+        document.getElementById("reset-meta-btn").addEventListener("click", () => {
+            if (!confirm("Reset all meta progression?")) return;
+            meta = deepCopy(META_DEFAULT);
+            saveMeta();
+            logMessage("Meta progression reset.");
+        });
+
+        document.getElementById("export-meta-btn").addEventListener("click", exportMeta);
+        document.getElementById("import-meta-btn").addEventListener("click", importMeta);
+
+        renderMeta();
+        renderStyles();
+        renderHUD();
+        renderUpgrades();
+    </script>
+</body>
+</html>
