@@ -197,20 +197,23 @@ ARMOR_SET_BONUSES = {
 
 # Ability System - Extensible framework for all abilities
 ABILITY_DATA = {
-    # Order of the Silver Crusade abilities
+    # ═══════════════════════════════════════════════════════════
+    # ORDER OF THE SILVER CRUSADE ABILITIES (8 total)
+    # ═══════════════════════════════════════════════════════════
+    
     'divine_strike': {
         'name': 'Divine Strike',
-        'description': 'Holy attack that ignores armor',
+        'description': 'Holy attack that pierces armor (50 pen)',
         'damage_multiplier': 1.5,
-        'armor_penetration': 999,  # Ignores all armor
+        'armor_penetration': 50,  # BALANCED: Was 999, now 50
         'cooldown': 3,
         'image': 'assets/abilities/ability_divine_strike.PNG',
         'faction': 'order_of_the_silver_crusade'
     },
     'shield_of_faith': {
         'name': 'Shield of Faith',
-        'description': 'Grants temporary invulnerability',
-        'damage_reduction': 1.0,  # 100% damage reduction
+        'description': 'Grants 80% damage reduction for 2 turns',
+        'damage_reduction': 0.8,  # BALANCED: Was 1.0 (100%), now 0.8 (80%)
         'duration': 2,
         'cooldown': 5,
         'image': 'assets/abilities/ability_shield_of_faith.PNG',
@@ -218,18 +221,17 @@ ABILITY_DATA = {
     },
     'healing_light': {
         'name': 'Healing Light',
-        'description': 'Restores health over time',
-        'heal_amount': 25,
-        'duration': 3,
+        'description': 'Instantly restores 30 HP',
+        'heal_amount': 30,  # BUFFED: Was 25, now 30
         'cooldown': 4,
         'image': 'assets/abilities/ability_healing_light.PNG',
         'faction': 'order_of_the_silver_crusade'
     },
     'righteous_fury': {
         'name': 'Righteous Fury',
-        'description': 'Increases damage and crit chance',
-        'damage_bonus': 0.5,  # 50% damage increase
-        'crit_bonus': 0.3,    # 30% crit chance increase
+        'description': '+50% damage and +30% crit for 4 turns',
+        'damage_bonus': 0.5,
+        'crit_bonus': 0.3,
         'duration': 4,
         'cooldown': 6,
         'image': 'assets/abilities/ability_righteous_fury.PNG',
@@ -237,17 +239,48 @@ ABILITY_DATA = {
     },
     'purification': {
         'name': 'Purification',
-        'description': 'Removes all debuffs and heals',
+        'description': 'Removes all debuffs and heals 40 HP',
         'heal_amount': 40,
+        'remove_debuffs': True,
         'cooldown': 8,
         'image': 'assets/abilities/ability_purification.PNG',
         'faction': 'order_of_the_silver_crusade'
     },
+    'smite': {
+        'name': 'Smite',
+        'description': 'NEW: 2.5x damage to debuffed enemies',
+        'damage_multiplier': 2.5,
+        'requires_debuff': True,
+        'cooldown': 5,
+        'image': 'assets/abilities/ability_divine_strike.PNG',  # Reuse asset
+        'faction': 'order_of_the_silver_crusade'
+    },
+    'consecrate': {
+        'name': 'Consecrate',
+        'description': 'NEW: Create holy ground healing 12 HP/turn for 3 turns',
+        'heal_per_turn': 12,
+        'duration': 3,
+        'cooldown': 7,
+        'image': 'assets/abilities/ability_healing_light.PNG',  # Reuse asset
+        'faction': 'order_of_the_silver_crusade'
+    },
+    'divine_intervention': {
+        'name': 'Divine Intervention',
+        'description': 'NEW: Auto-revive with 40% HP when taking fatal damage',
+        'revive_hp_percent': 0.4,
+        'one_time_use': True,
+        'cooldown': 15,
+        'image': 'assets/abilities/ability_shield_of_faith.PNG',  # Reuse asset
+        'faction': 'order_of_the_silver_crusade'
+    },
     
-    # Shadow Covenant abilities
+    # ═══════════════════════════════════════════════════════════
+    # SHADOW COVENANT ABILITIES (8 total)
+    # ═══════════════════════════════════════════════════════════
+    
     'shadow_strike': {
         'name': 'Shadow Strike',
-        'description': 'Teleport behind enemy for guaranteed crit',
+        'description': 'Teleport behind enemy for 2x damage crit',
         'damage_multiplier': 2.0,
         'guaranteed_crit': True,
         'cooldown': 4,
@@ -256,16 +289,17 @@ ABILITY_DATA = {
     },
     'vanish': {
         'name': 'Vanish',
-        'description': 'Become invisible for 2 turns',
+        'description': 'Invisible for 2 turns (+40% next attack damage)',
         'invisibility_duration': 2,
+        'invisibility_damage_bonus': 0.4,  # NEW: Buffed vanish
         'cooldown': 6,
         'image': 'assets/abilities/ability_vanish.PNG',
         'faction': 'shadow_covenant'
     },
     'poison_blade': {
         'name': 'Poison Blade',
-        'description': 'Poison that deals damage over time',
-        'poison_damage': 8,
+        'description': 'Inflict poison: 12 damage/turn for 4 turns',
+        'poison_damage': 12,  # BUFFED: Was 8, now 12 (48 total vs 32)
         'duration': 4,
         'cooldown': 3,
         'image': 'assets/abilities/ability_poison_blade.png',
@@ -273,8 +307,8 @@ ABILITY_DATA = {
     },
     'assassinate': {
         'name': 'Assassinate',
-        'description': 'Instant kill if enemy below 25% HP',
-        'execute_threshold': 0.25,
+        'description': 'EXECUTE if target <30% HP, else 3x damage',
+        'execute_threshold': 0.3,  # BUFFED: Was 0.25, now 0.3 (easier to trigger)
         'damage_multiplier': 3.0,
         'cooldown': 8,
         'image': 'assets/abilities/ability_assassinate.PNG',
@@ -282,20 +316,51 @@ ABILITY_DATA = {
     },
     'shadow_clone': {
         'name': 'Shadow Clone',
-        'description': 'Creates a clone that attacks for you',
-        'clone_damage': 0.75,  # 75% of your damage
+        'description': 'Clone attacks with you (60% damage) for 3 turns',
+        'clone_damage': 0.6,  # BALANCED: Was 0.75, now 0.6
         'duration': 3,
         'cooldown': 7,
         'image': 'assets/abilities/ability_shadow_clone.PNG',
         'faction': 'shadow_covenant'
     },
+    'backstab': {
+        'name': 'Backstab',
+        'description': 'NEW: 3x damage if invisible, breaks invisibility',
+        'damage_multiplier': 3.0,
+        'requires_invisible': True,
+        'breaks_invisibility': True,
+        'cooldown': 5,
+        'image': 'assets/abilities/ability_shadow_strike.PNG',  # Reuse asset
+        'faction': 'shadow_covenant'
+    },
+    'smoke_bomb': {
+        'name': 'Smoke Bomb',
+        'description': 'NEW: Next 2 enemy attacks auto-miss',
+        'guaranteed_dodges': 2,
+        'cooldown': 8,
+        'image': 'assets/abilities/ability_vanish.PNG',  # Reuse asset
+        'faction': 'shadow_covenant'
+    },
+    'hemorrhage': {
+        'name': 'Hemorrhage',
+        'description': 'NEW: Escalating bleed (6/12/18/24 damage over 4 turns)',
+        'bleed_base': 6,
+        'bleed_increment': 6,
+        'duration': 4,
+        'cooldown': 8,
+        'image': 'assets/abilities/ability_poison_blade.png',  # Reuse asset
+        'faction': 'shadow_covenant'
+    },
     
-    # Wilderness Tribe abilities
+    # ═══════════════════════════════════════════════════════════
+    # WILDERNESS TRIBE ABILITIES (8 total)
+    # ═══════════════════════════════════════════════════════════
+    
     'natures_wrath': {
         'name': "Nature's Wrath",
-        'description': 'Summons vines that damage and slow enemy',
-        'damage_amount': 15,
-        'slow_amount': 0.5,  # 50% speed reduction
+        'description': 'Vines deal 20 damage and slow (50%) for 3 turns',
+        'damage_amount': 20,  # BUFFED: Was 15, now 20
+        'slow_amount': 0.5,
         'duration': 3,
         'cooldown': 4,
         'image': 'assets/abilities/ability_nature\'s_wrath.png',
@@ -303,8 +368,8 @@ ABILITY_DATA = {
     },
     'thorn_barrier': {
         'name': 'Thorn Barrier',
-        'description': 'Reflects damage back to attacker',
-        'reflect_damage': 0.5,  # Reflect 50% of damage taken
+        'description': 'Reflects 50% damage back for 4 turns',
+        'reflect_damage': 0.5,
         'duration': 4,
         'cooldown': 5,
         'image': 'assets/abilities/ability_thorn_barrier.PNG',
@@ -312,8 +377,8 @@ ABILITY_DATA = {
     },
     'wild_growth': {
         'name': 'Wild Growth',
-        'description': 'Increases all stats temporarily',
-        'stat_bonus': 0.3,  # 30% increase to all stats
+        'description': '+30% to all stats for 5 turns',
+        'stat_bonus': 0.3,
         'duration': 5,
         'cooldown': 6,
         'image': 'assets/abilities/ability_wild_growth.PNG',
@@ -321,7 +386,7 @@ ABILITY_DATA = {
     },
     'earthquake': {
         'name': 'Earthquake',
-        'description': 'Area damage that stuns enemy',
+        'description': 'Area damage (20) + stuns for 1 turn',
         'damage_amount': 20,
         'stun_duration': 1,
         'cooldown': 7,
@@ -330,27 +395,61 @@ ABILITY_DATA = {
     },
     'spirit_form': {
         'name': 'Spirit Form',
-        'description': 'Become ethereal, immune to physical damage',
-        'damage_reduction': 0.8,  # 80% damage reduction
+        'description': 'Become ethereal: 70% damage reduction for 3 turns',
+        'damage_reduction': 0.7,  # BALANCED: Was 0.8, now 0.7
         'duration': 3,
         'cooldown': 8,
         'image': 'assets/abilities/ability_spirit_form.PNG',
+        'faction': 'wilderness_tribe'
+    },
+    'entangle': {
+        'name': 'Entangle',
+        'description': 'NEW: Root enemy (cannot dodge) for 2 turns',
+        'prevent_dodge': True,
+        'duration': 2,
+        'cooldown': 6,
+        'image': 'assets/abilities/ability_nature\'s_wrath.png',  # Reuse asset
+        'faction': 'wilderness_tribe'
+    },
+    'wild_shape': {
+        'name': 'Wild Shape',
+        'description': 'NEW: Beast form (+40% speed, +30% damage) for 4 turns',
+        'speed_bonus': 0.4,
+        'damage_bonus': 0.3,
+        'duration': 4,
+        'cooldown': 8,
+        'image': 'assets/abilities/ability_spirit_form.PNG',  # Reuse asset
+        'faction': 'wilderness_tribe'
+    },
+    'moonfire': {
+        'name': 'Moonfire',
+        'description': 'NEW: Damage scales with YOUR missing HP (10-40 damage)',
+        'base_damage': 10,
+        'missing_hp_multiplier': 0.3,  # +30% per 10% missing HP
+        'cooldown': 6,
+        'image': 'assets/abilities/ability_earthquake.PNG',  # Reuse asset
         'faction': 'wilderness_tribe'
     }
 }
 
 # Ability Counterplay System - Abilities that counter other abilities
 ABILITY_COUNTERS = {
-    'shield_of_faith': ['divine_strike'],      # Divine Strike ignores invulnerability
-    'vanish': ['natures_wrath'],               # Nature's Wrath reveals invisible enemies
-    'poison_blade': ['purification'],          # Purification removes poison effects
-    'earthquake': ['spirit_form'],             # Spirit Form immune to stun effects
-    'shadow_strike': ['thorn_barrier'],        # Thorn Barrier reflects guaranteed crits
-    'assassinate': ['shield_of_faith'],        # Shield of Faith prevents execution
-    'healing_light': ['poison_blade'],         # Poison counters healing over time
-    'righteous_fury': ['spirit_form'],         # Spirit Form reduces damage buffs
-    'wild_growth': ['assassinate'],            # Assassinate ignores stat buffs
-    'shadow_clone': ['earthquake'],            # Earthquake hits both original and clone
+    'shield_of_faith': ['divine_strike', 'smite'],           # Divine attacks ignore protection
+    'vanish': ['natures_wrath', 'entangle'],                 # Nature reveals/roots invisible enemies
+    'poison_blade': ['purification'],                         # Purification removes poison
+    'hemorrhage': ['purification'],                           # Purification removes bleed
+    'earthquake': ['spirit_form', 'wild_shape'],             # Spirit/Beast immune to stun
+    'shadow_strike': ['thorn_barrier'],                       # Thorn Barrier reflects crits
+    'backstab': ['thorn_barrier'],                            # Thorn Barrier reflects crits
+    'assassinate': ['shield_of_faith', 'divine_intervention'],# Protection prevents execution
+    'healing_light': ['poison_blade', 'hemorrhage'],         # DoT counters healing
+    'consecrate': ['poison_blade', 'hemorrhage'],            # DoT counters heal-over-time
+    'righteous_fury': ['spirit_form'],                        # Spirit reduces damage buffs
+    'wild_growth': ['assassinate'],                           # Assassinate ignores stat buffs
+    'wild_shape': ['assassinate'],                            # Assassinate ignores stat buffs
+    'shadow_clone': ['earthquake', 'moonfire'],              # AoE hits both clone and original
+    'smoke_bomb': ['natures_wrath', 'earthquake'],           # AoE can't be dodged
+    'entangle': ['wild_shape', 'spirit_form'],               # Transformation breaks root
 }
 
 # Enhanced Status Effects
@@ -495,13 +594,18 @@ class PlayerData:
         
         # Combat strategy removed - simplified to attack-only
         
-        # Status effects
+        # Status effects (EXPANDED for new abilities)
         self.status_effects = {
             'poison': {'damage': 0, 'duration': 0},
+            'hemorrhage': {'base': 0, 'increment': 0, 'duration': 0, 'turns_active': 0},  # NEW: Escalating bleed
             'stun': {'duration': 0},
-            'invisible': {'duration': 0},
+            'invisible': {'duration': 0, 'damage_bonus': 0},  # NEW: Added damage bonus
             'slow': {'amount': 0, 'duration': 0},
-            'shield': {'amount': 0, 'duration': 0}
+            'shield': {'amount': 0, 'duration': 0},
+            'entangled': {'duration': 0},  # NEW: Cannot dodge
+            'consecrate': {'heal_per_turn': 0, 'duration': 0},  # NEW: Heal over time zone
+            'guaranteed_dodges': {'count': 0},  # NEW: Smoke bomb effect
+            'divine_intervention': {'active': False}  # NEW: One-time revive
         }
         
     def _generate_random_username(self) -> str:
@@ -765,7 +869,7 @@ class PlayerData:
         }
     
     def _calculate_ability_effects(self, ability: Dict) -> Dict:
-        """Calculate the effects of an ability"""
+        """Calculate the effects of an ability (EXPANDED for new abilities)"""
         effects = {}
         
         # Damage effects
@@ -773,10 +877,14 @@ class PlayerData:
             effects['damage_multiplier'] = ability['damage_multiplier']
         if 'damage_amount' in ability:
             effects['damage_amount'] = ability['damage_amount']
+        if 'base_damage' in ability:
+            effects['base_damage'] = ability['base_damage']
         
         # Healing effects
         if 'heal_amount' in ability:
             effects['heal_amount'] = ability['heal_amount']
+        if 'heal_per_turn' in ability:
+            effects['heal_per_turn'] = ability['heal_per_turn']
         
         # Status effects
         if 'duration' in ability:
@@ -787,6 +895,12 @@ class PlayerData:
             effects['slow_amount'] = ability['slow_amount']
         if 'poison_damage' in ability:
             effects['poison_damage'] = ability['poison_damage']
+        
+        # NEW: Bleed effects (Hemorrhage)
+        if 'bleed_base' in ability:
+            effects['bleed_base'] = ability['bleed_base']
+        if 'bleed_increment' in ability:
+            effects['bleed_increment'] = ability['bleed_increment']
         
         # Special effects
         if 'guaranteed_crit' in ability:
@@ -801,14 +915,48 @@ class PlayerData:
             effects['crit_bonus'] = ability['crit_bonus']
         if 'stat_bonus' in ability:
             effects['stat_bonus'] = ability['stat_bonus']
+        if 'speed_bonus' in ability:
+            effects['speed_bonus'] = ability['speed_bonus']
         if 'reflect_damage' in ability:
             effects['reflect_damage'] = ability['reflect_damage']
         if 'invisibility_duration' in ability:
             effects['invisibility_duration'] = ability['invisibility_duration']
+        if 'invisibility_damage_bonus' in ability:
+            effects['invisibility_damage_bonus'] = ability['invisibility_damage_bonus']
+        
+        # NEW: Execute mechanics
         if 'execute_threshold' in ability:
             effects['execute_threshold'] = ability['execute_threshold']
+        
+        # NEW: Clone mechanics
         if 'clone_damage' in ability:
             effects['clone_damage'] = ability['clone_damage']
+        
+        # NEW: Conditional mechanics
+        if 'requires_debuff' in ability:
+            effects['requires_debuff'] = ability['requires_debuff']
+        if 'requires_invisible' in ability:
+            effects['requires_invisible'] = ability['requires_invisible']
+        if 'breaks_invisibility' in ability:
+            effects['breaks_invisibility'] = ability['breaks_invisibility']
+        if 'prevent_dodge' in ability:
+            effects['prevent_dodge'] = ability['prevent_dodge']
+        if 'guaranteed_dodges' in ability:
+            effects['guaranteed_dodges'] = ability['guaranteed_dodges']
+        
+        # NEW: Revive mechanics
+        if 'revive_hp_percent' in ability:
+            effects['revive_hp_percent'] = ability['revive_hp_percent']
+        if 'one_time_use' in ability:
+            effects['one_time_use'] = ability['one_time_use']
+        
+        # NEW: Scaling mechanics
+        if 'missing_hp_multiplier' in ability:
+            effects['missing_hp_multiplier'] = ability['missing_hp_multiplier']
+        
+        # NEW: Debuff removal
+        if 'remove_debuffs' in ability:
+            effects['remove_debuffs'] = ability['remove_debuffs']
         
         return effects
     
@@ -822,7 +970,7 @@ class PlayerData:
             self.status_effects[effect_type].update(kwargs)
     
     def process_status_effects(self):
-        """Process all active status effects"""
+        """Process all active status effects (UPDATED for new mechanics)"""
         # Process poison (check for immunity first)
         if self.status_effects['poison']['duration'] > 0:
             # Check for poison immunity from faction passive
@@ -832,6 +980,24 @@ class PlayerData:
                 self.hp = max(0, self.hp - poison_damage)
             self.status_effects['poison']['duration'] -= 1
         
+        # NEW: Process hemorrhage (escalating bleed)
+        if self.status_effects['hemorrhage']['duration'] > 0:
+            hem = self.status_effects['hemorrhage']
+            # Calculate damage: base + (increment * turns_active)
+            bleed_damage = hem['base'] + (hem['increment'] * hem['turns_active'])
+            self.hp = max(0, self.hp - bleed_damage)
+            hem['turns_active'] += 1
+            hem['duration'] -= 1
+            # Reset when duration ends
+            if hem['duration'] == 0:
+                hem['turns_active'] = 0
+        
+        # NEW: Process consecrate (heal over time zone)
+        if self.status_effects['consecrate']['duration'] > 0:
+            heal_amount = self.status_effects['consecrate']['heal_per_turn']
+            self.hp = min(self.max_hp, self.hp + heal_amount)
+            self.status_effects['consecrate']['duration'] -= 1
+        
         # Process healing over time (Nature's Blessing)
         if self.faction == 'wilderness_tribe':
             heal_amount = int(self.max_hp * self.get_faction_passive_bonus())
@@ -839,8 +1005,9 @@ class PlayerData:
         
         # Process other status effects
         for effect_type, effect_data in self.status_effects.items():
-            if 'duration' in effect_data and effect_data['duration'] > 0:
-                effect_data['duration'] -= 1
+            if effect_type not in ['poison', 'hemorrhage', 'consecrate']:  # Skip already processed
+                if 'duration' in effect_data and effect_data['duration'] > 0:
+                    effect_data['duration'] -= 1
     
     def reduce_cooldowns(self):
         """Reduce all ability cooldowns by 1"""
@@ -3178,15 +3345,125 @@ class CombatScreen(FloatLayout):
         
         if 'invisibility_duration' in effects:
             attacker.status_effects['invisible']['duration'] = effects['invisibility_duration']
+            # NEW: Store damage bonus for vanish
+            if 'invisibility_damage_bonus' in effects:
+                attacker.status_effects['invisible']['damage_bonus'] = effects['invisibility_damage_bonus']
         
-        # Handle debuff removal (Purification)
-        if 'heal_amount' in effects and ability.get('name') == 'Purification':
+        # NEW: Handle slow application (FIX for Nature's Wrath)
+        if 'slow_amount' in effects and 'duration' in effects:
+            defender.status_effects['slow']['amount'] = effects['slow_amount']
+            defender.status_effects['slow']['duration'] = effects['duration']
+            self._add_to_combat_log(f"🐌 {defender.username} is slowed!")
+        
+        # NEW: Handle hemorrhage (escalating bleed)
+        if 'bleed_base' in effects and 'bleed_increment' in effects and 'duration' in effects:
+            defender.status_effects['hemorrhage']['base'] = effects['bleed_base']
+            defender.status_effects['hemorrhage']['increment'] = effects['bleed_increment']
+            defender.status_effects['hemorrhage']['duration'] = effects['duration']
+            defender.status_effects['hemorrhage']['turns_active'] = 0
+            self._add_to_combat_log(f"🩸 {defender.username} is hemorrhaging!")
+        
+        # NEW: Handle consecrate (heal over time zone)
+        if 'heal_per_turn' in effects and 'duration' in effects:
+            attacker.status_effects['consecrate']['heal_per_turn'] = effects['heal_per_turn']
+            attacker.status_effects['consecrate']['duration'] = effects['duration']
+            self._add_to_combat_log(f"✨ {attacker.username} creates consecrated ground!")
+        
+        # NEW: Handle execute (Assassinate)
+        if 'execute_threshold' in effects:
+            defender_hp_percent = defender.hp / defender.max_hp
+            if defender_hp_percent <= effects['execute_threshold']:
+                # EXECUTE! Deal massive damage
+                execute_damage = 9999
+                self.combat_status.text = f"💀 {attacker.username} EXECUTES {defender.username}!"
+                self._add_to_combat_log(f"💀 {attacker.username} EXECUTES {defender.username}!")
+                self._apply_damage(defender, execute_damage, attacker_type, "EXECUTE")
+                return  # Don't apply other effects
+            elif 'damage_multiplier' in effects:
+                # Failed execute, use damage multiplier as normal
+                base_damage = attacker.get_total_damage()
+                damage = int(base_damage * effects['damage_multiplier'])
+                self._add_to_combat_log(f"⚔️ Assassination failed! {attacker.username} deals {damage} damage instead")
+                self._apply_damage(defender, damage, attacker_type, ability['name'])
+        
+        # NEW: Handle shadow clone
+        if 'clone_damage' in effects and 'duration' in effects:
+            attacker.active_buffs['shadow_clone'] = {
+                'value': effects['clone_damage'],
+                'duration': effects['duration']
+            }
+            self._add_to_combat_log(f"👥 {attacker.username} creates a shadow clone!")
+        
+        # NEW: Handle conditional damage (Smite, Backstab, etc.)
+        if 'requires_debuff' in effects:
+            # Check if defender has any debuff
+            has_debuff = (defender.status_effects['poison']['duration'] > 0 or
+                         defender.status_effects['stun']['duration'] > 0 or
+                         defender.status_effects['slow']['duration'] > 0 or
+                         defender.status_effects['hemorrhage']['duration'] > 0)
+            if has_debuff and 'damage_multiplier' in effects:
+                base_damage = attacker.get_total_damage()
+                damage = int(base_damage * effects['damage_multiplier'])
+                self.combat_status.text = f"⚡ SMITE! {attacker.username} deals {damage} damage to debuffed enemy!"
+                self._add_to_combat_log(f"⚡ SMITE! {attacker.username} punishes debuffed enemy for {damage} damage!")
+                self._apply_damage(defender, damage, attacker_type, ability['name'])
+            else:
+                self._add_to_combat_log(f"❌ Smite failed - target has no debuffs!")
+        
+        if 'requires_invisible' in effects:
+            if attacker.status_effects['invisible']['duration'] > 0:
+                base_damage = attacker.get_total_damage()
+                damage = int(base_damage * effects['damage_multiplier'])
+                self.combat_status.text = f"🗡️ BACKSTAB! {attacker.username} deals {damage} damage!"
+                self._add_to_combat_log(f"🗡️ BACKSTAB from the shadows! {damage} damage!")
+                self._apply_damage(defender, damage, attacker_type, ability['name'])
+                if effects.get('breaks_invisibility', False):
+                    attacker.status_effects['invisible']['duration'] = 0
+            else:
+                self._add_to_combat_log(f"❌ Backstab failed - not invisible!")
+        
+        # NEW: Handle smoke bomb (guaranteed dodges)
+        if 'guaranteed_dodges' in effects:
+            attacker.status_effects['guaranteed_dodges']['count'] = effects['guaranteed_dodges']
+            self._add_to_combat_log(f"💨 {attacker.username} throws a smoke bomb!")
+        
+        # NEW: Handle entangle (prevent dodge)
+        if 'prevent_dodge' in effects and 'duration' in effects:
+            defender.status_effects['entangled']['duration'] = effects['duration']
+            self._add_to_combat_log(f"🌿 {defender.username} is entangled!")
+        
+        # NEW: Handle wild shape (speed and damage bonus)
+        if 'speed_bonus' in effects and 'duration' in effects:
+            attacker.active_buffs['speed_bonus'] = {
+                'value': effects['speed_bonus'],
+                'duration': effects['duration']
+            }
+        
+        # NEW: Handle moonfire (scaling damage)
+        if 'base_damage' in effects and 'missing_hp_multiplier' in effects:
+            missing_hp_percent = 1 - (attacker.hp / attacker.max_hp)
+            damage_mult = 1 + (missing_hp_percent * effects['missing_hp_multiplier'])
+            damage = int(effects['base_damage'] * damage_mult)
+            self.combat_status.text = f"🌙 {attacker.username} casts Moonfire for {damage} damage!"
+            self._add_to_combat_log(f"🌙 Moonfire deals {damage} damage (scales with missing HP)!")
+            self._apply_damage(defender, damage, attacker_type, ability['name'])
+        
+        # NEW: Handle divine intervention setup
+        if 'revive_hp_percent' in effects:
+            attacker.status_effects['divine_intervention']['active'] = True
+            self._add_to_combat_log(f"✨ {attacker.username} is protected by Divine Intervention!")
+        
+        # Handle debuff removal (Purification & new remove_debuffs flag)
+        if 'remove_debuffs' in effects or ability.get('name') == 'Purification':
             # Remove all debuffs from attacker
             attacker.status_effects['poison']['damage'] = 0
             attacker.status_effects['poison']['duration'] = 0
+            attacker.status_effects['hemorrhage']['duration'] = 0
             attacker.status_effects['stun']['duration'] = 0
             attacker.status_effects['slow']['amount'] = 0
             attacker.status_effects['slow']['duration'] = 0
+            attacker.status_effects['entangled']['duration'] = 0
+            self._add_to_combat_log(f"✨ {attacker.username} is purified of all debuffs!")
     
     def _execute_attack(self, attacker: PlayerData, defender: PlayerData, attacker_type: str):
         """Execute a regular attack with enhanced tracking and combo system"""
@@ -3202,11 +3479,11 @@ class CombatScreen(FloatLayout):
             self.update_combo_display(attacker_type)
             return
         
-        # Check for dodge first
-        dodge_chance = defender.get_dodge_chance()
-        if random.random() < dodge_chance:
-            self.combat_status.text = f"💨 {defender.username} dodges!"
-            self._add_to_combat_log(f"💨 {defender.username} dodges the attack!")
+        # NEW: Check for smoke bomb (guaranteed dodges)
+        if defender.status_effects['guaranteed_dodges']['count'] > 0:
+            self.combat_status.text = f"💨 {defender.username} dodges in the smoke!"
+            self._add_to_combat_log(f"💨 {defender.username} auto-dodges (smoke bomb)!")
+            defender.status_effects['guaranteed_dodges']['count'] -= 1
             # Reset combo on dodge
             if attacker_type == 'player':
                 self.player_combo_count = 0
@@ -3214,6 +3491,22 @@ class CombatScreen(FloatLayout):
                 self.opponent_combo_count = 0
             self.update_combo_display(attacker_type)
             return
+        
+        # Check for dodge (unless entangled)
+        if defender.status_effects['entangled']['duration'] == 0:
+            dodge_chance = defender.get_dodge_chance()
+            if random.random() < dodge_chance:
+                self.combat_status.text = f"💨 {defender.username} dodges!"
+                self._add_to_combat_log(f"💨 {defender.username} dodges the attack!")
+                # Reset combo on dodge
+                if attacker_type == 'player':
+                    self.player_combo_count = 0
+                else:
+                    self.opponent_combo_count = 0
+                self.update_combo_display(attacker_type)
+                return
+        else:
+            self._add_to_combat_log(f"🌿 {defender.username} cannot dodge - entangled!")
         
         # NEW: Track combo (increment if same attacker, reset if different)
         if self.last_ability_user == attacker_type:
@@ -3347,6 +3640,14 @@ class CombatScreen(FloatLayout):
                 self.combat_status.text = f"⚡ {defender.username} reflects {reflect_damage} damage back!"
                 self._add_to_combat_log(f"⚡ {defender.username} reflects {reflect_damage} damage!")
                 self._apply_damage(attacker, reflect_damage, 'opponent' if attacker_type == 'player' else 'player', "reflect")
+        
+        # NEW: Handle shadow clone attack (FIX for Shadow Clone ability)
+        if 'shadow_clone' in attacker.active_buffs and attacker.active_buffs['shadow_clone']['duration'] > 0:
+            clone_mult = attacker.active_buffs['shadow_clone']['value']
+            clone_damage = int(attacker.get_total_damage() * clone_mult)
+            self.combat_status.text += f" 👥 Clone: +{clone_damage}!"
+            self._add_to_combat_log(f"👥 Shadow clone attacks for {clone_damage} damage!")
+            self._apply_damage(defender, clone_damage, attacker_type, "clone")
     
     def _apply_damage(self, defender: PlayerData, damage: int, attacker_type: str, source: str):
         """Apply damage to defender"""
