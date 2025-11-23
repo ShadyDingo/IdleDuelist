@@ -489,9 +489,26 @@ class PlayerData:
         self.faction_level = 1
         
         # Ability system
-        self.ability_loadout = []  # Ordered list of ability IDs
+        self.ability_loadout = []  # Ordered list of ability IDs (4 slots max)
         self.ability_cooldowns = {}  # Track cooldowns for each ability
         self.active_buffs = {}  # Track active buffs/debuffs
+        
+        # Progression system
+        self.level = 1
+        self.experience = 0
+        self.experience_to_next = 100
+        self.skill_points_available = 0  # Unspent skill points
+        self.total_skill_points_earned = 0
+        
+        # Base stats (allocated via skill points)
+        self.base_stats = {
+            'attack_power': 0,  # Increases physical damage
+            'spell_power': 0,   # Increases ability damage
+            'defense': 0,       # Reduces incoming damage
+            'max_hp': 0,        # Increases maximum health
+            'speed': 0,         # Increases turn order and dodge
+            'crit_chance': 0    # Increases critical hit chance (percentage points)
+        }
         
         # Combat strategy removed - simplified to attack-only
         
@@ -550,8 +567,11 @@ class PlayerData:
         self.weekly_losses += 1
     
     def get_total_speed(self) -> int:
-        """Calculate total speed from equipped armor and weapons"""
+        """Calculate total speed from equipped armor and weapons + base stats"""
         total_speed = 0
+        
+        # Base stat bonus
+        total_speed += self.base_stats.get('speed', 0)
         
         # Armor speed modifiers
         for slot, item_id in self.equipment.items():
@@ -571,8 +591,11 @@ class PlayerData:
         return total_speed
     
     def get_total_defense(self) -> int:
-        """Calculate total defense from equipped armor and weapons"""
+        """Calculate total defense from equipped armor and weapons + base stats"""
         total_defense = 0
+        
+        # Base stat bonus
+        total_defense += self.base_stats.get('defense', 0)
         
         # Armor defense
         for slot, item_id in self.equipment.items():
@@ -592,8 +615,11 @@ class PlayerData:
         return total_defense
     
     def get_total_damage(self) -> int:
-        """Calculate total damage from equipped weapons"""
+        """Calculate total damage from equipped weapons + base stats"""
         total_damage = 0
+        
+        # Base stat bonus
+        total_damage += self.base_stats.get('attack_power', 0)
         
         # Check if mainhand is two-handed
         if self.equipment['mainhand'] and self.equipment['mainhand'] in EQUIPMENT_DATA['weapons']:
@@ -612,6 +638,10 @@ class PlayerData:
         
         return total_damage
     
+    def get_total_spell_power(self) -> int:
+        """Calculate total spell power from base stats"""
+        return self.base_stats.get('spell_power', 0)
+    
     def get_weapon_property(self, property_name: str, default_value=0) -> float:
         """Get a weapon property (crit_chance, armor_penetration, etc.) from mainhand weapon"""
         if self.equipment['mainhand'] and self.equipment['mainhand'] in EQUIPMENT_DATA['weapons']:
@@ -622,12 +652,14 @@ class PlayerData:
     def get_total_crit_chance(self) -> float:
         """Calculate total critical hit chance"""
         base_crit = self.get_weapon_property('crit_chance', 0.0)
+        # Base stat bonus (as percentage points)
+        stat_bonus = self.base_stats.get('crit_chance', 0) * 0.01  # Convert to decimal
         # Speed bonus to crit chance (faster = more crits)
         speed_bonus = self.get_total_speed() * 0.005  # 0.5% per speed point
         # Armor set bonus crit chance
         set_bonuses = self.get_armor_set_bonus()
         set_crit_bonus = set_bonuses.get('crit_chance', 0.0)
-        return min(0.5, base_crit + speed_bonus + set_crit_bonus)  # Cap at 50%
+        return min(0.5, base_crit + stat_bonus + speed_bonus + set_crit_bonus)  # Cap at 50%
     
     def get_total_armor_penetration(self) -> int:
         """Calculate total armor penetration"""
@@ -722,6 +754,63 @@ class PlayerData:
                 set_bonuses.update(ARMOR_SET_BONUSES[armor_type]['3_piece']['effects'])
         
         return set_bonuses
+    
+    def get_total_max_hp(self) -> int:
+        """Calculate total maximum HP from base stats"""
+        base_hp = 100  # Starting HP
+        stat_bonus = self.base_stats.get('max_hp', 0)
+        return base_hp + stat_bonus
+    
+    def allocate_stat_point(self, stat_name: str) -> bool:
+        """Allocate a skill point to a specific stat"""
+        if self.skill_points_available <= 0:
+            return False
+        
+        if stat_name not in self.base_stats:
+            return False
+        
+        # Define stat increases per point
+        stat_increases = {
+            'attack_power': 2,   # +2 attack per point
+            'spell_power': 2,    # +2 spell power per point
+            'defense': 1,        # +1 defense per point
+            'max_hp': 10,        # +10 HP per point
+            'speed': 1,          # +1 speed per point
+            'crit_chance': 1     # +1% crit per point
+        }
+        
+        self.base_stats[stat_name] += stat_increases.get(stat_name, 1)
+        self.skill_points_available -= 1
+        
+        # Update max HP if needed
+        if stat_name == 'max_hp':
+            self.max_hp = self.get_total_max_hp()
+            self.hp = min(self.hp, self.max_hp)
+        
+        return True
+    
+    def reset_stats(self) -> int:
+        """Reset all allocated stats and return skill points"""
+        # Calculate total points invested
+        stat_values = {
+            'attack_power': 2,
+            'spell_power': 2,
+            'defense': 1,
+            'max_hp': 10,
+            'speed': 1,
+            'crit_chance': 1
+        }
+        
+        total_points = 0
+        for stat_name, value_per_point in stat_values.items():
+            total_points += self.base_stats[stat_name] // value_per_point
+            self.base_stats[stat_name] = 0
+        
+        self.skill_points_available += total_points
+        self.max_hp = self.get_total_max_hp()
+        self.hp = min(self.hp, self.max_hp)
+        
+        return total_points
     
     def get_available_abilities(self) -> List[str]:
         """Get list of available abilities for current faction"""
@@ -866,7 +955,14 @@ class PlayerData:
             'ability_loadout': self.ability_loadout,
             'ability_cooldowns': self.ability_cooldowns,
             'active_buffs': self.active_buffs,
-            'status_effects': self.status_effects
+            'status_effects': self.status_effects,
+            # Progression and stats
+            'level': self.level,
+            'experience': self.experience,
+            'experience_to_next': self.experience_to_next,
+            'skill_points_available': self.skill_points_available,
+            'total_skill_points_earned': self.total_skill_points_earned,
+            'base_stats': self.base_stats
         }
     
     @classmethod
@@ -893,6 +989,20 @@ class PlayerData:
             'slow': {'amount': 0, 'duration': 0},
             'invisible': {'duration': 0},
             'shield': {'amount': 0, 'duration': 0}
+        })
+        # Progression and stats
+        player.level = data.get('level', 1)
+        player.experience = data.get('experience', 0)
+        player.experience_to_next = data.get('experience_to_next', 100)
+        player.skill_points_available = data.get('skill_points_available', 5)  # Give 5 starter points
+        player.total_skill_points_earned = data.get('total_skill_points_earned', 0)
+        player.base_stats = data.get('base_stats', {
+            'attack_power': 0,
+            'spell_power': 0,
+            'defense': 0,
+            'max_hp': 0,
+            'speed': 0,
+            'crit_chance': 0
         })
         # Check for weekly reset when loading
         player.check_weekly_reset()
@@ -945,6 +1055,11 @@ class DataManager:
                 json.dump(data, f, indent=2)
         except Exception as e:
             print(f"Error saving data: {e}")
+    
+    def save_player(self, player: PlayerData):
+        """Save a specific player's data"""
+        self.players[player.player_id] = player
+        self.save_data()
     
     def get_or_create_player(self, player_id: str = None) -> PlayerData:
         """Get existing player or create new one"""
@@ -1056,60 +1171,50 @@ class MainMenu(FloatLayout):
         # Main menu buttons container - centralized vertically
         button_container = BoxLayout(
             orientation='vertical',
-            size_hint=(0.7, 0.5),
+            size_hint=(0.7, 0.4),
             pos_hint={'center_x': 0.5, 'center_y': 0.45},
-            spacing=8
+            spacing=12
         )
         
-        # Loadout Button
-        self.loadout_btn = Button(
-            text='Loadout',
-            font_size='24sp',
-            size_hint=(1, 0.18),
-            background_color=(0.2, 0.6, 1, 0.9)
-        )
-        self.loadout_btn.bind(on_press=self.open_loadout)
-        button_container.add_widget(self.loadout_btn)
-        
-        # Faction Button
-        self.faction_btn = Button(
-            text='Faction',
-            font_size='24sp',
-            size_hint=(1, 0.18),
-            background_color=(0.8, 0.4, 0.8, 0.9)
-        )
-        self.faction_btn.bind(on_press=self.open_faction_screen)
-        button_container.add_widget(self.faction_btn)
-        
-        # Abilities Button
-        self.abilities_btn = Button(
-            text='Abilities',
-            font_size='24sp',
-            size_hint=(1, 0.18),
-            background_color=(0.4, 0.8, 0.8, 0.9)
-        )
-        self.abilities_btn.bind(on_press=self.open_abilities_screen)
-        button_container.add_widget(self.abilities_btn)
-        
-        # Duel Button
+        # Duel Button (PRIMARY ACTION)
         self.duel_btn = Button(
-            text='Duel',
-            font_size='24sp',
-            size_hint=(1, 0.18),
+            text='⚔️ DUEL',
+            font_size='28sp',
+            size_hint=(1, 0.28),
             background_color=(1, 0.3, 0.3, 0.9)
         )
         self.duel_btn.bind(on_press=self.start_duel)
         button_container.add_widget(self.duel_btn)
         
+        # Character Button (opens submenu)
+        self.character_btn = Button(
+            text='👤 CHARACTER',
+            font_size='24sp',
+            size_hint=(1, 0.22),
+            background_color=(0.4, 0.6, 1, 0.9)
+        )
+        self.character_btn.bind(on_press=self.open_character_menu)
+        button_container.add_widget(self.character_btn)
+        
         # Leaderboard Button
         self.leaderboard_btn = Button(
-            text='Leaderboard',
+            text='🏆 LEADERBOARD',
             font_size='24sp',
-            size_hint=(1, 0.18),
+            size_hint=(1, 0.22),
             background_color=(0.3, 1, 0.3, 0.9)
         )
         self.leaderboard_btn.bind(on_press=self.show_leaderboard)
         button_container.add_widget(self.leaderboard_btn)
+        
+        # Settings Button
+        self.settings_btn = Button(
+            text='⚙️ SETTINGS',
+            font_size='24sp',
+            size_hint=(1, 0.22),
+            background_color=(0.6, 0.6, 0.6, 0.9)
+        )
+        self.settings_btn.bind(on_press=self.open_settings)
+        button_container.add_widget(self.settings_btn)
         
         self.add_widget(button_container)
         
@@ -1158,20 +1263,23 @@ class MainMenu(FloatLayout):
         audio_container.add_widget(self.volume_slider)
         self.add_widget(audio_container)
     
-    def open_loadout(self, instance):
-        self.app.show_loadout()
-    
-    def open_faction_screen(self, instance):
-        self.app.show_faction_screen()
-    
-    def open_abilities_screen(self, instance):
-        self.app.show_abilities_screen()
+    def open_character_menu(self, instance):
+        self.app.show_character_menu()
     
     def start_duel(self, instance):
-        self.app.start_duel()
+        self.app.find_duel()  # New queue-based system
     
     def show_leaderboard(self, instance):
         self.app.show_leaderboard()
+    
+    def open_settings(self, instance):
+        # Settings will be audio controls (already on main menu)
+        popup = Popup(
+            title='Settings',
+            content=Label(text='Audio controls are on the main menu'),
+            size_hint=(0.6, 0.3)
+        )
+        popup.open()
     
     def toggle_mute(self, instance):
         """Toggle mute state"""
@@ -1185,6 +1293,403 @@ class MainMenu(FloatLayout):
     def on_volume_change(self, instance, value):
         """Handle volume slider change"""
         self.app.music_manager.set_volume(value)
+
+class CharacterMenu(FloatLayout):
+    """Submenu for all character management options"""
+    def __init__(self, app, **kwargs):
+        super().__init__(**kwargs)
+        self.app = app
+        
+        # Background
+        background = Image(
+            source='assets/backgrounds/loadout_menu_background.png',
+            allow_stretch=True,
+            keep_ratio=False,
+            size_hint=(1, 1),
+            pos_hint={'x': 0, 'y': 0}
+        )
+        self.add_widget(background)
+        
+        # Header
+        header_container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(1, 0.08),
+            pos_hint={'x': 0, 'top': 0.95},
+            spacing=10,
+            padding=[10, 0, 10, 0]
+        )
+        
+        back_btn = Button(
+            text='← Back',
+            size_hint_x=0.25,
+            font_size='16sp',
+            background_color=(0.3, 0.3, 0.3, 0.9)
+        )
+        back_btn.bind(on_press=self.go_back)
+        
+        title = Label(
+            text=f'{self.app.current_player.username} - Level {self.app.current_player.level}',
+            font_size='18sp',
+            size_hint_x=0.75,
+            color=(1, 1, 1, 1)
+        )
+        
+        header_container.add_widget(back_btn)
+        header_container.add_widget(title)
+        self.add_widget(header_container)
+        
+        # Player info summary
+        info_container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(0.9, 0.12),
+            pos_hint={'center_x': 0.5, 'top': 0.85},
+            spacing=5
+        )
+        
+        info_labels = BoxLayout(orientation='vertical', spacing=2)
+        info_labels.add_widget(Label(
+            text=f'Rating: {self.app.current_player.rating}',
+            font_size='14sp',
+            color=(1, 1, 0.5, 1)
+        ))
+        info_labels.add_widget(Label(
+            text=f'W/L: {self.app.current_player.wins}/{self.app.current_player.losses}',
+            font_size='14sp',
+            color=(0.5, 1, 0.5, 1)
+        ))
+        info_labels.add_widget(Label(
+            text=f'Skill Points: {self.app.current_player.skill_points_available}',
+            font_size='16sp',
+            color=(1, 0.5, 1, 1),
+            bold=True
+        ))
+        
+        info_container.add_widget(info_labels)
+        self.add_widget(info_container)
+        
+        # Menu buttons
+        button_container = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.8, 0.55),
+            pos_hint={'center_x': 0.5, 'center_y': 0.42},
+            spacing=10
+        )
+        
+        # Stats & Skills (NEW - HIGHLIGHTED)
+        stats_btn = Button(
+            text='📊 STATS & SKILLS',
+            font_size='22sp',
+            size_hint=(1, 0.22),
+            background_color=(1, 0.5, 0.2, 0.95)  # Orange highlight
+        )
+        stats_btn.bind(on_press=self.open_stats_screen)
+        button_container.add_widget(stats_btn)
+        
+        # Equipment
+        equipment_btn = Button(
+            text='⚔️ EQUIPMENT',
+            font_size='20sp',
+            size_hint=(1, 0.19),
+            background_color=(0.4, 0.6, 1, 0.9)
+        )
+        equipment_btn.bind(on_press=self.open_equipment)
+        button_container.add_widget(equipment_btn)
+        
+        # Abilities
+        abilities_btn = Button(
+            text='✨ ABILITIES (4 Slots)',
+            font_size='20sp',
+            size_hint=(1, 0.19),
+            background_color=(0.6, 0.4, 1, 0.9)
+        )
+        abilities_btn.bind(on_press=self.open_abilities)
+        button_container.add_widget(abilities_btn)
+        
+        # Faction
+        faction_btn = Button(
+            text='🎭 FACTION',
+            font_size='20sp',
+            size_hint=(1, 0.19),
+            background_color=(0.8, 0.4, 0.8, 0.9)
+        )
+        faction_btn.bind(on_press=self.open_faction)
+        button_container.add_widget(faction_btn)
+        
+        self.add_widget(button_container)
+    
+    def go_back(self, instance):
+        self.app.show_main_menu()
+    
+    def open_stats_screen(self, instance):
+        self.app.show_stats_screen()
+    
+    def open_equipment(self, instance):
+        self.app.show_loadout()
+    
+    def open_abilities(self, instance):
+        self.app.show_abilities_screen()
+    
+    def open_faction(self, instance):
+        self.app.show_faction_screen()
+
+class StatsAndSkillsScreen(FloatLayout):
+    """Screen for allocating skill points to stats"""
+    def __init__(self, app, **kwargs):
+        super().__init__(**kwargs)
+        self.app = app
+        self.temp_allocations = {}  # Track pending changes
+        
+        # Background
+        background = Image(
+            source='assets/backgrounds/loadout_menu_background.png',
+            allow_stretch=True,
+            keep_ratio=False,
+            size_hint=(1, 1),
+            pos_hint={'x': 0, 'y': 0}
+        )
+        self.add_widget(background)
+        
+        # Header
+        header_container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(1, 0.08),
+            pos_hint={'x': 0, 'top': 0.95},
+            spacing=10,
+            padding=[10, 0, 10, 0]
+        )
+        
+        back_btn = Button(
+            text='← Back',
+            size_hint_x=0.25,
+            font_size='16sp',
+            background_color=(0.3, 0.3, 0.3, 0.9)
+        )
+        back_btn.bind(on_press=self.go_back)
+        
+        title = Label(
+            text='Stats & Skills',
+            font_size='20sp',
+            size_hint_x=0.75,
+            color=(1, 1, 1, 1),
+            bold=True
+        )
+        
+        header_container.add_widget(back_btn)
+        header_container.add_widget(title)
+        self.add_widget(header_container)
+        
+        # Available skill points display
+        self.skill_points_label = Label(
+            text=f'Available Skill Points: {self.app.current_player.skill_points_available}',
+            font_size='18sp',
+            size_hint=(0.9, 0.06),
+            pos_hint={'center_x': 0.5, 'top': 0.85},
+            color=(1, 1, 0, 1),
+            bold=True
+        )
+        self.add_widget(self.skill_points_label)
+        
+        # Stats container
+        scroll = ScrollView(
+            size_hint=(0.9, 0.58),
+            pos_hint={'center_x': 0.5, 'top': 0.78}
+        )
+        
+        stats_layout = BoxLayout(
+            orientation='vertical',
+            spacing=8,
+            size_hint_y=None,
+            padding=[5, 5, 5, 5]
+        )
+        stats_layout.bind(minimum_height=stats_layout.setter('height'))
+        
+        # Create stat rows
+        self.stat_widgets = {}
+        stat_info = {
+            'attack_power': {'name': '⚔️ Attack Power', 'desc': '+2 physical damage per point', 'color': (1, 0.3, 0.3, 1)},
+            'spell_power': {'name': '✨ Spell Power', 'desc': '+2 ability damage per point', 'color': (0.5, 0.5, 1, 1)},
+            'defense': {'name': '🛡️ Defense', 'desc': '+1 damage reduction per point', 'color': (0.3, 0.7, 1, 1)},
+            'max_hp': {'name': '💚 Max HP', 'desc': '+10 maximum health per point', 'color': (0.3, 1, 0.3, 1)},
+            'speed': {'name': '⚡ Speed', 'desc': '+1 turn order/dodge per point', 'color': (1, 1, 0.3, 1)},
+            'crit_chance': {'name': '🎯 Crit Chance', 'desc': '+1% critical hit per point', 'color': (1, 0.5, 0, 1)}
+        }
+        
+        for stat_name, info in stat_info.items():
+            stat_row = self.create_stat_row(stat_name, info)
+            stats_layout.add_widget(stat_row)
+            
+        scroll.add_widget(stats_layout)
+        self.add_widget(scroll)
+        
+        # Bottom buttons
+        button_container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(0.9, 0.08),
+            pos_hint={'center_x': 0.5, 'bottom': 0.02},
+            spacing=10
+        )
+        
+        reset_btn = Button(
+            text='♻️ RESET ALL',
+            font_size='16sp',
+            background_color=(1, 0.3, 0.3, 0.9)
+        )
+        reset_btn.bind(on_press=self.reset_all_stats)
+        
+        save_btn = Button(
+            text='💾 SAVE',
+            font_size='16sp',
+            background_color=(0.3, 1, 0.3, 0.9)
+        )
+        save_btn.bind(on_press=self.save_stats)
+        
+        button_container.add_widget(reset_btn)
+        button_container.add_widget(save_btn)
+        self.add_widget(button_container)
+    
+    def create_stat_row(self, stat_name: str, info: dict):
+        """Create a row for a single stat with +/- buttons"""
+        row = BoxLayout(
+            orientation='vertical',
+            size_hint_y=None,
+            height=85,
+            padding=[5, 5, 5, 5]
+        )
+        
+        # Stat name and value
+        header = BoxLayout(orientation='horizontal', size_hint_y=0.4)
+        header.add_widget(Label(
+            text=info['name'],
+            font_size='16sp',
+            color=info['color'],
+            bold=True,
+            size_hint_x=0.6,
+            halign='left',
+            valign='middle'
+        ))
+        
+        current_value = self.app.current_player.base_stats[stat_name]
+        value_label = Label(
+            text=f'{current_value}',
+            font_size='18sp',
+            color=info['color'],
+            bold=True,
+            size_hint_x=0.2
+        )
+        self.stat_widgets[stat_name] = {'value_label': value_label}
+        header.add_widget(value_label)
+        
+        # +/- buttons
+        btn_box = BoxLayout(orientation='horizontal', size_hint_x=0.2, spacing=2)
+        
+        minus_btn = Button(
+            text='-',
+            font_size='20sp',
+            size_hint_x=0.5,
+            background_color=(0.5, 0.3, 0.3, 0.9)
+        )
+        minus_btn.bind(on_press=lambda x: self.decrease_stat(stat_name))
+        
+        plus_btn = Button(
+            text='+',
+            font_size='20sp',
+            size_hint_x=0.5,
+            background_color=(0.3, 0.6, 0.3, 0.9)
+        )
+        plus_btn.bind(on_press=lambda x: self.increase_stat(stat_name))
+        
+        btn_box.add_widget(minus_btn)
+        btn_box.add_widget(plus_btn)
+        header.add_widget(btn_box)
+        
+        row.add_widget(header)
+        
+        # Description
+        desc_label = Label(
+            text=info['desc'],
+            font_size='12sp',
+            color=(0.8, 0.8, 0.8, 1),
+            size_hint_y=0.3,
+            halign='left',
+            valign='top'
+        )
+        desc_label.bind(size=desc_label.setter('text_size'))
+        row.add_widget(desc_label)
+        
+        # Separator
+        separator = BoxLayout(size_hint_y=0.05)
+        separator.canvas.before.clear()
+        from kivy.graphics import Color, Line
+        with separator.canvas.before:
+            Color(0.3, 0.3, 0.3, 0.5)
+            Line(points=[0, 0, 1000, 0], width=1)
+        row.add_widget(separator)
+        
+        return row
+    
+    def increase_stat(self, stat_name: str):
+        """Allocate a skill point to a stat"""
+        if self.app.current_player.allocate_stat_point(stat_name):
+            self.update_display()
+            self.app.data_manager.save_player(self.app.current_player)
+    
+    def decrease_stat(self, stat_name: str):
+        """Remove a skill point from a stat (manually reverse allocation)"""
+        stat_values = {
+            'attack_power': 2,
+            'spell_power': 2,
+            'defense': 1,
+            'max_hp': 10,
+            'speed': 1,
+            'crit_chance': 1
+        }
+        
+        increment = stat_values.get(stat_name, 1)
+        if self.app.current_player.base_stats[stat_name] >= increment:
+            self.app.current_player.base_stats[stat_name] -= increment
+            self.app.current_player.skill_points_available += 1
+            
+            if stat_name == 'max_hp':
+                self.app.current_player.max_hp = self.app.current_player.get_total_max_hp()
+                self.app.current_player.hp = min(self.app.current_player.hp, self.app.current_player.max_hp)
+            
+            self.update_display()
+            self.app.data_manager.save_player(self.app.current_player)
+    
+    def update_display(self):
+        """Update all stat displays"""
+        self.skill_points_label.text = f'Available Skill Points: {self.app.current_player.skill_points_available}'
+        
+        for stat_name, widgets in self.stat_widgets.items():
+            current_value = self.app.current_player.base_stats[stat_name]
+            widgets['value_label'].text = f'{current_value}'
+    
+    def reset_all_stats(self, instance):
+        """Reset all stat allocations"""
+        points_returned = self.app.current_player.reset_stats()
+        self.update_display()
+        self.app.data_manager.save_player(self.app.current_player)
+        
+        popup = Popup(
+            title='Stats Reset',
+            content=Label(text=f'All stats reset!\n{points_returned} skill points returned.'),
+            size_hint=(0.6, 0.3)
+        )
+        popup.open()
+    
+    def save_stats(self, instance):
+        """Save current stat allocation"""
+        self.app.data_manager.save_player(self.app.current_player)
+        
+        popup = Popup(
+            title='Saved',
+            content=Label(text='Stats saved successfully!'),
+            size_hint=(0.6, 0.3)
+        )
+        popup.open()
+    
+    def go_back(self, instance):
+        self.app.show_character_menu()
 
 class LoadoutScreen(FloatLayout):
     def __init__(self, app, **kwargs):
@@ -1825,7 +2330,7 @@ Armor Pen: {player.get_total_armor_penetration()}
             self.app.data_manager.save_data()
     
     def go_back(self, instance):
-        self.app.show_main_menu()
+        self.app.show_character_menu()
 
 class FactionScreen(FloatLayout):
     def __init__(self, app, **kwargs):
@@ -1981,7 +2486,7 @@ class FactionScreen(FloatLayout):
     
     
     def go_back(self, instance):
-        self.app.show_main_menu()
+        self.app.show_character_menu()
 
 class AbilitiesScreen(FloatLayout):
     def __init__(self, app, **kwargs):
@@ -2032,14 +2537,14 @@ class AbilitiesScreen(FloatLayout):
         self.create_loadout_types()
     
     def create_ability_slots(self):
-        """Create the 6 ability slots"""
+        """Create the 4 ability slots"""
         # Faction info
         faction_data = self.app.current_player.get_faction_data()
         faction_info = Label(
-            text=f'Faction: {faction_data["name"]}',
+            text=f'Faction: {faction_data["name"]}\n(Select 4 abilities for combat)',
             font_size='16sp',
             color=(1, 1, 1, 1),
-            size_hint=(1, 0.05),
+            size_hint=(1, 0.08),
             pos_hint={'x': 0, 'top': 0.85}
         )
         self.add_widget(faction_info)
@@ -2047,15 +2552,15 @@ class AbilitiesScreen(FloatLayout):
         # Ability slots container - centered with proper spacing
         slots_container = BoxLayout(
             orientation='horizontal',
-            size_hint=(0.8, 0.12),
+            size_hint=(0.9, 0.14),
             pos_hint={'center_x': 0.5, 'center_y': 0.68},
-            spacing=15,
+            spacing=20,
             padding=[0, 0, 0, 0]
         )
         
-        # Create 5 ability slots with proper square containers
+        # Create 4 ability slots with proper square containers
         self.ability_slots = []
-        for i in range(5):
+        for i in range(4):
             # Create a square container for the slot
             slot_container = FloatLayout(
                 size_hint=(None, None),
@@ -2099,12 +2604,16 @@ class AbilitiesScreen(FloatLayout):
             button = slot_data['button']
             image = slot_data['image']
             
-            # Ensure loadout has 5 slots
+            # Ensure loadout has 4 slots
             if not hasattr(self.app.current_player, 'ability_loadout') or self.app.current_player.ability_loadout is None:
-                self.app.current_player.ability_loadout = [None] * 5
+                self.app.current_player.ability_loadout = [None] * 4
             
-            while len(self.app.current_player.ability_loadout) < 5:
+            while len(self.app.current_player.ability_loadout) < 4:
                 self.app.current_player.ability_loadout.append(None)
+            
+            # Trim to 4 slots if there are more
+            if len(self.app.current_player.ability_loadout) > 4:
+                self.app.current_player.ability_loadout = self.app.current_player.ability_loadout[:4]
             
             ability_id = self.app.current_player.ability_loadout[i] if i < len(self.app.current_player.ability_loadout) else None
             
@@ -2207,13 +2716,17 @@ class AbilitiesScreen(FloatLayout):
     
     def set_slot_ability(self, slot_num: int, ability_id: str = None):
         """Set ability for a specific slot"""
-        # Initialize loadout as a list of 5 None values if needed
+        # Initialize loadout as a list of 4 None values if needed
         if not hasattr(self.app.current_player, 'ability_loadout') or self.app.current_player.ability_loadout is None:
-            self.app.current_player.ability_loadout = [None] * 5
+            self.app.current_player.ability_loadout = [None] * 4
         
-        # Ensure loadout list is exactly 5 slots
-        while len(self.app.current_player.ability_loadout) < 5:
+        # Ensure loadout list is exactly 4 slots
+        while len(self.app.current_player.ability_loadout) < 4:
             self.app.current_player.ability_loadout.append(None)
+        
+        # Trim to 4 slots if there are more
+        if len(self.app.current_player.ability_loadout) > 4:
+            self.app.current_player.ability_loadout = self.app.current_player.ability_loadout[:4]
         
         # Set the ability for this slot
         self.app.current_player.ability_loadout[slot_num] = ability_id
@@ -2237,6 +2750,204 @@ class AbilitiesScreen(FloatLayout):
     
     
     def go_back(self, instance):
+        self.app.show_character_menu()
+
+class QueueScreen(FloatLayout):
+    """Queue screen with searching animation and timeout"""
+    def __init__(self, app, **kwargs):
+        super().__init__(**kwargs)
+        self.app = app
+        self.queue_time = 0
+        self.max_queue_time = 15  # 15 seconds before matching with bot
+        self.queue_event = None
+        
+        # Background
+        background = Image(
+            source='assets/backgrounds/main_menu_background.png',
+            allow_stretch=True,
+            keep_ratio=False,
+            size_hint=(1, 1),
+            pos_hint={'x': 0, 'y': 0}
+        )
+        self.add_widget(background)
+        
+        # Main container
+        main_container = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.85, 0.6),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            spacing=20,
+            padding=[20, 20, 20, 20]
+        )
+        
+        # Title
+        title = Label(
+            text='⚔️ SEARCHING FOR DUEL... ⚔️',
+            font_size='24sp',
+            size_hint_y=0.15,
+            color=(1, 1, 0, 1),
+            bold=True
+        )
+        main_container.add_widget(title)
+        
+        # Queue time label
+        self.time_label = Label(
+            text='Time in Queue: 0:00',
+            font_size='18sp',
+            size_hint_y=0.1,
+            color=(1, 1, 1, 1)
+        )
+        main_container.add_widget(self.time_label)
+        
+        # Searching animation (simple text animation)
+        self.searching_label = Label(
+            text='🔄 Searching',
+            font_size='22sp',
+            size_hint_y=0.15,
+            color=(0.5, 1, 1, 1)
+        )
+        main_container.add_widget(self.searching_label)
+        
+        # Status info
+        status_container = BoxLayout(
+            orientation='vertical',
+            size_hint_y=0.25,
+            spacing=5
+        )
+        
+        status_container.add_widget(Label(
+            text='Preferences:',
+            font_size='14sp',
+            color=(0.8, 0.8, 0.8, 1),
+            size_hint_y=0.3
+        ))
+        status_container.add_widget(Label(
+            text='✓ Real players preferred',
+            font_size='13sp',
+            color=(0.6, 1, 0.6, 1),
+            size_hint_y=0.35
+        ))
+        status_container.add_widget(Label(
+            text=f'✓ Matching with similar rating (±100)',
+            font_size='13sp',
+            color=(0.6, 1, 0.6, 1),
+            size_hint_y=0.35
+        ))
+        
+        main_container.add_widget(status_container)
+        
+        # Cancel button
+        cancel_btn = Button(
+            text='❌ CANCEL QUEUE',
+            font_size='18sp',
+            size_hint_y=0.15,
+            background_color=(1, 0.3, 0.3, 0.9)
+        )
+        cancel_btn.bind(on_press=self.cancel_queue)
+        main_container.add_widget(cancel_btn)
+        
+        # Info label
+        info_label = Label(
+            text='Matchmaking with bot after 15 seconds if no players found',
+            font_size='11sp',
+            size_hint_y=0.08,
+            color=(0.7, 0.7, 0.7, 1),
+            italic=True
+        )
+        main_container.add_widget(info_label)
+        
+        self.add_widget(main_container)
+        
+        # Start queue timer
+        self.queue_event = Clock.schedule_interval(self.update_queue, 0.5)
+        self.animation_dots = 0
+    
+    def update_queue(self, dt):
+        """Update queue time and check for match"""
+        self.queue_time += dt
+        
+        # Update time display
+        minutes = int(self.queue_time // 60)
+        seconds = int(self.queue_time % 60)
+        self.time_label.text = f'Time in Queue: {minutes}:{seconds:02d}'
+        
+        # Update searching animation
+        self.animation_dots = (self.animation_dots + 1) % 4
+        dots = '.' * self.animation_dots
+        self.searching_label.text = f'🔄 Searching{dots}'
+        
+        # Try to find a real player match
+        if self.queue_time >= 2:  # Start checking after 2 seconds
+            opponent = self.try_find_real_player()
+            if opponent:
+                self.found_match(opponent, is_real_player=True)
+                return
+        
+        # Timeout: match with bot
+        if self.queue_time >= self.max_queue_time:
+            opponent = self.find_bot_opponent()
+            self.found_match(opponent, is_real_player=False)
+    
+    def try_find_real_player(self):
+        """Try to find a real player opponent"""
+        # Get all players within rating range
+        rating = self.app.current_player.rating
+        rating_range = 100
+        
+        all_players = self.app.data_manager.players.items()
+        eligible_players = [
+            (pid, player) for pid, player in all_players
+            if pid != self.app.current_player.player_id  # Not self
+            and abs(player.rating - rating) <= rating_range  # Within rating range
+        ]
+        
+        if eligible_players:
+            # For now, randomly select one (in future, could check if they're online)
+            # Since this is a single-player game, we'll match with 20% probability per check
+            if random.random() < 0.2:  # 20% chance per half-second
+                opponent_id, opponent = random.choice(eligible_players)
+                return opponent
+        
+        return None
+    
+    def find_bot_opponent(self):
+        """Find or create a bot opponent"""
+        return self.app.data_manager.find_opponent(self.app.current_player)
+    
+    def found_match(self, opponent, is_real_player=False):
+        """Match found - start duel"""
+        if self.queue_event:
+            self.queue_event.cancel()
+        
+        match_type = "REAL PLAYER" if is_real_player else "AI OPPONENT"
+        
+        # Show match found popup briefly
+        popup_content = BoxLayout(orientation='vertical', spacing=10, padding=[10, 10, 10, 10])
+        popup_content.add_widget(Label(
+            text=f'⚔️ MATCH FOUND! ⚔️\n\nType: {match_type}\nOpponent: {opponent.username}',
+            font_size='16sp'
+        ))
+        
+        popup = Popup(
+            title='Match Found!',
+            content=popup_content,
+            size_hint=(0.7, 0.4),
+            auto_dismiss=False
+        )
+        popup.open()
+        
+        # Start duel after short delay
+        Clock.schedule_once(lambda dt: self.start_combat(popup, opponent), 1.5)
+    
+    def start_combat(self, popup, opponent):
+        """Transition to combat screen"""
+        popup.dismiss()
+        self.app.start_duel(opponent)
+    
+    def cancel_queue(self, instance):
+        """Cancel the queue and return to main menu"""
+        if self.queue_event:
+            self.queue_event.cancel()
         self.app.show_main_menu()
 
 class CombatScreen(FloatLayout):
@@ -3242,6 +3953,22 @@ class IdleDuelistApp(App):
         # Play background music
         self.music_manager.play_background()
     
+    def show_character_menu(self):
+        """Show the character submenu"""
+        self.root.clear_widgets()
+        character_menu = CharacterMenu(self)
+        self.root.add_widget(character_menu)
+        # Continue background music
+        self.music_manager.play_background()
+    
+    def show_stats_screen(self):
+        """Show the stats and skills allocation screen"""
+        self.root.clear_widgets()
+        stats_screen = StatsAndSkillsScreen(self)
+        self.root.add_widget(stats_screen)
+        # Continue background music
+        self.music_manager.play_background()
+    
     def show_loadout(self):
         """Show the loadout screen"""
         self.root.clear_widgets()
@@ -3266,23 +3993,21 @@ class IdleDuelistApp(App):
         # Continue background music
         self.music_manager.play_background()
     
-    def start_duel(self):
-        """Start a duel"""
-        opponent = self.data_manager.find_opponent(self.current_player)
-        if opponent:
-            self.root.clear_widgets()
-            combat = CombatScreen(self, opponent)
-            self.root.add_widget(combat)
-            # Switch to combat music
-            self.music_manager.play_combat()
-        else:
-            # Show error popup
-            popup = Popup(
-                title='Error',
-                content=Label(text='No opponent found!'),
-                size_hint=(0.5, 0.3)
-            )
-            popup.open()
+    def find_duel(self):
+        """Start queue-based duel finding"""
+        self.root.clear_widgets()
+        queue_screen = QueueScreen(self)
+        self.root.add_widget(queue_screen)
+        # Continue background music
+        self.music_manager.play_background()
+    
+    def start_duel(self, opponent):
+        """Start a duel with a specific opponent"""
+        self.root.clear_widgets()
+        combat = CombatScreen(self, opponent)
+        self.root.add_widget(combat)
+        # Switch to combat music
+        self.music_manager.play_combat()
     
     def show_leaderboard(self):
         """Show the leaderboard"""
