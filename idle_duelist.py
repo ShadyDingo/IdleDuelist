@@ -620,10 +620,10 @@ class PlayerData:
         return default_value
     
     def get_total_crit_chance(self) -> float:
-        """Calculate total critical hit chance"""
+        """Calculate total critical hit chance (BALANCED)"""
         base_crit = self.get_weapon_property('crit_chance', 0.0)
-        # Speed bonus to crit chance (faster = more crits)
-        speed_bonus = self.get_total_speed() * 0.005  # 0.5% per speed point
+        # Speed bonus to crit chance (BALANCED: reduced from 0.5% to 0.25% per speed point)
+        speed_bonus = self.get_total_speed() * 0.0025  # 0.25% per speed point
         # Armor set bonus crit chance
         set_bonuses = self.get_armor_set_bonus()
         set_crit_bonus = set_bonuses.get('crit_chance', 0.0)
@@ -638,24 +638,25 @@ class PlayerData:
         return base_penetration + set_penetration
     
     def get_dodge_chance(self) -> float:
-        """Calculate dodge chance based on speed"""
+        """Calculate dodge chance based on speed (BALANCED)"""
         speed = self.get_total_speed()
         # Higher speed = higher dodge chance, but with diminishing returns
+        # BALANCED: reduced from 1.5% to 1% per speed, and 0.5% to 0.25% above 20
         if speed <= 0:
             base_dodge = 0.0
         elif speed <= 20:
-            base_dodge = speed * 0.015  # 1.5% per speed point up to 20
+            base_dodge = speed * 0.01  # 1% per speed point up to 20 (was 1.5%)
         else:
             # Diminishing returns above 20 speed
-            base_dodge = 20 * 0.015  # 30% at 20 speed
-            extra_dodge = (speed - 20) * 0.005  # 0.5% per point above 20
+            base_dodge = 20 * 0.01  # 20% at 20 speed (was 30%)
+            extra_dodge = (speed - 20) * 0.0025  # 0.25% per point above 20 (was 0.5%)
             base_dodge += extra_dodge
         
         # Armor set bonus dodge chance
         set_bonuses = self.get_armor_set_bonus()
         set_dodge_bonus = set_bonuses.get('dodge_bonus', 0.0)
         
-        return min(0.5, base_dodge + set_dodge_bonus)  # Cap at 50%
+        return min(0.4, base_dodge + set_dodge_bonus)  # Cap at 40% (reduced from 50%)
     
     def can_equip_offhand(self) -> bool:
         """Check if offhand can be equipped (not using two-handed weapon)"""
@@ -2247,7 +2248,7 @@ class CombatScreen(FloatLayout):
         self.turn = 1
         self.player_hp = 100
         self.opponent_hp = 100
-        self.combat_log = []
+        self.combat_log = []  # Detailed text log
         self.combat_ended = False
         # Defending removed - attack only combat
         
@@ -2261,6 +2262,21 @@ class CombatScreen(FloatLayout):
         
         # Turn limit
         self.max_turns = 50
+        
+        # NEW: Combat speed control
+        self.combat_speed = 1.0  # 1x, 2x, or 3x
+        self.combat_speed_multiplier = 1.0
+        
+        # NEW: Combat log visibility
+        self.log_visible = False
+        
+        # NEW: Last damage breakdown for display
+        self.last_damage_breakdown = {}
+        
+        # NEW: Combo tracking
+        self.player_combo_count = 0
+        self.opponent_combo_count = 0
+        self.last_ability_user = None
         
         self.setup_ui()
         self.start_combat()
@@ -2277,23 +2293,64 @@ class CombatScreen(FloatLayout):
         )
         self.add_widget(background)
         
-        # Header with Turn label (skip button moved to visual combat area)
+        # Header with Turn label and controls
         header_container = BoxLayout(
             orientation='horizontal',
             size_hint=(1, 0.08),
             pos_hint={'x': 0, 'top': 0.95},
-            spacing=10,
-            padding=[10, 0, 10, 0]
+            spacing=5,
+            padding=[5, 0, 5, 0]
         )
         
+        # Turn label
         self.turn_label = Label(
             text='Turn 1',
-            font_size='18sp',
-            size_hint_x=1,
+            font_size='16sp',
+            size_hint_x=0.3,
             color=(1, 1, 1, 1)
         )
-        
         header_container.add_widget(self.turn_label)
+        
+        # Combat speed button
+        self.speed_btn = Button(
+            text='Speed: 1x',
+            font_size='12sp',
+            size_hint_x=0.25,
+            background_color=(0.3, 0.6, 0.9, 0.9)
+        )
+        self.speed_btn.bind(on_press=self.toggle_combat_speed)
+        header_container.add_widget(self.speed_btn)
+        
+        # Combat log toggle button
+        self.log_toggle_btn = Button(
+            text='Log: OFF',
+            font_size='12sp',
+            size_hint_x=0.25,
+            background_color=(0.6, 0.3, 0.9, 0.9)
+        )
+        self.log_toggle_btn.bind(on_press=self.toggle_combat_log)
+        header_container.add_widget(self.log_toggle_btn)
+        
+        # Damage breakdown button
+        self.breakdown_btn = Button(
+            text='Stats',
+            font_size='11sp',
+            size_hint_x=0.15,
+            background_color=(0.9, 0.6, 0.3, 0.9)
+        )
+        self.breakdown_btn.bind(on_press=self.show_damage_breakdown)
+        header_container.add_widget(self.breakdown_btn)
+        
+        # Abilities info button
+        self.abilities_btn = Button(
+            text='Info',
+            font_size='11sp',
+            size_hint_x=0.15,
+            background_color=(0.3, 0.9, 0.9, 0.9)
+        )
+        self.abilities_btn.bind(on_press=self.show_abilities_info)
+        header_container.add_widget(self.abilities_btn)
+        
         self.add_widget(header_container)
         
         # Combatants section (player vs opponent)
@@ -2439,6 +2496,61 @@ class CombatScreen(FloatLayout):
         
         # Hit splat container for floating damage numbers
         self.hit_splats = []
+        
+        # NEW: Combat log display (initially hidden)
+        self.combat_log_scroll = ScrollView(
+            size_hint=(0.95, 0.3),
+            pos_hint={'center_x': 0.5, 'bottom': 0.15},
+            opacity=0
+        )
+        self.combat_log_text = Label(
+            text='',
+            font_size='10sp',
+            color=(1, 1, 1, 1),
+            size_hint_y=None,
+            halign='left',
+            valign='top',
+            markup=True
+        )
+        self.combat_log_text.bind(texture_size=self.combat_log_text.setter('size'))
+        self.combat_log_scroll.add_widget(self.combat_log_text)
+        self.combat_area.add_widget(self.combat_log_scroll)
+        
+        # NEW: Status effect indicators containers
+        self.player_status_container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(0.35, 0.06),
+            pos_hint={'center_x': 0.25, 'center_y': 0.75},
+            spacing=2
+        )
+        self.opponent_status_container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(0.35, 0.06),
+            pos_hint={'center_x': 0.75, 'center_y': 0.75},
+            spacing=2
+        )
+        self.combat_area.add_widget(self.player_status_container)
+        self.combat_area.add_widget(self.opponent_status_container)
+        
+        # NEW: Combo counter displays
+        self.player_combo_label = Label(
+            text='',
+            font_size='14sp',
+            color=(1, 0.5, 0, 1),
+            size_hint=(0.2, 0.06),
+            pos_hint={'center_x': 0.25, 'center_y': 0.68},
+            bold=True
+        )
+        self.opponent_combo_label = Label(
+            text='',
+            font_size='14sp',
+            color=(1, 0.5, 0, 1),
+            size_hint=(0.2, 0.06),
+            pos_hint={'center_x': 0.75, 'center_y': 0.68},
+            bold=True
+        )
+        self.combat_area.add_widget(self.player_combo_label)
+        self.combat_area.add_widget(self.opponent_combo_label)
         
         self.add_widget(self.combat_area)
     
@@ -2597,7 +2709,7 @@ class CombatScreen(FloatLayout):
         anim.start(hit_splat)
     
     def create_ability_effect(self, ability: Dict, attacker_type: str):
-        """Create a brief ability icon effect"""
+        """Create a brief ability icon effect with enhanced visuals"""
         # Get ability image path
         ability_image_path = ability.get('image', 'assets/abilities/ability_divine_strike.PNG')
         
@@ -2612,10 +2724,228 @@ class CombatScreen(FloatLayout):
         # Add to combat area
         self.combat_area.add_widget(ability_icon)
         
-        # Animate the ability icon (fade in, stay, fade out)
-        anim_sequence = Animation(opacity=1, duration=0.3) + Animation(opacity=0, duration=1.0)
+        # NEW: Enhanced animation with scale effect
+        anim_sequence = (
+            Animation(opacity=1, size_hint=(0.18, 0.18), duration=0.2, t='out_back') + 
+            Animation(size_hint=(0.15, 0.15), duration=0.1) +
+            Animation(opacity=0, duration=0.8)
+        )
         anim_sequence.bind(on_complete=lambda *args: self.combat_area.remove_widget(ability_icon))
         anim_sequence.start(ability_icon)
+    
+    # NEW: Combat control methods
+    def toggle_combat_speed(self, instance):
+        """Toggle combat speed between 1x, 2x, and 3x"""
+        if self.combat_speed == 1.0:
+            self.combat_speed = 2.0
+            self.speed_btn.text = 'Speed: 2x'
+            self.speed_btn.background_color = (0.3, 0.9, 0.6, 0.9)
+        elif self.combat_speed == 2.0:
+            self.combat_speed = 3.0
+            self.speed_btn.text = 'Speed: 3x'
+            self.speed_btn.background_color = (0.9, 0.3, 0.3, 0.9)
+        else:
+            self.combat_speed = 1.0
+            self.speed_btn.text = 'Speed: 1x'
+            self.speed_btn.background_color = (0.3, 0.6, 0.9, 0.9)
+    
+    def toggle_combat_log(self, instance):
+        """Toggle combat log visibility"""
+        self.log_visible = not self.log_visible
+        if self.log_visible:
+            self.combat_log_scroll.opacity = 1
+            self.log_toggle_btn.text = 'Log: ON'
+            self.log_toggle_btn.background_color = (0.3, 0.9, 0.3, 0.9)
+        else:
+            self.combat_log_scroll.opacity = 0
+            self.log_toggle_btn.text = 'Log: OFF'
+            self.log_toggle_btn.background_color = (0.6, 0.3, 0.9, 0.9)
+    
+    def show_damage_breakdown(self, instance):
+        """Show popup with detailed damage breakdown"""
+        if not self.last_damage_breakdown:
+            return
+        
+        breakdown = self.last_damage_breakdown
+        breakdown_text = "[b]Last Attack Breakdown[/b]\n\n"
+        breakdown_text += f"Attacker: {breakdown.get('attacker', 'N/A')}\n"
+        breakdown_text += f"Defender: {breakdown.get('defender', 'N/A')}\n\n"
+        breakdown_text += f"Base Damage: {breakdown.get('base_damage', 0)}\n"
+        
+        if breakdown.get('crit', False):
+            breakdown_text += f"Critical Hit: x1.5\n"
+        if breakdown.get('damage_buffs', 0) > 0:
+            breakdown_text += f"Damage Buffs: +{breakdown.get('damage_buffs', 0)}%\n"
+        if breakdown.get('combo', 0) > 0:
+            breakdown_text += f"Combo Bonus: +{(breakdown.get('combo', 1) - 1) * 5}%\n"
+        if breakdown.get('armor_pen', 0) > 0:
+            breakdown_text += f"Armor Penetration: {breakdown.get('armor_pen', 0)}\n"
+        
+        breakdown_text += f"\nDefense: -{breakdown.get('defense', 0)}\n"
+        if breakdown.get('damage_reduction', 0) > 0:
+            breakdown_text += f"Damage Reduction: -{breakdown.get('damage_reduction', 0)}%\n"
+        
+        breakdown_text += f"\n[b]Final Damage: {breakdown.get('final_damage', 0)}[/b]"
+        
+        # Create popup
+        content = Label(text=breakdown_text, markup=True, halign='left', valign='top')
+        popup = Popup(
+            title='Damage Breakdown',
+            content=content,
+            size_hint=(0.8, 0.6)
+        )
+        popup.open()
+    
+    def show_abilities_info(self, instance):
+        """Show popup with abilities info for both players"""
+        # Create scrollable content
+        scroll = ScrollView(size_hint=(1, 1))
+        content_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=10, padding=10)
+        content_layout.bind(minimum_height=content_layout.setter('height'))
+        
+        # Player abilities
+        content_layout.add_widget(Label(
+            text=f"[b][color=00ff00]{self.app.current_player.username}'s Abilities[/color][/b]",
+            markup=True,
+            size_hint_y=None,
+            height=30,
+            font_size='14sp'
+        ))
+        
+        for ability_id in self.app.current_player.ability_loadout:
+            if ability_id and ability_id in ABILITY_DATA:
+                ability = ABILITY_DATA[ability_id]
+                ability_text = f"[b]{ability['name']}[/b]\n{ability['description']}\nCooldown: {ability['cooldown']} turns"
+                content_layout.add_widget(Label(
+                    text=ability_text,
+                    markup=True,
+                    size_hint_y=None,
+                    height=80,
+                    font_size='11sp',
+                    halign='left',
+                    valign='top',
+                    text_size=(300, None)
+                ))
+        
+        # Separator
+        content_layout.add_widget(Label(text='', size_hint_y=None, height=20))
+        
+        # Opponent abilities
+        content_layout.add_widget(Label(
+            text=f"[b][color=ff0000]{self.opponent.username}'s Abilities[/color][/b]",
+            markup=True,
+            size_hint_y=None,
+            height=30,
+            font_size='14sp'
+        ))
+        
+        for ability_id in self.opponent.ability_loadout:
+            if ability_id and ability_id in ABILITY_DATA:
+                ability = ABILITY_DATA[ability_id]
+                ability_text = f"[b]{ability['name']}[/b]\n{ability['description']}\nCooldown: {ability['cooldown']} turns"
+                content_layout.add_widget(Label(
+                    text=ability_text,
+                    markup=True,
+                    size_hint_y=None,
+                    height=80,
+                    font_size='11sp',
+                    halign='left',
+                    valign='top',
+                    text_size=(300, None)
+                ))
+        
+        scroll.add_widget(content_layout)
+        
+        # Create popup
+        popup = Popup(
+            title='Combat Abilities Info',
+            content=scroll,
+            size_hint=(0.9, 0.8)
+        )
+        popup.open()
+    
+    def _add_to_combat_log(self, message: str):
+        """Add message to combat log"""
+        self.combat_log.append(message)
+        # Update log text (keep last 20 messages)
+        log_text = '\n'.join(self.combat_log[-20:])
+        self.combat_log_text.text = log_text
+    
+    def update_status_indicators(self):
+        """Update status effect indicators for both players"""
+        # Clear existing indicators
+        self.player_status_container.clear_widgets()
+        self.opponent_status_container.clear_widgets()
+        
+        # Player status effects
+        for effect, data in self.app.current_player.status_effects.items():
+            if self._has_active_effect(data):
+                icon = self._get_status_icon(effect)
+                duration = self._get_effect_duration(data)
+                label = Label(
+                    text=f'{icon}{duration}',
+                    font_size='10sp',
+                    size_hint_x=None,
+                    width=30,
+                    color=(1, 1, 1, 1)
+                )
+                self.player_status_container.add_widget(label)
+        
+        # Opponent status effects
+        for effect, data in self.opponent.status_effects.items():
+            if self._has_active_effect(data):
+                icon = self._get_status_icon(effect)
+                duration = self._get_effect_duration(data)
+                label = Label(
+                    text=f'{icon}{duration}',
+                    font_size='10sp',
+                    size_hint_x=None,
+                    width=30,
+                    color=(1, 1, 1, 1)
+                )
+                self.opponent_status_container.add_widget(label)
+    
+    def _has_active_effect(self, data):
+        """Check if effect is active"""
+        if isinstance(data, dict):
+            return data.get('duration', 0) > 0 or data.get('damage', 0) > 0 or data.get('amount', 0) > 0
+        return False
+    
+    def _get_effect_duration(self, data):
+        """Get duration of effect"""
+        if isinstance(data, dict):
+            return data.get('duration', 0)
+        return 0
+    
+    def _get_status_icon(self, effect):
+        """Get icon for status effect"""
+        icons = {
+            'poison': '☠️',
+            'stun': '😵',
+            'invisible': '👻',
+            'slow': '🐌',
+            'shield': '🛡️'
+        }
+        return icons.get(effect, '?')
+    
+    def update_combo_display(self, attacker_type: str):
+        """Update combo counter display"""
+        if attacker_type == 'player':
+            if self.player_combo_count > 1:
+                self.player_combo_label.text = f'COMBO x{self.player_combo_count}!'
+                # Animate combo label
+                anim = Animation(font_size='16sp', duration=0.1) + Animation(font_size='14sp', duration=0.1)
+                anim.start(self.player_combo_label)
+            else:
+                self.player_combo_label.text = ''
+        else:
+            if self.opponent_combo_count > 1:
+                self.opponent_combo_label.text = f'COMBO x{self.opponent_combo_count}!'
+                # Animate combo label
+                anim = Animation(font_size='16sp', duration=0.1) + Animation(font_size='14sp', duration=0.1)
+                anim.start(self.opponent_combo_label)
+            else:
+                self.opponent_combo_label.text = ''
     
     def start_combat(self):
         """Start the automatic combat sequence"""
@@ -2647,6 +2977,10 @@ class CombatScreen(FloatLayout):
         
         # Update turn status
         self.combat_status.text = f"═══ TURN {self.turn} ═══"
+        self._add_to_combat_log(f"\n═══ TURN {self.turn} ═══")
+        
+        # NEW: Update status effect indicators
+        self.update_status_indicators()
         
         # Update health bars
         self.update_health_bar('player', self.player_hp)
@@ -2656,15 +2990,18 @@ class CombatScreen(FloatLayout):
         player_action = self.get_player_action()
         opponent_action = self.get_opponent_action()
         
+        # NEW: Calculate action delay based on combat speed
+        action_delay = 0.3 / self.combat_speed
+        
         # Execute actions based on turn order
         if self.player_first:
             self.execute_action(self.app.current_player, self.opponent, player_action, 'player')
             if not self.combat_ended:
-                Clock.schedule_once(lambda dt: self.execute_action(self.opponent, self.app.current_player, opponent_action, 'opponent'), 0.3)
+                Clock.schedule_once(lambda dt: self.execute_action(self.opponent, self.app.current_player, opponent_action, 'opponent'), action_delay)
         else:
             self.execute_action(self.opponent, self.app.current_player, opponent_action, 'opponent')
             if not self.combat_ended:
-                Clock.schedule_once(lambda dt: self.execute_action(self.app.current_player, self.opponent, player_action, 'player'), 0.3)
+                Clock.schedule_once(lambda dt: self.execute_action(self.app.current_player, self.opponent, player_action, 'player'), action_delay)
         
         # Check if combat continues
         if not self.combat_ended:
@@ -2675,11 +3012,13 @@ class CombatScreen(FloatLayout):
             # Check turn limit
             if self.turn >= self.max_turns:
                 self.combat_status.text = f"⏰ Turn limit reached! ({self.max_turns} turns)"
+                self._add_to_combat_log(f"⏰ Turn limit reached! ({self.max_turns} turns)")
                 self.end_combat_by_damage()
                 return
             
-            # Schedule next turn with faster speed for better gameplay
-            Clock.schedule_once(self.execute_turn, 0.7)
+            # NEW: Schedule next turn with combat speed multiplier
+            turn_delay = 0.7 / self.combat_speed
+            Clock.schedule_once(self.execute_turn, turn_delay)
     
     def get_player_action(self) -> str:
         """Get player action - simplified to attack only"""
@@ -2752,6 +3091,9 @@ class CombatScreen(FloatLayout):
         if not counterplay_applied:
             # Show ability usage in combat status
             self.combat_status.text = f"✨ {attacker.username} uses {ability['name']}!"
+            self._add_to_combat_log(f"✨ {attacker.username} uses {ability['name']}!")
+        else:
+            self._add_to_combat_log(f"🛡️ {defender.username}'s ability counters {ability['name']}!")
         
         # Show ability icon briefly
         self.create_ability_effect(ability, attacker_type)
@@ -2847,20 +3189,50 @@ class CombatScreen(FloatLayout):
             attacker.status_effects['slow']['duration'] = 0
     
     def _execute_attack(self, attacker: PlayerData, defender: PlayerData, attacker_type: str):
-        """Execute a regular attack"""
-        # Check if attacker is stunned
-        if defender.status_effects['stun']['duration'] > 0:
+        """Execute a regular attack with enhanced tracking and combo system"""
+        # Check if attacker is stunned (BUG FIX: was checking defender instead of attacker)
+        if attacker.status_effects['stun']['duration'] > 0:
             self.combat_status.text = f"😵 {attacker.username} is stunned!"
+            self._add_to_combat_log(f"😵 {attacker.username} is stunned and cannot attack!")
+            # Reset combo
+            if attacker_type == 'player':
+                self.player_combo_count = 0
+            else:
+                self.opponent_combo_count = 0
+            self.update_combo_display(attacker_type)
             return
         
         # Check for dodge first
         dodge_chance = defender.get_dodge_chance()
         if random.random() < dodge_chance:
             self.combat_status.text = f"💨 {defender.username} dodges!"
+            self._add_to_combat_log(f"💨 {defender.username} dodges the attack!")
+            # Reset combo on dodge
+            if attacker_type == 'player':
+                self.player_combo_count = 0
+            else:
+                self.opponent_combo_count = 0
+            self.update_combo_display(attacker_type)
             return
         
+        # NEW: Track combo (increment if same attacker, reset if different)
+        if self.last_ability_user == attacker_type:
+            if attacker_type == 'player':
+                self.player_combo_count += 1
+            else:
+                self.opponent_combo_count += 1
+        else:
+            if attacker_type == 'player':
+                self.player_combo_count = 1
+                self.opponent_combo_count = 0
+            else:
+                self.opponent_combo_count = 1
+                self.player_combo_count = 0
+        self.last_ability_user = attacker_type
+        
         # Calculate base damage
-        base_damage = attacker.get_total_damage()
+        base_damage_original = attacker.get_total_damage()
+        base_damage = base_damage_original
         
         # Apply faction passive bonuses
         faction_data = attacker.get_faction_data()
@@ -2869,21 +3241,37 @@ class CombatScreen(FloatLayout):
             pass  # Already handled in get_total_crit_chance
         
         # Apply active buffs
+        damage_buff_percent = 0
         if 'damage_multiplier' in attacker.active_buffs:
-            base_damage = int(base_damage * attacker.active_buffs['damage_multiplier'])
+            multiplier = attacker.active_buffs['damage_multiplier']
+            base_damage = int(base_damage * multiplier)
+            damage_buff_percent = int((multiplier - 1) * 100)
             del attacker.active_buffs['damage_multiplier']  # Remove after use
         
         # Apply faction secondary passive bonuses
         secondary_passives = attacker.get_faction_secondary_passive()
         if 'stealth_damage_bonus' in secondary_passives and attacker.status_effects['invisible']['duration'] > 0:
-            base_damage = int(base_damage * (1 + secondary_passives['stealth_damage_bonus']))
+            bonus = secondary_passives['stealth_damage_bonus']
+            base_damage = int(base_damage * (1 + bonus))
+            damage_buff_percent += int(bonus * 100)
         if 'nature_affinity_bonus' in secondary_passives and defender.status_effects['slow']['duration'] > 0:
-            base_damage = int(base_damage * (1 + secondary_passives['nature_affinity_bonus']))
+            bonus = secondary_passives['nature_affinity_bonus']
+            base_damage = int(base_damage * (1 + bonus))
+            damage_buff_percent += int(bonus * 100)
         
         # Apply armor set bonuses
         set_bonuses = attacker.get_armor_set_bonus()
         if 'damage_bonus' in set_bonuses:
-            base_damage = int(base_damage * (1 + set_bonuses['damage_bonus']))
+            bonus = set_bonuses['damage_bonus']
+            base_damage = int(base_damage * (1 + bonus))
+            damage_buff_percent += int(bonus * 100)
+        
+        # NEW: Apply combo bonus (5% per combo hit, max 25%)
+        combo_count = self.player_combo_count if attacker_type == 'player' else self.opponent_combo_count
+        if combo_count > 1:
+            combo_bonus = min(0.25, (combo_count - 1) * 0.05)
+            base_damage = int(base_damage * (1 + combo_bonus))
+            damage_buff_percent += int(combo_bonus * 100)
         
         # Check for critical hit
         crit_chance = attacker.get_total_crit_chance()
@@ -2897,35 +3285,57 @@ class CombatScreen(FloatLayout):
         effective_defense = max(0, total_defense - armor_penetration)
         
         # Apply faction passive defense bonus
+        damage_reduction_percent = 0
         if defender.get_faction_data()['passive'] == 'divine_protection':
             damage_reduction = defender.get_faction_passive_bonus()
             base_damage = int(base_damage * (1 - damage_reduction))
+            damage_reduction_percent = int(damage_reduction * 100)
         
         # Apply armor set bonus damage reduction
         defender_set_bonuses = defender.get_armor_set_bonus()
         if 'damage_reduction' in defender_set_bonuses:
-            base_damage = int(base_damage * (1 - defender_set_bonuses['damage_reduction']))
-        
-        # Defense stance bonus removed (no more defending)
+            reduction = defender_set_bonuses['damage_reduction']
+            base_damage = int(base_damage * (1 - reduction))
+            damage_reduction_percent += int(reduction * 100)
         
         # Calculate final damage
         actual_damage = max(1, base_damage - effective_defense)
         
+        # NEW: Store damage breakdown for stats button
+        self.last_damage_breakdown = {
+            'attacker': attacker.username,
+            'defender': defender.username,
+            'base_damage': base_damage_original,
+            'crit': is_critical,
+            'damage_buffs': damage_buff_percent,
+            'armor_pen': armor_penetration,
+            'defense': effective_defense,
+            'damage_reduction': damage_reduction_percent,
+            'final_damage': actual_damage,
+            'combo': combo_count if combo_count > 1 else 0
+        }
+        
         # Show attack in combat status and create hit splat
+        combo_text = f" (COMBO x{combo_count})" if combo_count > 1 else ""
         if is_critical:
-            self.combat_status.text = f"⚡ {attacker.username} CRITS for {actual_damage} damage!"
+            self.combat_status.text = f"⚡ {attacker.username} CRITS for {actual_damage} damage!{combo_text}"
+            self._add_to_combat_log(f"⚡ {attacker.username} lands a CRITICAL HIT for {actual_damage} damage!{combo_text}")
             # Create critical hit splat
             if attacker_type == 'player':
                 self.create_hit_splat(actual_damage, 0.75, 0.5, is_critical=True)
             else:
                 self.create_hit_splat(actual_damage, 0.25, 0.5, is_critical=True)
         else:
-            self.combat_status.text = f"⚔️ {attacker.username} attacks for {actual_damage} damage!"
+            self.combat_status.text = f"⚔️ {attacker.username} attacks for {actual_damage} damage!{combo_text}"
+            self._add_to_combat_log(f"⚔️ {attacker.username} attacks for {actual_damage} damage!{combo_text}")
             # Create normal hit splat
             if attacker_type == 'player':
                 self.create_hit_splat(actual_damage, 0.75, 0.5)
             else:
                 self.create_hit_splat(actual_damage, 0.25, 0.5)
+        
+        # NEW: Update combo display
+        self.update_combo_display(attacker_type)
         
         # Apply damage
         self._apply_damage(defender, actual_damage, attacker_type, "attack")
@@ -2935,6 +3345,7 @@ class CombatScreen(FloatLayout):
             reflect_damage = int(actual_damage * defender_set_bonuses['damage_reflect'])
             if reflect_damage > 0:
                 self.combat_status.text = f"⚡ {defender.username} reflects {reflect_damage} damage back!"
+                self._add_to_combat_log(f"⚡ {defender.username} reflects {reflect_damage} damage!")
                 self._apply_damage(attacker, reflect_damage, 'opponent' if attacker_type == 'player' else 'player', "reflect")
     
     def _apply_damage(self, defender: PlayerData, damage: int, attacker_type: str, source: str):
