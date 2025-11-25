@@ -356,8 +356,12 @@ def initialize_default_data():
             ))
     
     # Initialize PvE enemies (30 specific enemies with exact stats and rewards)
-    # Clear existing enemies before inserting updated list
-    cursor.execute("DELETE FROM pve_enemies")
+    # Only clear if we need to update - check if enemies exist first
+    cursor.execute("SELECT COUNT(*) as count FROM pve_enemies")
+    enemy_count = cursor.fetchone()['count'] if USE_POSTGRES else cursor.fetchone()[0]
+    # Only delete if we have enemies (means we're updating, not initializing)
+    if enemy_count > 0:
+        cursor.execute("DELETE FROM pve_enemies")
     
     # Balanced PvE enemies - roughly 2.5-3x level in total stats for appropriate challenge
     # Enemies should be beatable by similarly-leveled players with decent equipment
@@ -395,16 +399,40 @@ def initialize_default_data():
     ]
     
     for i, enemy in enumerate(pve_enemies_data):
-        cursor.execute('''
-            INSERT OR REPLACE INTO pve_enemies 
-            (id, name, level, stats_json, description, story_order, unlocked_at_level, gold_min, gold_max, drop_chance)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            enemy['id'], enemy['name'], enemy['level'],
-            json.dumps(enemy['stats']), enemy['description'],
-            i + 1, enemy['level'],  # story_order and unlocked_at_level
-            enemy['gold_min'], enemy['gold_max'], enemy['drop_chance']
-        ))
+        if USE_POSTGRES:
+            # PostgreSQL uses ON CONFLICT
+            cursor.execute('''
+                INSERT INTO pve_enemies 
+                (id, name, level, stats_json, description, story_order, unlocked_at_level, gold_min, gold_max, drop_chance)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    level = EXCLUDED.level,
+                    stats_json = EXCLUDED.stats_json,
+                    description = EXCLUDED.description,
+                    story_order = EXCLUDED.story_order,
+                    unlocked_at_level = EXCLUDED.unlocked_at_level,
+                    gold_min = EXCLUDED.gold_min,
+                    gold_max = EXCLUDED.gold_max,
+                    drop_chance = EXCLUDED.drop_chance
+            ''', (
+                enemy['id'], enemy['name'], enemy['level'],
+                json.dumps(enemy['stats']), enemy['description'],
+                i + 1, enemy['level'],  # story_order and unlocked_at_level
+                enemy['gold_min'], enemy['gold_max'], enemy['drop_chance']
+            ))
+        else:
+            # SQLite uses INSERT OR REPLACE
+            cursor.execute('''
+                INSERT OR REPLACE INTO pve_enemies 
+                (id, name, level, stats_json, description, story_order, unlocked_at_level, gold_min, gold_max, drop_chance)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                enemy['id'], enemy['name'], enemy['level'],
+                json.dumps(enemy['stats']), enemy['description'],
+                i + 1, enemy['level'],  # story_order and unlocked_at_level
+                enemy['gold_min'], enemy['gold_max'], enemy['drop_chance']
+            ))
     
     # Initialize store items (Common rarity only, all weapon types)
     store_items = []
@@ -1269,13 +1297,20 @@ async def start_combat(request: Dict = Body(...), current_user: dict = Depends(g
         combat_id = initialize_combat_state(character_id, opponent_data, is_pvp)
         
         return {"success": True, "combat_id": combat_id}
-    except HTTPException:
-        raise
+    except HTTPException as e:
+        # Re-raise HTTP exceptions as-is
+        raise e
     except Exception as e:
         import traceback
-        print(f"Error starting combat: {e}")
+        error_msg = f"Error starting combat: {str(e)}"
+        print(error_msg)
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        # Return JSON error instead of raising to ensure frontend gets proper response
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "detail": error_msg}
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -3397,6 +3432,12 @@ async def startup_event():
     init_database()
     # Initialize Redis connection
     get_redis_client()
+    # Log database type for debugging
+    if USE_POSTGRES:
+        print("✓ Using PostgreSQL database (persistent)")
+    else:
+        print("⚠ WARNING: Using SQLite database (NOT PERSISTENT on Railway!)")
+        print("⚠ User data will be lost on each deployment. Add PostgreSQL service in Railway.")
 
 if __name__ == "__main__":
     import uvicorn

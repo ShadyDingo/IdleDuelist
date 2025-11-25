@@ -2394,6 +2394,20 @@
                     body: JSON.stringify(requestBody)
                 });
                 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorDetail = 'Unknown error';
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorDetail = errorJson.detail || errorJson.message || errorText;
+                    } catch (e) {
+                        errorDetail = errorText || `HTTP ${response.status}`;
+                    }
+                    alert('Error starting combat: ' + errorDetail);
+                    console.error('Combat start error:', response.status, errorDetail);
+                    return;
+                }
+                
                 const result = await response.json();
                 
                 if (result.success) {
@@ -2403,6 +2417,7 @@
                     loadAbilities();
                 } else {
                     alert('Error starting combat: ' + (result.detail || 'Unknown error'));
+                    console.error('Combat start failed:', result);
                 }
             } catch (error) {
                 console.error('Error starting combat:', error);
