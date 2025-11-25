@@ -1059,7 +1059,8 @@ async def allocate_skills(character_id: str, request: AllocateSkillsRequest, cur
             raise HTTPException(status_code=404, detail="Character not found")
         
         current_stats = json.loads(character['stats_json'])
-        available_points = character.get('skill_points', 0)
+        # SQLite Row objects use dictionary-style access
+        available_points = character['skill_points'] if character['skill_points'] is not None else 0
         
         # Ensure all stats are present in request
         for stat in PRIMARY_STATS:
@@ -3629,11 +3630,12 @@ async def get_pvp_leaderboard(limit: int = 50, offset: int = 0):
         leaderboard = []
         rank = offset + 1
         for row in cursor.fetchall():
-            wins = row.get('pvp_wins') if row.get('pvp_wins') is not None else 0
-            losses = row.get('pvp_losses') if row.get('pvp_losses') is not None else 0
+            # SQLite Row objects use dictionary-style access, not .get()
+            wins = row['pvp_wins'] if row['pvp_wins'] is not None else 0
+            losses = row['pvp_losses'] if row['pvp_losses'] is not None else 0
             total_games = wins + losses
             win_rate = (wins / total_games * 100) if total_games > 0 else 0.0
-            mmr = row.get('pvp_mmr') if row.get('pvp_mmr') is not None else 1000
+            mmr = row['pvp_mmr'] if row['pvp_mmr'] is not None else 1000
             
             leaderboard.append({
                 'rank': rank,

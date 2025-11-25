@@ -948,19 +948,6 @@
             border: 1px solid var(--border-color);
         }
 
-        /* Chat Resize Handle */
-        #chat-resize-handle {
-            transition: background-color 0.2s;
-        }
-
-        #chat-resize-handle:hover {
-            background: var(--text-accent);
-        }
-
-        #chat-resize-handle:hover > div {
-            background: var(--bg-primary);
-            opacity: 1;
-        }
 
         .chat-message {
             margin-bottom: 10px;
@@ -1163,6 +1150,7 @@
             <button class="nav-btn" onclick="showScreen('combat')">Combat</button>
             <button class="nav-btn" onclick="showScreen('store')">Store</button>
             <button class="nav-btn" onclick="showScreen('leaderboard')">Leaderboard</button>
+            <button class="nav-btn" onclick="showScreen('chat')">Chat</button>
         </div>
 
         <!-- Screen Container -->
@@ -1377,18 +1365,27 @@
                     <p style="text-align: center; color: var(--text-secondary);">Loading leaderboard...</p>
                 </div>
             </div>
-        </div>
 
-        <!-- Persistent Global Chat Container -->
-        <div id="persistent-chat" style="position: fixed; bottom: 0; left: 0; right: 0; height: 16.67vh; min-height: 150px; max-height: 80vh; background: var(--bg-primary); border-top: 2px solid var(--border-color); z-index: 1000; display: flex; flex-direction: column;">
-            <!-- Resize Handle -->
-            <div id="chat-resize-handle" style="height: 8px; background: var(--border-color); cursor: ns-resize; position: relative; flex-shrink: 0; user-select: none;">
-                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 4px; background: var(--text-secondary); border-radius: 2px; opacity: 0.6;"></div>
+            <!-- Chat Screen -->
+            <div id="chat-screen" class="screen">
+                <h2 style="margin-bottom: 20px;">Global Chat</h2>
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages"></div>
+                    <div style="display: flex; gap: 10px; margin-top: 15px;">
+                        <input type="text" id="chat-input" placeholder="Type your message..." maxlength="500" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px;" onkeypress="if(event.key==='Enter') sendChatMessage()">
+                        <button class="combat-action-btn" onclick="sendChatMessage()">Send</button>
+                    </div>
+                </div>
             </div>
-            <div style="flex: 1; overflow-y: auto; padding: 10px; background: var(--bg-tertiary);" id="chat-messages"></div>
-            <div style="display: flex; gap: 10px; padding: 10px; border-top: 1px solid var(--border-color); flex-shrink: 0;">
-                <input type="text" id="chat-input" placeholder="Type your message..." maxlength="500" style="flex: 1; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 5px; color: var(--text-primary);" onkeypress="if(event.key==='Enter') sendChatMessage()">
-                <button class="combat-action-btn" onclick="sendChatMessage()">Send</button>
+        </div>
+    </div>
+
+    <!-- Skill Info Modal -->
+    <div class="modal" id="skill-info-modal" onclick="if(event.target.id === 'skill-info-modal') closeSkillInfoModal()">
+        <div class="modal-content" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
+            <div id="skill-info-content"></div>
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button class="modal-btn modal-btn-primary" onclick="closeSkillInfoModal()" style="width: 100%;">Close</button>
             </div>
         </div>
     </div>
@@ -1450,67 +1447,9 @@
         const USER_ID_KEY = 'idleUserId';
         const CHARACTER_ID_KEY = 'idleCharacterId';
         const USERNAME_KEY = 'idleUsername';
-        const CHAT_HEIGHT_KEY = 'idleChatHeight';
         let currentUserId = localStorage.getItem(USER_ID_KEY);
         let currentCharacterId = localStorage.getItem(CHARACTER_ID_KEY);
         let characterData = null;
-        
-        // Chat resize functionality
-        let isResizingChat = false;
-        let chatResizeStartY = 0;
-        let chatResizeStartHeight = 0;
-        
-        function initializeChatResize() {
-            const chatContainer = document.getElementById('persistent-chat');
-            const resizeHandle = document.getElementById('chat-resize-handle');
-            
-            // Load saved height or use default
-            const savedHeight = localStorage.getItem(CHAT_HEIGHT_KEY);
-            if (savedHeight) {
-                chatContainer.style.height = savedHeight + 'px';
-            }
-            
-            // Mouse down on resize handle
-            resizeHandle.addEventListener('mousedown', (e) => {
-                isResizingChat = true;
-                chatResizeStartY = e.clientY;
-                chatResizeStartHeight = chatContainer.offsetHeight;
-                document.body.style.cursor = 'ns-resize';
-                document.body.style.userSelect = 'none';
-                e.preventDefault();
-            });
-            
-            // Mouse move while resizing
-            document.addEventListener('mousemove', (e) => {
-                if (!isResizingChat) return;
-                
-                const deltaY = chatResizeStartY - e.clientY; // Inverted because we're resizing from bottom
-                const newHeight = Math.max(150, Math.min(window.innerHeight * 0.8, chatResizeStartHeight + deltaY));
-                
-                chatContainer.style.height = newHeight + 'px';
-                e.preventDefault();
-            });
-            
-            // Mouse up - stop resizing
-            document.addEventListener('mouseup', () => {
-                if (isResizingChat) {
-                    isResizingChat = false;
-                    document.body.style.cursor = '';
-                    document.body.style.userSelect = '';
-                    
-                    // Save height to localStorage
-                    const currentHeight = chatContainer.offsetHeight;
-                    localStorage.setItem(CHAT_HEIGHT_KEY, currentHeight.toString());
-                }
-            });
-        }
-        
-        // Initialize chat resize on page load
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeChatResize);
-        } else {
-            initializeChatResize();
-        }
         
         // Helper function to get auth headers
         function getAuthHeaders() {
@@ -2195,9 +2134,28 @@
         function showSkillInfo(stat) {
             const description = getStatDescription(stat);
             if (description) {
-                alert(description.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' '));
+                const modal = document.getElementById('skill-info-modal');
+                const content = document.getElementById('skill-info-content');
+                const statName = stat.charAt(0).toUpperCase() + stat.slice(1);
+                content.innerHTML = `<h2>${statName} Information</h2><div style="line-height: 1.8; color: var(--text-primary);">${description}</div>`;
+                modal.classList.add('active');
             }
         }
+
+        function closeSkillInfoModal() {
+            const modal = document.getElementById('skill-info-modal');
+            modal.classList.remove('active');
+        }
+
+        // Close skill info modal on ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const skillModal = document.getElementById('skill-info-modal');
+                if (skillModal && skillModal.classList.contains('active')) {
+                    closeSkillInfoModal();
+                }
+            }
+        });
 
         function getStatDescription(stat) {
             const descriptions = {
@@ -3448,6 +3406,8 @@
                 loadStoreItems();
             } else if (screenName === 'leaderboard') {
                 loadLeaderboard();
+            } else if (screenName === 'chat') {
+                loadChatMessages();
             }
         }
         
