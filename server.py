@@ -1046,54 +1046,69 @@ async def update_combat_stance(character_id: str, request: Dict = Body(...), cur
 @app.post("/api/character/{character_id}/skills")
 async def allocate_skills(character_id: str, request: AllocateSkillsRequest, current_user: dict = Depends(get_current_user)):
     """Allocate skill points"""
-    user_id = current_user["user_id"]
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT * FROM characters WHERE id = ? AND user_id = ?", (character_id, user_id))
-    character = cursor.fetchone()
-    
-    if not character:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Character not found")
-    
-    current_stats = json.loads(character['stats_json'])
-    available_points = character['skill_points']
-    
-    # Calculate total points being allocated
-    total_new_points = sum(request.stats.values())
-    total_current_points = sum(current_stats.values())
-    base_points = len(PRIMARY_STATS) * 10  # Starting 10 in each
-    
-    points_used = total_current_points - base_points
-    new_points_used = sum(request.stats.values()) - base_points
-    
-    # Validate points
-    if new_points_used > points_used + available_points:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Not enough skill points")
-    
-    # Validate stat values (min 1, max 100 base)
-    for stat, value in request.stats.items():
-        if stat not in PRIMARY_STATS:
+    try:
+        user_id = current_user["user_id"]
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM characters WHERE id = ? AND user_id = ?", (character_id, user_id))
+        character = cursor.fetchone()
+        
+        if not character:
             conn.close()
-            raise HTTPException(status_code=400, detail=f"Invalid stat: {stat}")
-        if value < 1 or value > 100:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        current_stats = json.loads(character['stats_json'])
+        available_points = character.get('skill_points', 0)
+        
+        # Ensure all stats are present in request
+        for stat in PRIMARY_STATS:
+            if stat not in request.stats:
+                request.stats[stat] = current_stats.get(stat, 10)
+        
+        # Calculate total points being allocated
+        total_new_points = sum(request.stats.values())
+        total_current_points = sum(current_stats.values())
+        base_points = len(PRIMARY_STATS) * 10  # Starting 10 in each
+        
+        points_used = total_current_points - base_points
+        new_points_used = total_new_points - base_points
+        
+        # Validate points
+        if new_points_used > points_used + available_points:
             conn.close()
-            raise HTTPException(status_code=400, detail=f"Stat {stat} must be between 1 and 100")
-    
-    # Update stats
-    new_skill_points = available_points - (new_points_used - points_used)
-    
-    cursor.execute(
-        "UPDATE characters SET stats_json = ?, skill_points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-        (json.dumps(request.stats), new_skill_points, character_id)
-    )
-    
-    conn.commit()
-    conn.close()
-    
-    return {"success": True, "message": "Skills allocated successfully"}
+            raise HTTPException(status_code=400, detail="Not enough skill points")
+        
+        # Validate stat values (min 1, max 100 base)
+        for stat, value in request.stats.items():
+            if stat not in PRIMARY_STATS:
+                conn.close()
+                raise HTTPException(status_code=400, detail=f"Invalid stat: {stat}")
+            if value < 1 or value > 100:
+                conn.close()
+                raise HTTPException(status_code=400, detail=f"Stat {stat} must be between 1 and 100")
+        
+        # Update stats
+        new_skill_points = available_points - (new_points_used - points_used)
+        
+        cursor.execute(
+            "UPDATE characters SET stats_json = ?, skill_points = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (json.dumps(request.stats), new_skill_points, character_id)
+        )
+        
+        conn.commit()
+        conn.close()
+        
+        return {"success": True, "message": "Skills allocated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error in allocate_skills endpoint: {e}")
+        print(traceback.format_exc())
+        if 'conn' in locals():
+            conn.close()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # Equipment endpoints
 @app.post("/api/equipment/drop")
@@ -1497,30 +1512,42 @@ async def start_combat(request: Dict = Body(...), current_user: dict = Depends(g
 @app.get("/api/combat/state/{combat_id}")
 async def get_combat_state_endpoint(combat_id: str):
     """Get current combat state (polling endpoint)"""
-    state = get_combat_state(combat_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail="Combat not found")
-    
-    # Process combat turns if active
-    if state['is_active']:
-        process_combat_turns(combat_id)
-    
-    # Get visual events and clear them (so frontend only gets new events)
-    visual_events = state.get('visual_events', [])
-    
-    # Debug: log visual events being sent
-    if visual_events:
-        print(f"[DEBUG] Sending {len(visual_events)} visual events for combat {combat_id}: {[e.get('type') for e in visual_events]}")
-    
-    response = {"success": True, "combat": state}
-    # Always include visual_events array, even if empty
-    response['visual_events'] = visual_events
-    
-    # Clear after sending (so frontend only gets new events)
-    state['visual_events'] = []
-    set_combat_state(combat_id, state)  # Save updated state
-    
-    return response
+    try:
+        state = get_combat_state(combat_id)
+        if state is None:
+            raise HTTPException(status_code=404, detail="Combat not found")
+        
+        # Process combat turns if active
+        if state.get('is_active', False):
+            process_combat_turns(combat_id)
+            # Re-fetch state after processing (in case combat ended)
+            state = get_combat_state(combat_id)
+            if state is None:
+                raise HTTPException(status_code=404, detail="Combat not found")
+        
+        # Get visual events and clear them (so frontend only gets new events)
+        visual_events = state.get('visual_events', [])
+        
+        # Debug: log visual events being sent
+        if visual_events:
+            print(f"[DEBUG] Sending {len(visual_events)} visual events for combat {combat_id}: {[e.get('type') for e in visual_events]}")
+        
+        response = {"success": True, "combat": state}
+        # Always include visual_events array, even if empty
+        response['visual_events'] = visual_events
+        
+        # Clear after sending (so frontend only gets new events)
+        state['visual_events'] = []
+        set_combat_state(combat_id, state)  # Save updated state
+        
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error in get_combat_state_endpoint: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 def process_combat_turns(combat_id: str):
     """Process combat turns based on attack speeds"""
@@ -1575,6 +1602,10 @@ def process_combat_turns(combat_id: str):
     # Check for combat end
     if player1['current_hp'] <= 0 or player2['current_hp'] <= 0:
         end_combat(combat_id)
+        # State is saved inside end_combat, but ensure it's persisted
+        final_state = get_combat_state(combat_id)
+        if final_state:
+            set_combat_state(combat_id, final_state)
 
 def perform_auto_attack(state: Dict, attacker_key: str, defender_key: str):
     """Perform an auto-attack"""
@@ -2225,6 +2256,17 @@ def end_combat(combat_id: str):
             
             conn.commit()
             conn.close()
+        
+        # Always save the state after updating (even if no rewards for player)
+        set_combat_state(combat_id, state)
+    else:
+        # Player lost - still store empty rewards for frontend
+        state['rewards'] = {
+            'exp_gained': 0,
+            'gold_gained': 0,
+            'equipment_dropped': False
+        }
+        set_combat_state(combat_id, state)
 
 @app.post("/api/combat/end/{combat_id}")
 async def end_combat_endpoint(combat_id: str):
@@ -3560,54 +3602,61 @@ async def get_pvp_opponents(character_id: str, max_level_diff: int = 5, current_
 @app.get("/api/pvp/leaderboard")
 async def get_pvp_leaderboard(limit: int = 50, offset: int = 0):
     """Get PVP leaderboard (ranked by MMR)"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Get top players by MMR (default to 1000 if not set)
-    if USE_POSTGRES:
-        cursor.execute("""
-            SELECT id, name, level, 
-                   COALESCE(pvp_mmr, 1000) as pvp_mmr,
-                   COALESCE(pvp_wins, 0) as pvp_wins,
-                   COALESCE(pvp_losses, 0) as pvp_losses
-            FROM characters
-            ORDER BY COALESCE(pvp_mmr, 1000) DESC, COALESCE(pvp_wins, 0) DESC
-            LIMIT %s OFFSET %s
-        """, (limit, offset))
-    else:
-        cursor.execute("""
-            SELECT id, name, level, 
-                   COALESCE(pvp_mmr, 1000) as pvp_mmr,
-                   COALESCE(pvp_wins, 0) as pvp_wins,
-                   COALESCE(pvp_losses, 0) as pvp_losses
-            FROM characters
-            ORDER BY COALESCE(pvp_mmr, 1000) DESC, COALESCE(pvp_wins, 0) DESC
-            LIMIT ? OFFSET ?
-        """, (limit, offset))
-    
-    leaderboard = []
-    rank = offset + 1
-    for row in cursor.fetchall():
-        wins = row.get('pvp_wins', 0) or 0
-        losses = row.get('pvp_losses', 0) or 0
-        total_games = wins + losses
-        win_rate = (wins / total_games * 100) if total_games > 0 else 0.0
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-        leaderboard.append({
-            'rank': rank,
-            'id': row['id'],
-            'name': row['name'],
-            'level': row['level'],
-            'mmr': row.get('pvp_mmr', 1000) or 1000,
-            'wins': wins,
-            'losses': losses,
-            'win_rate': round(win_rate, 2)
-        })
-        rank += 1
-    
-    conn.close()
-    
-    return {"success": True, "leaderboard": leaderboard}
+        # Get top players by MMR (default to 1000 if not set)
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT id, name, level, 
+                       COALESCE(pvp_mmr, 1000) as pvp_mmr,
+                       COALESCE(pvp_wins, 0) as pvp_wins,
+                       COALESCE(pvp_losses, 0) as pvp_losses
+                FROM characters
+                ORDER BY COALESCE(pvp_mmr, 1000) DESC, COALESCE(pvp_wins, 0) DESC
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
+        else:
+            cursor.execute("""
+                SELECT id, name, level, pvp_mmr, pvp_wins, pvp_losses
+                FROM characters
+                ORDER BY CASE WHEN pvp_mmr IS NULL THEN 1000 ELSE pvp_mmr END DESC, 
+                         CASE WHEN pvp_wins IS NULL THEN 0 ELSE pvp_wins END DESC
+                LIMIT ? OFFSET ?
+            """, (limit, offset))
+        
+        leaderboard = []
+        rank = offset + 1
+        for row in cursor.fetchall():
+            wins = row.get('pvp_wins') if row.get('pvp_wins') is not None else 0
+            losses = row.get('pvp_losses') if row.get('pvp_losses') is not None else 0
+            total_games = wins + losses
+            win_rate = (wins / total_games * 100) if total_games > 0 else 0.0
+            mmr = row.get('pvp_mmr') if row.get('pvp_mmr') is not None else 1000
+            
+            leaderboard.append({
+                'rank': rank,
+                'id': row['id'],
+                'name': row['name'],
+                'level': row['level'],
+                'mmr': mmr,
+                'wins': wins,
+                'losses': losses,
+                'win_rate': round(win_rate, 2)
+            })
+            rank += 1
+        
+        conn.close()
+        
+        return {"success": True, "leaderboard": leaderboard}
+    except Exception as e:
+        import traceback
+        print(f"Error in leaderboard endpoint: {e}")
+        print(traceback.format_exc())
+        if 'conn' in locals():
+            conn.close()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/pvp/queue-status")
 async def get_pvp_queue_status(character_id: str):
