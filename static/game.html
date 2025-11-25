@@ -227,6 +227,7 @@
             background: var(--bg-card);
             border-radius: 16px;
             padding: 30px;
+            padding-bottom: calc(16.67vh + 60px); /* Account for persistent chat */
             border: 1px solid var(--border-color);
             min-height: 500px;
         }
@@ -1132,7 +1133,12 @@
                 </div>
                 <div class="level-badge">Lv. <span id="level-display">1</span></div>
             </div>
-            <button class="logout-btn" onclick="logout()">Logout</button>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div style="color: var(--text-secondary); font-size: 0.9em;">
+                    Total Players Online: <span id="online-count" style="color: var(--text-accent); font-weight: 600;">-</span>
+                </div>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
         </div>
 
         <!-- Navigation -->
@@ -1142,7 +1148,6 @@
             <button class="nav-btn" onclick="showScreen('inventory')">Inventory</button>
             <button class="nav-btn" onclick="showScreen('combat')">Combat</button>
             <button class="nav-btn" onclick="showScreen('store')">Store</button>
-            <button class="nav-btn" onclick="showScreen('chat')">Chat</button>
             <button class="nav-btn" onclick="showScreen('leaderboard')">Leaderboard</button>
         </div>
 
@@ -1351,16 +1356,6 @@
                 <div class="inventory-grid" id="store-items-grid"></div>
             </div>
 
-            <!-- Chat Screen -->
-            <div id="chat-screen" class="screen">
-                <h2 style="margin-bottom: 20px;">Chat</h2>
-                <div id="chat-messages" style="max-height: 400px; overflow-y: auto; margin-bottom: 15px; padding: 10px; background: var(--bg-tertiary); border-radius: 8px;"></div>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="chat-input" placeholder="Type a message..." style="flex: 1; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 5px; color: var(--text-primary);" onkeypress="if(event.key === 'Enter') sendChatMessage()">
-                    <button class="combat-action-btn" onclick="sendChatMessage()">Send</button>
-                </div>
-            </div>
-
             <!-- Leaderboard Screen -->
             <div id="leaderboard-screen" class="screen">
                 <h2 style="margin-bottom: 20px;">PvP Leaderboard</h2>
@@ -1368,15 +1363,14 @@
                     <p style="text-align: center; color: var(--text-secondary);">Loading leaderboard...</p>
                 </div>
             </div>
-                <h2 style="margin-bottom: 20px;">Global Chat</h2>
-                
-                <div class="chat-container">
-                    <div class="chat-messages" id="chat-messages"></div>
-                    <div class="chat-input-container">
-                        <input type="text" class="chat-input" id="chat-input" placeholder="Type your message..." maxlength="500" onkeypress="if(event.key==='Enter') sendChatMessage()">
-                        <button class="chat-send-btn" onclick="sendChatMessage()">Send</button>
-                    </div>
-                </div>
+        </div>
+
+        <!-- Persistent Global Chat Container -->
+        <div id="persistent-chat" style="position: fixed; bottom: 0; left: 0; right: 0; height: 16.67vh; min-height: 150px; max-height: 250px; background: var(--bg-primary); border-top: 2px solid var(--border-color); z-index: 1000; display: flex; flex-direction: column;">
+            <div style="flex: 1; overflow-y: auto; padding: 10px; background: var(--bg-tertiary);" id="chat-messages"></div>
+            <div style="display: flex; gap: 10px; padding: 10px; border-top: 1px solid var(--border-color);">
+                <input type="text" id="chat-input" placeholder="Type your message..." maxlength="500" style="flex: 1; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 5px; color: var(--text-primary);" onkeypress="if(event.key==='Enter') sendChatMessage()">
+                <button class="combat-action-btn" onclick="sendChatMessage()">Send</button>
             </div>
         </div>
     </div>
@@ -1540,6 +1534,10 @@
             // Start chat polling
             loadChatMessages();
             chatPollInterval = setInterval(loadChatMessages, 2000);
+            
+            // Start online count polling
+            updateOnlineCount();
+            setInterval(updateOnlineCount, 30000); // Update every 30 seconds
         });
 
         // Character Management
@@ -2102,8 +2100,10 @@
                 const panel = document.createElement('div');
                 panel.className = 'skill-panel';
                 panel.innerHTML = `
-                    <h3>${name}</h3>
-                    <p style="color: var(--text-secondary); margin-bottom: 15px;">${getStatDescription(stat)}</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0;">${name}</h3>
+                        <button class="combat-action-btn" onclick="showSkillInfo('${stat}')" style="padding: 5px 15px; font-size: 0.9em;">More Info</button>
+                    </div>
                     <div class="skill-controls">
                         <button class="skill-btn decrease" onclick="adjustSkill('${stat}', -1)">-</button>
                         <div class="skill-value" id="skill-${stat}">${skillAllocation[stat] || 0}</div>
@@ -3291,6 +3291,18 @@
                 }
             } catch (error) {
                 console.error('Error loading chat:', error);
+            }
+            }
+
+        async function updateOnlineCount() {
+            try {
+                const response = await authenticatedFetch('/api/players/online-count');
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('online-count').textContent = result.online_count;
+                }
+            } catch (error) {
+                console.error('Error updating online count:', error);
             }
         }
 

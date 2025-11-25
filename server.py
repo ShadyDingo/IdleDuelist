@@ -57,6 +57,10 @@ combat_states = {}
 pvp_queue = {}  # character_id -> joined_at timestamp
 auto_fight_sessions = {}  # session_id -> session_data
 
+# Active user sessions tracking (for online player count)
+# Maps user_id -> last_activity_timestamp
+active_sessions = {}
+
 def get_db_connection():
     """Get database connection - SQLite for dev, PostgreSQL for prod"""
     if USE_POSTGRES:
@@ -68,7 +72,14 @@ def get_db_connection():
             conn.cursor_factory = RealDictCursor
             return conn
         except ImportError:
-            print("Warning: psycopg2 not installed, falling back to SQLite")
+            print("⚠ ERROR: psycopg2 not installed, falling back to SQLite")
+            print("⚠ Install with: pip install psycopg2-binary")
+            conn = sqlite3.connect(DATABASE)
+            conn.row_factory = sqlite3.Row
+            return conn
+        except Exception as e:
+            print(f"⚠ ERROR: Failed to connect to PostgreSQL: {e}")
+            print("⚠ Falling back to SQLite (data will NOT persist on Railway!)")
             conn = sqlite3.connect(DATABASE)
             conn.row_factory = sqlite3.Row
             return conn
@@ -186,8 +197,14 @@ def get_all_auto_fight_sessions() -> Dict[str, Dict]:
 
 def init_database():
     """Initialize database with all tables - compatible with both SQLite and PostgreSQL"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+    except Exception as e:
+        print(f"⚠ CRITICAL: Cannot initialize database: {e}")
+        if USE_POSTGRES:
+            print("⚠ PostgreSQL connection failed. Check Railway PostgreSQL service.")
+        raise
     
     # Users table - PostgreSQL uses VARCHAR, SQLite uses TEXT
     if USE_POSTGRES:
@@ -623,6 +640,12 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    
+    # Track active session for online player count
+    user_id = data.get("sub") or data.get("user_id")
+    if user_id:
+        active_sessions[user_id] = datetime.utcnow().timestamp()
+    
     return encoded_jwt
 
 def create_refresh_token(data: dict) -> str:
@@ -653,10 +676,14 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     payload = verify_token(token, "access")
+    
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     
+    # Update active session timestamp for online player count
     user_id = payload.get("sub")
+    if user_id:
+        active_sessions[user_id] = datetime.utcnow().timestamp()
     if user_id is None:
         raise HTTPException(status_code=401, detail="Invalid token payload")
     
@@ -3603,10 +3630,24 @@ async def get_pvp_queue_status(character_id: str):
         "estimated_wait_seconds": estimated_wait_seconds if in_queue else 0
     }
 
+@app.get("/api/players/online-count")
+async def get_online_player_count():
+    """Get count of currently online players (active in last 5 minutes)"""
+    current_time = datetime.utcnow().timestamp()
+    five_minutes_ago = current_time - (5 * 60)  # 5 minutes in seconds
+    
+    # Count unique users active in last 5 minutes
+    online_count = sum(1 for timestamp in active_sessions.values() if timestamp >= five_minutes_ago)
+    
+    return {"success": True, "online_count": online_count}
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
     """Health check endpoint for Railway"""
+    db_type = "PostgreSQL" if USE_POSTGRES else "SQLite"
+    db_configured = "yes" if DATABASE_URL else "no"
+    
     try:
         # Test database connection
         conn = get_db_connection()
@@ -3614,17 +3655,31 @@ async def health_check():
         cursor.execute("SELECT 1")
         conn.close()
         db_status = "connected"
+        db_error = None
     except Exception as e:
-        db_status = f"error: {str(e)}"
+        db_status = "error"
+        db_error = str(e)
     
     # Test Redis connection
     r = get_redis_client()
     redis_status = "connected" if r else "not_configured"
     
+    # Mask DATABASE_URL for security (show only if configured, not the value)
+    db_url_info = f"configured ({'postgresql://...' if USE_POSTGRES else 'not set'})" if DATABASE_URL else "not configured"
+    
     return {
         "status": "healthy" if db_status == "connected" else "degraded",
-        "database": db_status,
-        "redis": redis_status,
+        "database": {
+            "type": db_type,
+            "status": db_status,
+            "url_configured": db_configured,
+            "url_info": db_url_info,
+            "error": db_error
+        },
+        "redis": {
+            "status": redis_status,
+            "url_configured": "yes" if REDIS_URL else "no"
+        },
         "environment": os.getenv("ENVIRONMENT", "development"),
         "version": "2.0.0"
     }
@@ -3632,15 +3687,54 @@ async def health_check():
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
-    init_database()
-    # Initialize Redis connection
-    get_redis_client()
-    # Log database type for debugging
-    if USE_POSTGRES:
-        print("✓ Using PostgreSQL database (persistent)")
+    # Log database configuration
+    print("=" * 60)
+    print("Database Configuration:")
+    if DATABASE_URL:
+        # Mask password in URL for logging
+        url_parts = DATABASE_URL.split("@")
+        if len(url_parts) > 1:
+            safe_url = "postgresql://***@" + "@".join(url_parts[1:])
+        else:
+            safe_url = "postgresql://***"
+        print(f"  DATABASE_URL: {safe_url}")
+        print(f"  Database Type: PostgreSQL")
     else:
-        print("⚠ WARNING: Using SQLite database (NOT PERSISTENT on Railway!)")
-        print("⚠ User data will be lost on each deployment. Add PostgreSQL service in Railway.")
+        print(f"  DATABASE_URL: Not set")
+        print(f"  Database Type: SQLite (fallback)")
+    
+    # Test database connection
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        conn.close()
+        if USE_POSTGRES:
+            print("✓ PostgreSQL connection successful (data will persist)")
+        else:
+            print("⚠ WARNING: Using SQLite (data will NOT persist on Railway!)")
+            print("⚠ To fix: Add PostgreSQL service in Railway and set DATABASE_URL environment variable")
+    except Exception as e:
+        print(f"⚠ ERROR: Database connection failed: {e}")
+        if USE_POSTGRES:
+            print("⚠ PostgreSQL connection failed but DATABASE_URL is set!")
+            print("⚠ Check Railway PostgreSQL service status and connection string")
+    
+    # Log Redis configuration
+    if REDIS_URL:
+        print(f"  REDIS_URL: Configured")
+        r = get_redis_client()
+        if r:
+            print("✓ Redis connection successful")
+        else:
+            print("⚠ Redis connection failed (using in-memory storage)")
+    else:
+        print("  REDIS_URL: Not set (using in-memory storage)")
+    
+    print("=" * 60)
+    
+    # Initialize database tables
+    init_database()
 
 if __name__ == "__main__":
     import uvicorn
