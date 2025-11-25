@@ -1190,78 +1190,80 @@ def initialize_combat_state(character1_id: str, character2_data: Dict, is_pvp: b
 @app.post("/api/combat/start")
 async def start_combat(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
     """Start a new combat encounter"""
-    user_id = current_user["user_id"]
-    character_id = request.get('character_id')
-    
-    # Verify character belongs to user
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM characters WHERE id = ? AND user_id = ?", (character_id, user_id))
-    if not cursor.fetchone():
+    try:
+        user_id = current_user["user_id"]
+        character_id = request.get('character_id')
+        
+        if not character_id:
+            raise HTTPException(status_code=400, detail="character_id required")
+        
+        # Verify character belongs to user
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM characters WHERE id = ? AND user_id = ?", (character_id, user_id))
+        if not cursor.fetchone():
+            conn.close()
+            raise HTTPException(status_code=403, detail="Character not found or access denied")
         conn.close()
-        raise HTTPException(status_code=403, detail="Character not found or access denied")
-    conn.close()
-    opponent_id = request.get('opponent_id')
-    enemy_id = request.get('enemy_id')  # For PvE
-    is_pvp = request.get('is_pvp', False)
-    
-    if not character_id:
-        raise HTTPException(status_code=400, detail="character_id required")
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    if is_pvp:
-        if not opponent_id:
-            raise HTTPException(status_code=400, detail="opponent_id required for PvP")
         
-        # Get opponent character
-        cursor.execute("SELECT * FROM characters WHERE id = ?", (opponent_id,))
-        opponent = cursor.fetchone()
+        opponent_id = request.get('opponent_id')
+        enemy_id = request.get('enemy_id')  # For PvE
+        is_pvp = request.get('is_pvp', False)
         
-        if not opponent:
-            conn.close()
-            raise HTTPException(status_code=404, detail="Opponent not found")
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-        opponent_stats = json.loads(opponent['stats_json'])
-        opponent_equipment = json.loads(opponent['equipment_json'])
-        opponent_equipment_stats = get_equipment_stats(opponent_equipment)
-        opponent_combat = calculate_combat_stats(opponent_stats, opponent_equipment_stats, opponent_equipment)
+        if is_pvp:
+            if not opponent_id:
+                raise HTTPException(status_code=400, detail="opponent_id required for PvP")
+            
+            # Get opponent character
+            cursor.execute("SELECT * FROM characters WHERE id = ?", (opponent_id,))
+            opponent = cursor.fetchone()
+            
+            if not opponent:
+                conn.close()
+                raise HTTPException(status_code=404, detail="Opponent not found")
+            
+            opponent_stats = json.loads(opponent['stats_json'])
+            opponent_equipment = json.loads(opponent['equipment_json'])
+            opponent_equipment_stats = get_equipment_stats(opponent_equipment)
+            opponent_combat = calculate_combat_stats(opponent_stats, opponent_equipment_stats, opponent_equipment)
+            
+            opponent_data = {
+                'id': opponent['id'],
+                'name': opponent['name'],
+                'level': opponent['level'],
+                'stats': opponent_stats,
+                'equipment': opponent_equipment,
+                'combat_stats': opponent_combat
+            }
+        else:
+            # PvE - get enemy data
+            if not enemy_id:
+                raise HTTPException(status_code=400, detail="enemy_id required for PvE")
+            
+            cursor.execute("SELECT * FROM pve_enemies WHERE id = ?", (enemy_id,))
+            enemy = cursor.fetchone()
+            
+            if not enemy:
+                conn.close()
+                raise HTTPException(status_code=404, detail="Enemy not found")
+            
+            enemy_stats = json.loads(enemy['stats_json'])
+            enemy_equipment = {slot: None for slot in EQUIPMENT_SLOTS}
+            enemy_equipment_stats = get_equipment_stats(enemy_equipment)
+            enemy_combat = calculate_combat_stats(enemy_stats, enemy_equipment_stats, enemy_equipment)
+            
+            opponent_data = {
+                'id': enemy['id'],
+                'name': enemy['name'],
+                'level': enemy['level'],
+                'stats': enemy_stats,
+                'equipment': enemy_equipment,
+                'combat_stats': enemy_combat
+            }
         
-        opponent_data = {
-            'id': opponent['id'],
-            'name': opponent['name'],
-            'level': opponent['level'],
-            'stats': opponent_stats,
-            'equipment': opponent_equipment,
-            'combat_stats': opponent_combat
-        }
-    else:
-        # PvE - get enemy data
-        if not enemy_id:
-            raise HTTPException(status_code=400, detail="enemy_id required for PvE")
-        
-        cursor.execute("SELECT * FROM pve_enemies WHERE id = ?", (enemy_id,))
-        enemy = cursor.fetchone()
-        
-        if not enemy:
-            conn.close()
-            raise HTTPException(status_code=404, detail="Enemy not found")
-        
-        enemy_stats = json.loads(enemy['stats_json'])
-        enemy_equipment = {slot: None for slot in EQUIPMENT_SLOTS}
-        enemy_equipment_stats = get_equipment_stats(enemy_equipment)
-        enemy_combat = calculate_combat_stats(enemy_stats, enemy_equipment_stats, enemy_equipment)
-        
-        opponent_data = {
-            'id': enemy['id'],
-            'name': enemy['name'],
-            'level': enemy['level'],
-            'stats': enemy_stats,
-            'equipment': enemy_equipment,
-            'combat_stats': enemy_combat
-        }
-    
         conn.close()
         
         combat_id = initialize_combat_state(character_id, opponent_data, is_pvp)
@@ -2296,44 +2298,44 @@ async def start_auto_fight(request: Dict = Body(...), current_user: dict = Depen
         
         if not character_id or not enemy_id:
             raise HTTPException(status_code=400, detail="character_id and enemy_id required")
-    
-    # Clean up expired sessions and check if character already has an active session
-    current_time = datetime.now().timestamp()
-    expired_sessions = []
-    r = get_redis_client()
-    if r:
-        # Get all auto-fight session keys from Redis
-        session_keys = r.keys("autofight:*")
-        for key in session_keys:
-            session_id = key.replace("autofight:", "")
-            session = get_auto_fight_session(session_id)
-            if session:
+        
+        # Clean up expired sessions and check if character already has an active session
+        current_time = datetime.now().timestamp()
+        expired_sessions = []
+        r = get_redis_client()
+        if r:
+            # Get all auto-fight session keys from Redis
+            session_keys = r.keys("autofight:*")
+            for key in session_keys:
+                session_id = key.replace("autofight:", "")
+                session = get_auto_fight_session(session_id)
+                if session:
+                    # Remove expired or inactive sessions
+                    if not session['is_active'] or current_time >= session['end_time']:
+                        expired_sessions.append(session_id)
+                    # Check if character has an active session
+                    elif session['character_id'] == character_id and session['is_active']:
+                        raise HTTPException(status_code=400, detail="Auto-fight session already in progress")
+        else:
+            # Fallback to in-memory dict
+            for session_id, session in list(auto_fight_sessions.items()):
                 # Remove expired or inactive sessions
                 if not session['is_active'] or current_time >= session['end_time']:
                     expired_sessions.append(session_id)
                 # Check if character has an active session
                 elif session['character_id'] == character_id and session['is_active']:
                     raise HTTPException(status_code=400, detail="Auto-fight session already in progress")
-    else:
-        # Fallback to in-memory dict
-        for session_id, session in list(auto_fight_sessions.items()):
-            # Remove expired or inactive sessions
-            if not session['is_active'] or current_time >= session['end_time']:
-                expired_sessions.append(session_id)
-            # Check if character has an active session
-            elif session['character_id'] == character_id and session['is_active']:
-                raise HTTPException(status_code=400, detail="Auto-fight session already in progress")
-    
-    # Clean up expired sessions
-    for session_id in expired_sessions:
-        session = get_auto_fight_session(session_id)
-        if session:
-            if session['is_active']:
-                # End the session properly if it expired
-                end_auto_fight_session(session_id)
-            else:
-                # Just remove inactive sessions
-                delete_auto_fight_session(session_id)
+        
+        # Clean up expired sessions
+        for session_id in expired_sessions:
+            session = get_auto_fight_session(session_id)
+            if session:
+                if session['is_active']:
+                    # End the session properly if it expired
+                    end_auto_fight_session(session_id)
+                else:
+                    # Just remove inactive sessions
+                    delete_auto_fight_session(session_id)
         
         conn = get_db_connection()
         cursor = conn.cursor()
