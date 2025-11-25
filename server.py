@@ -296,6 +296,31 @@ def init_database():
                     pass
             return False
     
+    def column_exists(table_name: str, column_name: str) -> bool:
+        """Check if a column exists in the table"""
+        try:
+            if USE_POSTGRES:
+                cursor.execute(
+                    """
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = %s AND column_name = %s
+                    """,
+                    (table_name, column_name),
+                )
+                return cursor.fetchone() is not None
+            else:
+                cursor.execute(f"PRAGMA table_info({table_name})")
+                columns = cursor.fetchall()
+                return any(col[1] == column_name for col in columns)
+        except Exception:
+            if USE_POSTGRES:
+                try:
+                    conn.rollback()
+                except:
+                    pass
+            return False
+    
     def safe_alter_table(alter_sql):
         """Safely execute ALTER TABLE, handling duplicate column errors"""
         try:
@@ -452,26 +477,15 @@ def init_database():
         )
     ''')
     
-    # Add new columns if they don't exist (for existing databases)
-    try:
-        cursor.execute('ALTER TABLE pve_enemies ADD COLUMN description TEXT')
-    except sqlite3.OperationalError:
-        pass
-    
-    try:
-        cursor.execute('ALTER TABLE pve_enemies ADD COLUMN gold_min INTEGER DEFAULT 1')
-    except sqlite3.OperationalError:
-        pass
-    
-    try:
-        cursor.execute('ALTER TABLE pve_enemies ADD COLUMN gold_max INTEGER DEFAULT 1')
-    except sqlite3.OperationalError:
-        pass
-    
-    try:
-        cursor.execute('ALTER TABLE pve_enemies ADD COLUMN drop_chance REAL DEFAULT 0.0')
-    except sqlite3.OperationalError:
-        pass
+    if table_exists('pve_enemies'):
+        if not column_exists('pve_enemies', 'description'):
+            safe_alter_table('ALTER TABLE pve_enemies ADD COLUMN description TEXT')
+        if not column_exists('pve_enemies', 'gold_min'):
+            safe_alter_table('ALTER TABLE pve_enemies ADD COLUMN gold_min INTEGER DEFAULT 1')
+        if not column_exists('pve_enemies', 'gold_max'):
+            safe_alter_table('ALTER TABLE pve_enemies ADD COLUMN gold_max INTEGER DEFAULT 1')
+        if not column_exists('pve_enemies', 'drop_chance'):
+            safe_alter_table('ALTER TABLE pve_enemies ADD COLUMN drop_chance REAL DEFAULT 0.0')
     
     # Character PvE progress
     if USE_POSTGRES:
