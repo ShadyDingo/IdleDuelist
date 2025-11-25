@@ -228,27 +228,49 @@ def init_database():
             )
         ''')
     
-    # Characters table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS characters (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            name TEXT UNIQUE NOT NULL,
-            level INTEGER DEFAULT 1,
-            exp INTEGER DEFAULT 0,
-            skill_points INTEGER DEFAULT 3,
-            stats_json TEXT NOT NULL,
-            equipment_json TEXT NOT NULL,
-            inventory_json TEXT NOT NULL,
-            auto_combat BOOLEAN DEFAULT 0,
-            gold INTEGER DEFAULT 0,
-            pvp_enabled BOOLEAN DEFAULT 0,
-            combat_stance TEXT DEFAULT 'balanced',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    ''')
+    # Characters table - PostgreSQL uses different boolean defaults
+    if USE_POSTGRES:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS characters (
+                id VARCHAR(255) PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                name VARCHAR(255) UNIQUE NOT NULL,
+                level INTEGER DEFAULT 1,
+                exp INTEGER DEFAULT 0,
+                skill_points INTEGER DEFAULT 3,
+                stats_json TEXT NOT NULL,
+                equipment_json TEXT NOT NULL,
+                inventory_json TEXT NOT NULL,
+                auto_combat BOOLEAN DEFAULT FALSE,
+                gold INTEGER DEFAULT 0,
+                pvp_enabled BOOLEAN DEFAULT FALSE,
+                combat_stance VARCHAR(50) DEFAULT 'balanced',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS characters (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                name TEXT UNIQUE NOT NULL,
+                level INTEGER DEFAULT 1,
+                exp INTEGER DEFAULT 0,
+                skill_points INTEGER DEFAULT 3,
+                stats_json TEXT NOT NULL,
+                equipment_json TEXT NOT NULL,
+                inventory_json TEXT NOT NULL,
+                auto_combat BOOLEAN DEFAULT 0,
+                gold INTEGER DEFAULT 0,
+                pvp_enabled BOOLEAN DEFAULT 0,
+                combat_stance TEXT DEFAULT 'balanced',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
     
     # Add gold and pvp_enabled columns if they don't exist (for existing databases)
     try:
@@ -257,13 +279,19 @@ def init_database():
         pass  # Column already exists
     
     try:
-        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT 0')
+        if USE_POSTGRES:
+            cursor.execute('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT FALSE')
+        else:
+            cursor.execute('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT 0')
     except:
         pass
     
     try:
-        cursor.execute('ALTER TABLE characters ADD COLUMN combat_stance TEXT DEFAULT "balanced"')
-    except sqlite3.OperationalError:
+        if USE_POSTGRES:
+            cursor.execute("ALTER TABLE characters ADD COLUMN combat_stance VARCHAR(50) DEFAULT 'balanced'")
+        else:
+            cursor.execute('ALTER TABLE characters ADD COLUMN combat_stance TEXT DEFAULT "balanced"')
+    except (sqlite3.OperationalError, Exception):
         pass  # Column already exists
     
     # Add PvP stats columns if they don't exist
@@ -288,7 +316,10 @@ def init_database():
         pass  # Column already exists
     
     try:
-        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT 0')
+        if USE_POSTGRES:
+            cursor.execute('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT FALSE')
+        else:
+            cursor.execute('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT 0')
     except (sqlite3.OperationalError, Exception):
         pass  # Column already exists
     
