@@ -2688,7 +2688,8 @@ async def start_auto_fight(request: Dict = Body(...), current_user: dict = Depen
         conn.close()
         
         # Create auto-fight session
-        session_id = f"autofight_{random.randint(100000, 999999)}{int(datetime.now().timestamp())}"
+        # Use simpler format without prefix to avoid FastAPI route matching issues
+        session_id = f"{random.randint(100000, 999999)}{int(datetime.now().timestamp())}"
         
         char_stats = json.loads(char['stats_json'])
         char_equipment = json.loads(char['equipment_json'])
@@ -2754,9 +2755,12 @@ async def start_auto_fight(request: Dict = Body(...), current_user: dict = Depen
 @app.get("/api/pve/auto-fight/{session_id}")
 async def get_auto_fight_status(session_id: str):
     """Get status of auto-fight session"""
+    print(f"[AUTO-FIGHT] GET request for session_id: {session_id}")
     session = get_auto_fight_session(session_id)
     if session is None:
+        print(f"[AUTO-FIGHT] Session {session_id} not found")
         raise HTTPException(status_code=404, detail="Session not found")
+    print(f"[AUTO-FIGHT] Session {session_id} found, is_active: {session.get('is_active', False)}")
     
     # Process fights if still active (runs synchronously but quickly)
     if session['is_active']:
@@ -2982,10 +2986,14 @@ def end_auto_fight_session(session_id: str):
 @app.post("/api/pve/auto-fight/{session_id}/stop")
 async def stop_auto_fight(session_id: str):
     """Manually stop an auto-fight session early"""
-    if session_id not in auto_fight_sessions:
+    print(f"[AUTO-FIGHT] STOP request for session_id: {session_id}")
+    session = get_auto_fight_session(session_id)
+    if session is None:
+        print(f"[AUTO-FIGHT] Session {session_id} not found for stop")
         raise HTTPException(status_code=404, detail="Session not found")
     
     end_auto_fight_session(session_id)
+    print(f"[AUTO-FIGHT] Session {session_id} stopped successfully")
     
     return {"success": True, "message": "Auto-fight session stopped"}
 
