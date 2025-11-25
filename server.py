@@ -1108,7 +1108,8 @@ def initialize_combat_state(character1_id: str, character2_data: Dict, is_pvp: b
         char2_name = character2_data.get('name', 'Enemy')
         char2_id = character2_data.get('id')
         char2_level = character2_data.get('level', 1)
-        char2_weapon_type = get_weapon_type(character2_data.get('equipment', {}))
+        char2_equipment = character2_data.get('equipment', {})
+        char2_weapon_type = get_weapon_type(char2_equipment)
     else:
         # Live player
         cursor.execute("SELECT * FROM characters WHERE id = ?", (character2_data,))
@@ -1250,7 +1251,7 @@ async def start_combat(request: Dict = Body(...), current_user: dict = Depends(g
         enemy_stats = json.loads(enemy['stats_json'])
         enemy_equipment = {slot: None for slot in EQUIPMENT_SLOTS}
         enemy_equipment_stats = get_equipment_stats(enemy_equipment)
-        enemy_combat = calculate_combat_stats(enemy_stats, enemy_equipment_stats)
+        enemy_combat = calculate_combat_stats(enemy_stats, enemy_equipment_stats, enemy_equipment)
         
         opponent_data = {
             'id': enemy['id'],
@@ -1261,11 +1262,25 @@ async def start_combat(request: Dict = Body(...), current_user: dict = Depends(g
             'combat_stats': enemy_combat
         }
     
-    conn.close()
-    
-    combat_id = initialize_combat_state(character_id, opponent_data, is_pvp)
-    
-    return {"success": True, "combat_id": combat_id}
+        conn.close()
+        
+        combat_id = initialize_combat_state(character_id, opponent_data, is_pvp)
+        
+        return {"success": True, "combat_id": combat_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error starting combat: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error starting combat: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/combat/state/{combat_id}")
 async def get_combat_state(combat_id: str):
@@ -2272,13 +2287,15 @@ async def unlock_pve_enemy(character_id: str, enemy_id: str):
     return {"success": True}
 
 @app.post("/api/pve/auto-fight")
-async def start_auto_fight(request: Dict = Body(...)):
+async def start_auto_fight(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
     """Start an hour-long auto-fight session against a PvE enemy"""
-    character_id = request.get('character_id')
-    enemy_id = request.get('enemy_id')
-    
-    if not character_id or not enemy_id:
-        raise HTTPException(status_code=400, detail="character_id and enemy_id required")
+    try:
+        user_id = current_user["user_id"]
+        character_id = request.get('character_id')
+        enemy_id = request.get('enemy_id')
+        
+        if not character_id or not enemy_id:
+            raise HTTPException(status_code=400, detail="character_id and enemy_id required")
     
     # Clean up expired sessions and check if character already has an active session
     current_time = datetime.now().timestamp()
@@ -2317,98 +2334,105 @@ async def start_auto_fight(request: Dict = Body(...)):
             else:
                 # Just remove inactive sessions
                 delete_auto_fight_session(session_id)
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Verify character exists
-    cursor.execute("SELECT * FROM characters WHERE id = ?", (character_id,))
-    char = cursor.fetchone()
-    if not char:
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Verify character belongs to user
+        cursor.execute("SELECT * FROM characters WHERE id = ? AND user_id = ?", (character_id, user_id))
+        char = cursor.fetchone()
+        if not char:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        # Verify enemy exists
+        cursor.execute("SELECT * FROM pve_enemies WHERE id = ?", (enemy_id,))
+        enemy = cursor.fetchone()
+        if not enemy:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Enemy not found")
+        
+        # Check if enemy is unlocked
+        cursor.execute("SELECT enemies_unlocked_json FROM character_pve_progress WHERE character_id = ?", (character_id,))
+        progress = cursor.fetchone()
+        unlocked_enemies = ['chicken']  # Default
+        if progress:
+            unlocked_enemies = json.loads(progress['enemies_unlocked_json'])
+        
+        if enemy_id not in unlocked_enemies:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Enemy not unlocked")
+        
+        # Get enemy gold range
+        keys = enemy.keys()
+        gold_min = enemy['gold_min'] if 'gold_min' in keys and enemy['gold_min'] is not None else 1
+        gold_max = enemy['gold_max'] if 'gold_max' in keys and enemy['gold_max'] is not None else gold_min
+        
         conn.close()
-        raise HTTPException(status_code=404, detail="Character not found")
-    
-    # Verify enemy exists
-    cursor.execute("SELECT * FROM pve_enemies WHERE id = ?", (enemy_id,))
-    enemy = cursor.fetchone()
-    if not enemy:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Enemy not found")
-    
-    # Check if enemy is unlocked
-    cursor.execute("SELECT enemies_unlocked_json FROM character_pve_progress WHERE character_id = ?", (character_id,))
-    progress = cursor.fetchone()
-    unlocked_enemies = ['chicken']  # Default
-    if progress:
-        unlocked_enemies = json.loads(progress['enemies_unlocked_json'])
-    
-    if enemy_id not in unlocked_enemies:
-        conn.close()
-        raise HTTPException(status_code=400, detail="Enemy not unlocked")
-    
-    # Get enemy gold range
-    keys = enemy.keys()
-    gold_min = enemy['gold_min'] if 'gold_min' in keys and enemy['gold_min'] is not None else 1
-    gold_max = enemy['gold_max'] if 'gold_max' in keys and enemy['gold_max'] is not None else gold_min
-    
-    conn.close()
-    
-    # Create auto-fight session
-    session_id = f"autofight_{random.randint(100000, 999999)}{int(datetime.now().timestamp())}"
-    
-    char_stats = json.loads(char['stats_json'])
-    char_equipment = json.loads(char['equipment_json'])
-    char_equipment_stats = get_equipment_stats(char_equipment)
-    char_combat = calculate_combat_stats(char_stats, char_equipment_stats, char_equipment)
-    
-    enemy_stats = json.loads(enemy['stats_json'])
-    enemy_equipment = {slot: None for slot in EQUIPMENT_SLOTS}
-    enemy_equipment_stats = get_equipment_stats(enemy_equipment)
-    enemy_combat = calculate_combat_stats(enemy_stats, enemy_equipment_stats, enemy_equipment)
-    
-    # Get player's weapon type and attack speed
-    weapon_type = get_weapon_type(char_equipment)
-    player_attack_speed = get_weapon_attack_speed(weapon_type, char_equipment) if weapon_type else 2.0  # Default 2.0s
-    # Enemy attack speed (assume average 2.0s for enemies)
-    enemy_attack_speed = 2.0
-    
-    session_data = {
-        'session_id': session_id,
-        'character_id': character_id,
-        'enemy_id': enemy_id,
-        'enemy_name': enemy['name'],
-        'enemy_level': enemy['level'],
-        'gold_min': gold_min,
-        'gold_max': gold_max,
-        'start_time': datetime.now().timestamp(),
-        'end_time': datetime.now().timestamp() + 3600,  # 1 hour
-        'last_process_time': datetime.now().timestamp(),  # Track last processing time
-        'is_active': True,
-        'current_combat_id': None,  # Track current battle in progress
-        'current_battle_start_time': None,  # Track when current battle started
-        'wins': 0,
-        'losses': 0,
-        'total_exp_gained': 0,
-        'total_gold_gained': 0,
-        'items_dropped': [],
-        'level_ups': 0,
-        'total_damage_dealt': 0,
-        'total_damage_taken': 0,
-        'total_crits': 0,
-        'total_dodges': 0,
-        'fastest_victory': None,
-        'slowest_victory': None,
-        'player_combat_stats': char_combat,
-        'enemy_combat_stats': enemy_combat,
-        'player_level': char['level'],
-        'player_exp': char['exp'],
-        'player_attack_speed': player_attack_speed,
-        'enemy_attack_speed': enemy_attack_speed,
-        'player_weapon_type': weapon_type
-    }
-    set_auto_fight_session(session_id, session_data)
-    
-    return {"success": True, "session_id": session_id, "message": "Auto-fight started for 1 hour"}
+        
+        # Create auto-fight session
+        session_id = f"autofight_{random.randint(100000, 999999)}{int(datetime.now().timestamp())}"
+        
+        char_stats = json.loads(char['stats_json'])
+        char_equipment = json.loads(char['equipment_json'])
+        char_equipment_stats = get_equipment_stats(char_equipment)
+        char_combat = calculate_combat_stats(char_stats, char_equipment_stats, char_equipment)
+        
+        enemy_stats = json.loads(enemy['stats_json'])
+        enemy_equipment = {slot: None for slot in EQUIPMENT_SLOTS}
+        enemy_equipment_stats = get_equipment_stats(enemy_equipment)
+        enemy_combat = calculate_combat_stats(enemy_stats, enemy_equipment_stats, enemy_equipment)
+        
+        # Get player's weapon type and attack speed
+        weapon_type = get_weapon_type(char_equipment)
+        player_attack_speed = get_weapon_attack_speed(weapon_type, char_equipment) if weapon_type else 2.0  # Default 2.0s
+        # Enemy attack speed (assume average 2.0s for enemies)
+        enemy_attack_speed = 2.0
+        
+        session_data = {
+            'session_id': session_id,
+            'character_id': character_id,
+            'enemy_id': enemy_id,
+            'enemy_name': enemy['name'],
+            'enemy_level': enemy['level'],
+            'gold_min': gold_min,
+            'gold_max': gold_max,
+            'start_time': datetime.now().timestamp(),
+            'end_time': datetime.now().timestamp() + 3600,  # 1 hour
+            'last_process_time': datetime.now().timestamp(),  # Track last processing time
+            'is_active': True,
+            'current_combat_id': None,  # Track current battle in progress
+            'current_battle_start_time': None,  # Track when current battle started
+            'wins': 0,
+            'losses': 0,
+            'total_exp_gained': 0,
+            'total_gold_gained': 0,
+            'items_dropped': [],
+            'level_ups': 0,
+            'total_damage_dealt': 0,
+            'total_damage_taken': 0,
+            'total_crits': 0,
+            'total_dodges': 0,
+            'fastest_victory': None,
+            'slowest_victory': None,
+            'player_combat_stats': char_combat,
+            'enemy_combat_stats': enemy_combat,
+            'player_level': char['level'],
+            'player_exp': char['exp'],
+            'player_attack_speed': player_attack_speed,
+            'enemy_attack_speed': enemy_attack_speed,
+            'player_weapon_type': weapon_type
+        }
+        set_auto_fight_session(session_id, session_data)
+        
+        return {"success": True, "session_id": session_id, "message": "Auto-fight started for 1 hour"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error starting auto-fight: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/pve/auto-fight/{session_id}")
 async def get_auto_fight_status(session_id: str):
@@ -2552,7 +2576,7 @@ def process_auto_fight(session_id: str):
         enemy_stats = json.loads(enemy['stats_json'])
         enemy_equipment = {slot: None for slot in EQUIPMENT_SLOTS}
         enemy_equipment_stats = get_equipment_stats(enemy_equipment)
-        enemy_combat = calculate_combat_stats(enemy_stats, enemy_equipment_stats)
+        enemy_combat = calculate_combat_stats(enemy_stats, enemy_equipment_stats, enemy_equipment)
         
         opponent_data = {
             'id': enemy['id'],
