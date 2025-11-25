@@ -413,27 +413,37 @@ def init_database():
             )
         ''')
     
-    # Abilities table
-    abilities_default_false = 'FALSE' if USE_POSTGRES else '0'
-    cursor.execute(f'''
-        CREATE TABLE IF NOT EXISTS abilities (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT,
-            cooldown_seconds INTEGER NOT NULL,
-            damage_multiplier REAL NOT NULL,
-            damage_type TEXT NOT NULL,
-            mana_cost INTEGER NOT NULL,
-            weapon_type TEXT NOT NULL,
-            is_ultimate BOOLEAN DEFAULT {abilities_default_false}
-        )
-    ''')
-    
+    # Abilities table - PostgreSQL uses VARCHAR for consistency
     if USE_POSTGRES:
-        try:
-            cursor.execute('ALTER TABLE abilities ALTER COLUMN is_ultimate SET DEFAULT FALSE')
-        except Exception as exc:
-            print(f'Warning: unable to enforce boolean default on abilities.is_ultimate: {exc}')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS abilities (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                cooldown_seconds INTEGER NOT NULL,
+                damage_multiplier REAL NOT NULL,
+                damage_type VARCHAR(50) NOT NULL,
+                mana_cost INTEGER NOT NULL,
+                weapon_type VARCHAR(50) NOT NULL,
+                is_ultimate BOOLEAN DEFAULT FALSE
+            )
+        ''')
+        # Commit after table creation to ensure it's visible
+        conn.commit()
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS abilities (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                cooldown_seconds INTEGER NOT NULL,
+                damage_multiplier REAL NOT NULL,
+                damage_type TEXT NOT NULL,
+                mana_cost INTEGER NOT NULL,
+                weapon_type TEXT NOT NULL,
+                is_ultimate BOOLEAN DEFAULT 0
+            )
+        ''')
     
     # Character abilities (loadout/hotkey assignments)
     if USE_POSTGRES:
@@ -462,20 +472,37 @@ def init_database():
         ''')
     
     # PvE enemies table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS pve_enemies (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            level INTEGER NOT NULL,
-            stats_json TEXT NOT NULL,
-            description TEXT,
-            story_order INTEGER NOT NULL,
-            unlocked_at_level INTEGER DEFAULT 1,
-            gold_min INTEGER DEFAULT 1,
-            gold_max INTEGER DEFAULT 1,
-            drop_chance REAL DEFAULT 0.0
-        )
-    ''')
+    if USE_POSTGRES:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS pve_enemies (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                level INTEGER NOT NULL,
+                stats_json TEXT NOT NULL,
+                description TEXT,
+                story_order INTEGER NOT NULL,
+                unlocked_at_level INTEGER DEFAULT 1,
+                gold_min INTEGER DEFAULT 1,
+                gold_max INTEGER DEFAULT 1,
+                drop_chance REAL DEFAULT 0.0
+            )
+        ''')
+        conn.commit()
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS pve_enemies (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                level INTEGER NOT NULL,
+                stats_json TEXT NOT NULL,
+                description TEXT,
+                story_order INTEGER NOT NULL,
+                unlocked_at_level INTEGER DEFAULT 1,
+                gold_min INTEGER DEFAULT 1,
+                gold_max INTEGER DEFAULT 1,
+                drop_chance REAL DEFAULT 0.0
+            )
+        ''')
     
     if table_exists('pve_enemies'):
         if not column_exists('pve_enemies', 'description'):
@@ -512,16 +539,29 @@ def init_database():
         ''')
     
     # Store items table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS store_items (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            slot TEXT NOT NULL,
-            weapon_type TEXT,
-            base_price INTEGER NOT NULL,
-            level_requirement INTEGER DEFAULT 1
-        )
-    ''')
+    if USE_POSTGRES:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS store_items (
+                id VARCHAR(255) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                slot VARCHAR(50) NOT NULL,
+                weapon_type VARCHAR(50),
+                base_price INTEGER NOT NULL,
+                level_requirement INTEGER DEFAULT 1
+            )
+        ''')
+        conn.commit()
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS store_items (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                slot TEXT NOT NULL,
+                weapon_type TEXT,
+                base_price INTEGER NOT NULL,
+                level_requirement INTEGER DEFAULT 1
+            )
+        ''')
     
     conn.commit()
     conn.close()
@@ -677,14 +717,25 @@ def initialize_default_data():
         })
     
     for item in store_items:
-        cursor.execute('''
-            INSERT OR IGNORE INTO store_items 
-            (id, name, slot, weapon_type, base_price, level_requirement)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            item['id'], item['name'], item['slot'],
-            item['weapon_type'], item['base_price'], item['level_requirement']
-        ))
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO store_items 
+                (id, name, slot, weapon_type, base_price, level_requirement)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+            ''', (
+                item['id'], item['name'], item['slot'],
+                item['weapon_type'], item['base_price'], item['level_requirement']
+            ))
+        else:
+            cursor.execute('''
+                INSERT OR IGNORE INTO store_items 
+                (id, name, slot, weapon_type, base_price, level_requirement)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (
+                item['id'], item['name'], item['slot'],
+                item['weapon_type'], item['base_price'], item['level_requirement']
+            ))
     
     conn.commit()
     conn.close()
