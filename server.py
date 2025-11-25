@@ -275,7 +275,7 @@ def init_database():
     # Add gold and pvp_enabled columns if they don't exist (for existing databases)
     try:
         cursor.execute('ALTER TABLE characters ADD COLUMN gold INTEGER DEFAULT 0')
-    except sqlite3.OperationalError:
+    except (sqlite3.OperationalError, Exception):
         pass  # Column already exists
     
     try:
