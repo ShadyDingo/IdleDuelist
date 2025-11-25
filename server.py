@@ -389,7 +389,8 @@ def init_database():
         ''')
     
     # Abilities table
-    cursor.execute('''
+    abilities_default_false = 'FALSE' if USE_POSTGRES else '0'
+    cursor.execute(f'''
         CREATE TABLE IF NOT EXISTS abilities (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -399,9 +400,15 @@ def init_database():
             damage_type TEXT NOT NULL,
             mana_cost INTEGER NOT NULL,
             weapon_type TEXT NOT NULL,
-            is_ultimate BOOLEAN DEFAULT 0
+            is_ultimate BOOLEAN DEFAULT {abilities_default_false}
         )
     ''')
+    
+    if USE_POSTGRES:
+        try:
+            cursor.execute('ALTER TABLE abilities ALTER COLUMN is_ultimate SET DEFAULT FALSE')
+        except Exception as exc:
+            print(f'Warning: unable to enforce boolean default on abilities.is_ultimate: {exc}')
     
     # Character abilities (loadout/hotkey assignments)
     if USE_POSTGRES:
@@ -528,7 +535,7 @@ def initialize_default_data():
                 ability['id'], ability['name'], ability['description'],
                 ability['cooldown_seconds'], ability['damage_multiplier'],
                 ability['damage_type'], ability['mana_cost'], weapon_type,
-                1 if ability['is_ultimate'] else 0
+                ability['is_ultimate'] if USE_POSTGRES else (1 if ability['is_ultimate'] else 0)
             ))
     
     # Initialize PvE enemies (30 specific enemies with exact stats and rewards)
