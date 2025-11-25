@@ -92,20 +92,6 @@ def execute_query(cursor, query, params=None):
     """
     Execute a query with proper parameter placeholders for the current database.
     Converts ? to %s for PostgreSQL automatically.
-    """
-    if params is None:
-        params = ()
-    
-    if USE_POSTGRES:
-        # Convert SQLite ? placeholders to PostgreSQL %s
-        query = query.replace('?', '%s')
-    
-    return cursor.execute(query, params)
-
-def execute_query(cursor, query, params=None):
-    """
-    Execute a query with proper parameter placeholders for the current database.
-    Converts ? to %s for PostgreSQL automatically.
     Note: This is a simple conversion - ensure queries don't have ? in string literals.
     """
     if params is None:
@@ -4042,7 +4028,13 @@ async def startup_event():
     print("=" * 60)
     
     # Initialize database tables
-    init_database()
+    try:
+        init_database()
+    except Exception as e:
+        print(f"⚠ ERROR: Database initialization failed: {e}")
+        print("⚠ Server will continue but some features may not work")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     import uvicorn
