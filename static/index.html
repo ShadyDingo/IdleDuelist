@@ -3,656 +3,464 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IdleDuelist - Web Browser Game</title>
+    <title>IdleDuelist - Login</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #141b2d;
+            --bg-card: rgba(26, 35, 50, 0.9);
+            --text-primary: #e8e8e8;
+            --text-secondary: #b0b0b0;
+            --text-accent: #ffd700;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
         body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+            color: var(--text-primary);
             min-height: 100vh;
-            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
         }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 15px;
-            padding: 30px;
-            backdrop-filter: blur(10px);
+
+        /* Background overlay with texture */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('/assets/backgrounds/main_menu_background.png');
+            background-size: cover;
+            background-position: center;
+            opacity: 0.3;
+            z-index: -1;
         }
-        
-        h1 {
+
+        .login-container {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 50px 40px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            z-index: 1;
+        }
+
+        .game-title {
             text-align: center;
-            font-size: 2.5em;
+            margin-bottom: 40px;
+        }
+
+        .game-title h1 {
+            font-size: 3em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffd700, #ffed4e, #ffd700);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: titleGlow 3s ease-in-out infinite;
+            margin-bottom: 10px;
+        }
+
+        .game-title p {
+            color: var(--text-secondary);
+            font-size: 1.1em;
+        }
+
+        @keyframes titleGlow {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .form-section {
             margin-bottom: 30px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
-        
-        .game-section {
-            display: none;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
+
+        .form-section h2 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            text-align: center;
         }
-        
-        .game-section.active {
-            display: block;
-        }
-        
-        .character-creation {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+
+        .form-group {
             margin-bottom: 20px;
         }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
+
         label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.95em;
         }
-        
-        input, select {
+
+        input {
             width: 100%;
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
+            padding: 14px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             font-size: 16px;
+            transition: all 0.2s;
         }
-        
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            background: rgba(20, 27, 45, 0.8);
+        }
+
+        input::placeholder {
+            color: var(--text-secondary);
+        }
+
         button {
-            background: #4CAF50;
-            color: white;
+            width: 100%;
+            padding: 14px;
             border: none;
-            padding: 12px 24px;
-            border-radius: 5px;
-            cursor: pointer;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
             font-size: 16px;
-            margin: 5px;
-            transition: background 0.3s;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
         }
-        
+
         button:hover {
-            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
         }
-        
+
+        button:active {
+            transform: translateY(0);
+        }
+
         button:disabled {
-            background: #666;
+            opacity: 0.6;
             cursor: not-allowed;
+            transform: none;
         }
-        
-        .stats-display {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            box-shadow: 0 4px 14px rgba(107, 114, 128, 0.3);
         }
-        
-        .stat-card {
+
+        .btn-secondary:hover {
+            box-shadow: 0 6px 20px rgba(107, 114, 128, 0.4);
+        }
+
+        .divider {
+            text-align: center;
+            margin: 30px 0;
+            color: var(--text-secondary);
+            position: relative;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 40%;
+            height: 1px;
             background: rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 8px;
+        }
+
+        .divider::before {
+            left: 0;
+        }
+
+        .divider::after {
+            right: 0;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid var(--danger);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 20px;
+            color: #ff6b6b;
+            font-size: 0.9em;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .success-message {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid var(--success);
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 20px;
+            color: #10b981;
+            font-size: 0.9em;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .toggle-form {
             text-align: center;
+            margin-top: 20px;
+            color: var(--text-secondary);
         }
-        
-        .stat-value {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #4CAF50;
+
+        .toggle-form a {
+            color: var(--accent-primary);
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 600;
         }
-        
-        .duel-log {
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 8px;
-            padding: 15px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-family: monospace;
-            margin: 20px 0;
-        }
-        
-        .nav-buttons {
-            text-align: center;
-            margin: 20px 0;
-        }
-        
-        .leaderboard {
-            display: grid;
-            gap: 10px;
-        }
-        
-        .leaderboard-entry {
-            display: grid;
-            grid-template-columns: 1fr auto auto auto;
-            gap: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 10px;
-            border-radius: 5px;
-            align-items: center;
-        }
-        
-        .rating {
-            color: #FFD700;
-            font-weight: bold;
-        }
-        
-        .wins { color: #4CAF50; }
-        .losses { color: #f44336; }
-        
-        .loading {
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .error {
-            color: #f44336;
-            background: rgba(244, 67, 54, 0.1);
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-        
-        .success {
-            color: #4CAF50;
-            background: rgba(76, 175, 80, 0.1);
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
+
+        .toggle-form a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>⚔️ IdleDuelist Web Edition ⚔️</h1>
-        
-        <!-- Login/Create Account -->
-        <div id="login-section" class="game-section active">
-            <h2>Welcome to IdleDuelist</h2>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                <div>
-                    <h3>Login to Existing Account</h3>
-                    <form id="login-form">
-                        <div class="form-group">
-                            <label for="login-username">Username:</label>
-                            <input type="text" id="login-username" name="username" required>
-                        </div>
-                        <button type="submit">Login</button>
-                    </form>
+    <div class="login-container">
+        <div class="game-title">
+            <h1>⚔️ IdleDuelist ⚔️</h1>
+            <p>Build Your Legend</p>
+        </div>
+
+        <div id="error-message" class="error-message"></div>
+        <div id="success-message" class="success-message"></div>
+
+        <!-- Login Form -->
+        <div id="login-section" class="form-section">
+            <h2>Returning Player</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" name="username" placeholder="Enter your username" required autocomplete="username">
                 </div>
-                <div>
-                    <h3>Create New Account</h3>
-                    <button onclick="showCharacterCreation()">Create New Character</button>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" name="password" placeholder="Enter your password" required autocomplete="current-password">
                 </div>
+                <button type="submit">Sign In</button>
+            </form>
+            <div class="toggle-form">
+                New to IdleDuelist? <a onclick="showRegister()">Create Account</a>
             </div>
         </div>
 
-        <!-- Character Creation -->
-        <div id="character-creation" class="game-section">
-            <h2>Create Your Character</h2>
-            <form id="character-form">
-                <div class="character-creation">
-                    <div>
-                        <div class="form-group">
-                            <label for="username">Character Name:</label>
-                            <input type="text" id="username" name="username" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="faction">Faction:</label>
-                            <select id="faction" name="faction" onchange="updateAbilities()">
-                                <option value="order">Order of the Silver Crusade</option>
-                                <option value="shadow">Shadow Covenant</option>
-                                <option value="wilderness">Wilderness Tribe</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="armor-type">Armor Type:</label>
-                            <select id="armor-type" name="armor_type">
-                                <option value="cloth">Cloth (Light)</option>
-                                <option value="leather">Leather (Medium)</option>
-                                <option value="metal">Metal (Heavy)</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <div class="form-group">
-                            <label for="weapon1">Primary Weapon:</label>
-                            <select id="weapon1" name="weapon1">
-                                <option value="sword">Sword</option>
-                                <option value="dagger">Dagger</option>
-                                <option value="mace">Mace</option>
-                                <option value="bow">Bow</option>
-                                <option value="staff">Staff</option>
-                                <option value="axe">Axe</option>
-                                <option value="hammer">Hammer</option>
-                                <option value="crossbow">Crossbow</option>
-                                <option value="knife">Knife</option>
-                                <option value="shield">Shield</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="weapon2">Secondary Weapon:</label>
-                            <select id="weapon2" name="weapon2">
-                                <option value="sword">Sword</option>
-                                <option value="dagger">Dagger</option>
-                                <option value="mace">Mace</option>
-                                <option value="bow">Bow</option>
-                                <option value="staff">Staff</option>
-                                <option value="axe">Axe</option>
-                                <option value="hammer">Hammer</option>
-                                <option value="crossbow">Crossbow</option>
-                                <option value="knife">Knife</option>
-                                <option value="shield">Shield</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Abilities:</label>
-                            <div id="abilities-display"></div>
-                        </div>
-                    </div>
+        <!-- Register Form -->
+        <div id="register-section" class="form-section" style="display: none;">
+            <h2>Create Account</h2>
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="register-username">Username</label>
+                    <input type="text" id="register-username" name="username" placeholder="Choose a username" required autocomplete="username" minlength="3" maxlength="20">
                 </div>
-                
-                <div class="nav-buttons">
-                    <button type="submit">Create Character & Start Playing</button>
+                <div class="form-group">
+                    <label for="register-password">Password</label>
+                    <input type="password" id="register-password" name="password" placeholder="Choose a password" required autocomplete="new-password" minlength="6">
                 </div>
+                <div class="form-group">
+                    <label for="register-email">Email (Optional)</label>
+                    <input type="email" id="register-email" name="email" placeholder="your@email.com" autocomplete="email">
+                </div>
+                <button type="submit">Create Account</button>
             </form>
-        </div>
-        
-        <!-- Game Interface -->
-        <div id="game-interface" class="game-section">
-            <h2>Welcome, <span id="player-name"></span>!</h2>
-            
-            <div class="stats-display">
-                <div class="stat-card">
-                    <div>Rating</div>
-                    <div class="stat-value" id="rating">1000</div>
-                </div>
-                <div class="stat-card">
-                    <div>Wins</div>
-                    <div class="stat-value wins" id="wins">0</div>
-                </div>
-                <div class="stat-card">
-                    <div>Losses</div>
-                    <div class="stat-value losses" id="losses">0</div>
-                </div>
-                <div class="stat-card">
-                    <div>Damage</div>
-                    <div class="stat-value" id="damage">15</div>
-                </div>
-                <div class="stat-card">
-                    <div>Speed</div>
-                    <div class="stat-value" id="speed">8</div>
-                </div>
-                <div class="stat-card">
-                    <div>Crit Chance</div>
-                    <div class="stat-value" id="crit">5%</div>
-                </div>
-            </div>
-            
-            <div class="nav-buttons">
-                <button onclick="findDuel()">⚔️ Find Duel</button>
-                <button onclick="showLeaderboard()">🏆 Leaderboard</button>
-                <button onclick="showCharacterInfo()">👤 Character Info</button>
-                <button onclick="logout()" style="background: #f44336;">🚪 Logout</button>
-            </div>
-            
-            <div id="duel-log" class="duel-log" style="display: none;"></div>
-        </div>
-        
-        <!-- Leaderboard -->
-        <div id="leaderboard" class="game-section">
-            <h2>🏆 Leaderboard</h2>
-            <div id="leaderboard-content" class="leaderboard">
-                <div class="loading">Loading leaderboard...</div>
-            </div>
-            <div class="nav-buttons">
-                <button onclick="showGameInterface()">← Back to Game</button>
-            </div>
-        </div>
-        
-        <!-- Character Info -->
-        <div id="character-info" class="game-section">
-            <h2>👤 Character Information</h2>
-            <div id="character-details"></div>
-            <div class="nav-buttons">
-                <button onclick="showGameInterface()">← Back to Game</button>
+            <div class="toggle-form">
+                Already have an account? <a onclick="showLogin()">Sign In</a>
             </div>
         </div>
     </div>
-    
+
     <script>
-        let currentPlayer = null;
-        
-        // Game data
-        const WEAPONS = {
-            'sword': {'damage': 15, 'speed': 8, 'crit_chance': 0.05, 'name': 'Sword'},
-            'dagger': {'damage': 12, 'speed': 12, 'crit_chance': 0.08, 'name': 'Dagger'},
-            'mace': {'damage': 18, 'speed': 6, 'crit_chance': 0.03, 'name': 'Mace'},
-            'bow': {'damage': 14, 'speed': 10, 'crit_chance': 0.07, 'name': 'Bow'},
-            'staff': {'damage': 13, 'speed': 9, 'crit_chance': 0.06, 'name': 'Staff'},
-            'axe': {'damage': 17, 'speed': 7, 'crit_chance': 0.04, 'name': 'Axe'},
-            'hammer': {'damage': 19, 'speed': 5, 'crit_chance': 0.02, 'name': 'Hammer'},
-            'crossbow': {'damage': 16, 'speed': 9, 'crit_chance': 0.05, 'name': 'Crossbow'},
-            'knife': {'damage': 10, 'speed': 14, 'crit_chance': 0.10, 'name': 'Knife'},
-            'shield': {'damage': 8, 'speed': 6, 'crit_chance': 0.02, 'name': 'Shield'}
-        };
-        
-        const FACTIONS = {
-            'order': 'Order of the Silver Crusade',
-            'shadow': 'Shadow Covenant',
-            'wilderness': 'Wilderness Tribe'
-        };
-        
-        const ABILITIES = {
-            'order': ['Healing Light', 'Shield of Faith', 'Righteous Fury', 'Purification'],
-            'shadow': ['Shadow Strike', 'Vanish', 'Shadow Clone', 'Assassinate'],
-            'wilderness': ['Wild Growth', 'Thorn Barrier', 'Nature\'s Wrath', 'Spirit Form']
-        };
-        
-        // Initialize when DOM loads
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded');
-            updateAbilities();
-            setupForm();
-            setupLogin();
-            checkExistingPlayer();
-        });
-        
-        // Update abilities display
-        function updateAbilities() {
-            const faction = document.getElementById('faction').value;
-            const display = document.getElementById('abilities-display');
-            const abilities = ABILITIES[faction];
+        const TOKEN_KEY = 'idleAccessToken';
+        const REFRESH_TOKEN_KEY = 'idleRefreshToken';
+        const USER_ID_KEY = 'idleUserId';
+        const CHARACTER_ID_KEY = 'idleCharacterId';
+        const USERNAME_KEY = 'idleUsername';
+        let currentUserId = null;
+        let currentCharacterId = null;
+
+        function showMessage(message, isError = false) {
+            const errorEl = document.getElementById('error-message');
+            const successEl = document.getElementById('success-message');
             
-            display.innerHTML = abilities.map(ability => 
-                '<div style="background: rgba(255,255,255,0.1); padding: 5px; margin: 2px; border-radius: 3px;">' + ability + '</div>'
-            ).join('');
-        }
-        
-        // Setup form submission
-        function setupForm() {
-            const form = document.getElementById('character-form');
-            if (form) {
-                form.addEventListener('submit', handleFormSubmit);
-                console.log('Form setup complete');
-            }
-        }
-        
-        // Handle form submission
-        async function handleFormSubmit(e) {
-            e.preventDefault();
-            console.log('Form submitted');
-            
-            const formData = new FormData(e.target);
-            const playerData = Object.fromEntries(formData.entries());
-            console.log('Player data:', playerData);
-            
-            try {
-                const response = await fetch('/create-player', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(playerData)
-                });
-                
-                const result = await response.json();
-                console.log('Response:', result);
-                
-                if (result.success) {
-                    currentPlayer = result.player;
-                    localStorage.setItem('idleduelist_player', JSON.stringify(currentPlayer));
-                    showGameInterface();
-                    updatePlayerDisplay();
-                } else {
-                    alert('Error: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error: ' + error.message);
-            }
-        }
-        
-        // Show sections
-        function showSection(sectionId) {
-            document.querySelectorAll('.game-section').forEach(section => {
-                section.classList.remove('active');
-            });
-            document.getElementById(sectionId).classList.add('active');
-        }
-        
-        function showGameInterface() {
-            showSection('game-interface');
-        }
-        
-        function showLeaderboard() {
-            showSection('leaderboard');
-            loadLeaderboard();
-        }
-        
-        function showCharacterInfo() {
-            showSection('character-info');
-            loadCharacterInfo();
-        }
-        
-        function showLogin() {
-            showSection('login-section');
-        }
-        
-        function showCharacterCreation() {
-            showSection('character-creation');
-        }
-        
-        // Setup login form
-        function setupLogin() {
-            const loginForm = document.getElementById('login-form');
-            if (loginForm) {
-                loginForm.addEventListener('submit', handleLogin);
-            }
-        }
-        
-        // Check for existing player in localStorage
-        function checkExistingPlayer() {
-            const savedPlayer = localStorage.getItem('idleduelist_player');
-            if (savedPlayer) {
-                try {
-                    currentPlayer = JSON.parse(savedPlayer);
-                    console.log('Found saved player:', currentPlayer.username);
-                    showGameInterface();
-                    updatePlayerDisplay();
-                } catch (e) {
-                    console.log('Invalid saved player data');
-                    localStorage.removeItem('idleduelist_player');
-                }
-            }
-        }
-        
-        // Handle login
-        async function handleLogin(e) {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const username = formData.get('username');
-            
-            try {
-                const response = await fetch('/get-player/' + encodeURIComponent(username));
-                const result = await response.json();
-                
-                if (result.success) {
-                    currentPlayer = result.player;
-                    localStorage.setItem('idleduelist_player', JSON.stringify(currentPlayer));
-                    showGameInterface();
-                    updatePlayerDisplay();
-                    alert('Welcome back, ' + username + '!');
-                } else {
-                    alert('Player not found. Please create a new character.');
-                    showCharacterCreation();
-                }
-            } catch (error) {
-                console.error('Login error:', error);
-                alert('Error logging in: ' + error.message);
-            }
-        }
-        
-        // Save player data
-        function savePlayerData() {
-            if (currentPlayer) {
-                localStorage.setItem('idleduelist_player', JSON.stringify(currentPlayer));
-            }
-        }
-        
-        // Logout function
-        function logout() {
-            currentPlayer = null;
-            localStorage.removeItem('idleduelist_player');
-            showLogin();
-        }
-        
-        // Update player display
-        function updatePlayerDisplay() {
-            if (!currentPlayer) return;
-            
-            document.getElementById('player-name').textContent = currentPlayer.username;
-            document.getElementById('rating').textContent = currentPlayer.rating;
-            document.getElementById('wins').textContent = currentPlayer.wins;
-            document.getElementById('losses').textContent = currentPlayer.losses;
-            
-            const weapon1 = WEAPONS[currentPlayer.weapon1];
-            const weapon2 = WEAPONS[currentPlayer.weapon2];
-            
-            const damage = Math.floor((weapon1.damage + weapon2.damage) * 0.75);
-            const speed = Math.floor((weapon1.speed + weapon2.speed) * 0.8);
-            const crit = Math.floor((weapon1.crit_chance + weapon2.crit_chance) * 0.6 * 100);
-            
-            document.getElementById('damage').textContent = damage;
-            document.getElementById('speed').textContent = speed;
-            document.getElementById('crit').textContent = crit + '%';
-        }
-        
-        // Find duel
-        async function findDuel() {
-            if (!currentPlayer) return;
-            
-            const duelLog = document.getElementById('duel-log');
-            duelLog.style.display = 'block';
-            duelLog.innerHTML = '<div class="loading">Finding opponent...</div>';
-            
-            try {
-                const response = await fetch('/duel', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({player_id: currentPlayer.id})
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    displayDuelResult(result);
-                    currentPlayer = result.updated_player;
-                    savePlayerData();
-                    updatePlayerDisplay();
-                } else {
-                    duelLog.innerHTML = '<div class="error">Error: ' + result.error + '</div>';
-                }
-            } catch (error) {
-                duelLog.innerHTML = '<div class="error">Error: ' + error.message + '</div>';
-            }
-        }
-        
-        // Display duel result
-        function displayDuelResult(result) {
-            const duelLog = document.getElementById('duel-log');
-            const timestamp = new Date().toLocaleTimeString();
-            
-            let html = '<div><strong>[' + timestamp + ']</strong> Duel Results:</div>';
-            html += '<div>⚔️ ' + result.player_name + ' vs ' + result.opponent_name + '</div>';
-            html += '<div>💥 Damage dealt: ' + result.player_damage + '</div>';
-            html += '<div>💥 Damage received: ' + result.opponent_damage + '</div>';
-            
-            if (result.winner === currentPlayer.id) {
-                html += '<div class="success">🏆 Victory! (+20 rating)</div>';
+            if (isError) {
+                errorEl.textContent = message;
+                errorEl.classList.add('show');
+                successEl.classList.remove('show');
             } else {
-                html += '<div class="error">💀 Defeat! (-15 rating)</div>';
+                successEl.textContent = message;
+                successEl.classList.add('show');
+                errorEl.classList.remove('show');
             }
             
-            html += '<div>New Rating: ' + result.updated_player.rating + '</div><br>';
-            duelLog.innerHTML = html + duelLog.innerHTML;
+            setTimeout(() => {
+                errorEl.classList.remove('show');
+                successEl.classList.remove('show');
+            }, 5000);
         }
-        
-        // Load leaderboard
-        async function loadLeaderboard() {
+
+        function showRegister() {
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('register-section').style.display = 'block';
+        }
+
+        function showLogin() {
+            document.getElementById('register-section').style.display = 'none';
+            document.getElementById('login-section').style.display = 'block';
+        }
+
+        // Login form handler
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const button = form.querySelector('button[type="submit"]');
+            
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            
+            if (!username || !password) {
+                showMessage('Please fill in all fields', true);
+                return;
+            }
+            
+            button.disabled = true;
+            button.textContent = 'Signing in...';
+            
             try {
-                const response = await fetch('/leaderboard');
-                const players = await response.json();
-                const content = document.getElementById('leaderboard-content');
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
                 
-                if (players.length === 0) {
-                    content.innerHTML = '<div class="error">No players found</div>';
-                    return;
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Store JWT tokens
+                    localStorage.setItem(TOKEN_KEY, result.access_token);
+                    localStorage.setItem(REFRESH_TOKEN_KEY, result.refresh_token);
+                    currentUserId = result.user_id;
+                    localStorage.setItem(USER_ID_KEY, result.user_id);
+                    localStorage.setItem(USERNAME_KEY, result.username || username);
+                    if (result.has_character) {
+                        currentCharacterId = result.character_id;
+                        if (currentCharacterId) {
+                            localStorage.setItem(CHARACTER_ID_KEY, currentCharacterId);
+                        }
+                        // Redirect to game
+                        window.location.href = '/game';
+                    } else {
+                        localStorage.removeItem(CHARACTER_ID_KEY);
+                        // Need to create character
+                        showMessage('Account found! Please create your character.', false);
+                        setTimeout(() => {
+                            window.location.href = '/game?create_character=true';
+                        }, 1500);
+                    }
+                } else {
+                    showMessage(result.detail || 'Login failed', true);
+                    button.disabled = false;
+                    button.textContent = 'Sign In';
                 }
-                
-                content.innerHTML = players.map(function(player, index) {
-                    return '<div class="leaderboard-entry">' +
-                        '<div><strong>#' + (index + 1) + '</strong> ' + player.username + '</div>' +
-                        '<div class="rating">' + player.rating + '</div>' +
-                        '<div class="wins">' + player.wins + 'W</div>' +
-                        '<div class="losses">' + player.losses + 'L</div>' +
-                        '</div>';
-                }).join('');
             } catch (error) {
-                document.getElementById('leaderboard-content').innerHTML = 
-                    '<div class="error">Error: ' + error.message + '</div>';
+                showMessage('Error connecting to server', true);
+                button.disabled = false;
+                button.textContent = 'Sign In';
             }
-        }
-        
-        // Load character info
-        function loadCharacterInfo() {
-            if (!currentPlayer) return;
+        });
+
+        // Register form handler
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const button = form.querySelector('button[type="submit"]');
             
-            const details = document.getElementById('character-details');
-            const abilities = ABILITIES[currentPlayer.faction];
+            const username = document.getElementById('register-username').value.trim();
+            const password = document.getElementById('register-password').value;
+            const email = document.getElementById('register-email').value.trim() || null;
             
-            details.innerHTML = 
-                '<div class="stats-display">' +
-                    '<div class="stat-card">' +
-                        '<div>Faction</div>' +
-                        '<div class="stat-value">' + FACTIONS[currentPlayer.faction] + '</div>' +
-                    '</div>' +
-                    '<div class="stat-card">' +
-                        '<div>Armor</div>' +
-                        '<div class="stat-value">' + currentPlayer.armor_type.charAt(0).toUpperCase() + currentPlayer.armor_type.slice(1) + '</div>' +
-                    '</div>' +
-                    '<div class="stat-card">' +
-                        '<div>Primary Weapon</div>' +
-                        '<div class="stat-value">' + WEAPONS[currentPlayer.weapon1].name + '</div>' +
-                    '</div>' +
-                    '<div class="stat-card">' +
-                        '<div>Secondary Weapon</div>' +
-                        '<div class="stat-value">' + WEAPONS[currentPlayer.weapon2].name + '</div>' +
-                    '</div>' +
-                '</div>' +
-                '<h3>Abilities:</h3>' +
-                '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 10px;">' +
-                    abilities.map(function(ability) {
-                        return '<div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; text-align: center;">' + ability + '</div>';
-                    }).join('') +
-                '</div>';
-        }
+            if (!username || !password) {
+                showMessage('Username and password are required', true);
+                return;
+            }
+            
+            if (username.length < 3) {
+                showMessage('Username must be at least 3 characters', true);
+                return;
+            }
+            
+            if (password.length < 6) {
+                showMessage('Password must be at least 6 characters', true);
+                return;
+            }
+            
+            button.disabled = true;
+            button.textContent = 'Creating account...';
+            
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, email })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('Account created successfully! Redirecting...', false);
+                    currentUserId = result.user_id;
+                    localStorage.setItem(USER_ID_KEY, result.user_id);
+                    localStorage.setItem(USERNAME_KEY, username);
+                    localStorage.removeItem(CHARACTER_ID_KEY);
+                    setTimeout(() => {
+                        window.location.href = '/game?create_character=true';
+                    }, 1500);
+                } else {
+                    showMessage(result.detail || 'Registration failed', true);
+                    button.disabled = false;
+                    button.textContent = 'Create Account';
+                }
+            } catch (error) {
+                showMessage('Error connecting to server', true);
+                button.disabled = false;
+                button.textContent = 'Create Account';
+            }
+        });
     </script>
 </body>
 </html>
+
