@@ -88,6 +88,35 @@ def get_db_connection():
         conn.row_factory = sqlite3.Row
         return conn
 
+def execute_query(cursor, query, params=None):
+    """
+    Execute a query with proper parameter placeholders for the current database.
+    Converts ? to %s for PostgreSQL automatically.
+    """
+    if params is None:
+        params = ()
+    
+    if USE_POSTGRES:
+        # Convert SQLite ? placeholders to PostgreSQL %s
+        query = query.replace('?', '%s')
+    
+    return cursor.execute(query, params)
+
+def execute_query(cursor, query, params=None):
+    """
+    Execute a query with proper parameter placeholders for the current database.
+    Converts ? to %s for PostgreSQL automatically.
+    Note: This is a simple conversion - ensure queries don't have ? in string literals.
+    """
+    if params is None:
+        params = ()
+    
+    if USE_POSTGRES:
+        # Convert SQLite ? placeholders to PostgreSQL %s
+        query = query.replace('?', '%s')
+    
+    return cursor.execute(query, params)
+
 def get_redis_client():
     """Get Redis client or return None if not available"""
     global redis_client
@@ -363,18 +392,61 @@ def init_database():
     
     # Combat logs table
     if USE_POSTGRES:
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS combat_logs (
-                id SERIAL PRIMARY KEY,
-                character1_id VARCHAR(255) NOT NULL,
-                character2_id VARCHAR(255) NOT NULL,
-                winner_id VARCHAR(255),
-                log_json TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (character1_id) REFERENCES characters (id),
-                FOREIGN KEY (character2_id) REFERENCES characters (id)
+        # Check if table exists first to avoid sequence conflicts
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'combat_logs'
             )
-        ''')
+        """)
+        table_exists = cursor.fetchone()[0]
+        
+        if not table_exists:
+            try:
+                cursor.execute('''
+                    CREATE TABLE combat_logs (
+                        id SERIAL PRIMARY KEY,
+                        character1_id VARCHAR(255) NOT NULL,
+                        character2_id VARCHAR(255) NOT NULL,
+                        winner_id VARCHAR(255),
+                        log_json TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (character1_id) REFERENCES characters (id),
+                        FOREIGN KEY (character2_id) REFERENCES characters (id)
+                    )
+                ''')
+                conn.commit()
+            except Exception as e:
+                # If sequence conflict, table might be partially created - check again
+                if "already exists" in str(e) or "duplicate key" in str(e):
+                    cursor.execute("""
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables 
+                            WHERE table_name = 'combat_logs'
+                        )
+                    """)
+                    if not cursor.fetchone()[0]:
+                        # Table doesn't exist, but sequence does - drop sequence and retry
+                        try:
+                            cursor.execute("DROP SEQUENCE IF EXISTS combat_logs_id_seq CASCADE")
+                            cursor.execute('''
+                                CREATE TABLE combat_logs (
+                                    id SERIAL PRIMARY KEY,
+                                    character1_id VARCHAR(255) NOT NULL,
+                                    character2_id VARCHAR(255) NOT NULL,
+                                    winner_id VARCHAR(255),
+                                    log_json TEXT,
+                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                    FOREIGN KEY (character1_id) REFERENCES characters (id),
+                                    FOREIGN KEY (character2_id) REFERENCES characters (id)
+                                )
+                            ''')
+                            conn.commit()
+                        except Exception as e2:
+                            print(f"Warning: Could not create combat_logs table: {e2}")
+                            conn.rollback()
+                else:
+                    raise
     else:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS combat_logs (
@@ -894,7 +966,10 @@ async def register(request: RegisterRequest):
     cursor = conn.cursor()
     
     # Check if username exists
-    cursor.execute("SELECT id FROM users WHERE username = ?", (request.username,))
+    if USE_POSTGRES:
+        cursor.execute("SELECT id FROM users WHERE username = %s", (request.username,))
+    else:
+        cursor.execute("SELECT id FROM users WHERE username = ?", (request.username,))
     if cursor.fetchone():
         conn.close()
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -903,10 +978,16 @@ async def register(request: RegisterRequest):
     user_id = generate_id()
     password_hash = hash_password(request.password)
     
-    cursor.execute(
-        "INSERT INTO users (id, username, password_hash, email) VALUES (?, ?, ?, ?)",
-        (user_id, request.username, password_hash, request.email)
-    )
+    if USE_POSTGRES:
+        cursor.execute(
+            "INSERT INTO users (id, username, password_hash, email) VALUES (%s, %s, %s, %s)",
+            (user_id, request.username, password_hash, request.email)
+        )
+    else:
+        cursor.execute(
+            "INSERT INTO users (id, username, password_hash, email) VALUES (?, ?, ?, ?)",
+            (user_id, request.username, password_hash, request.email)
+        )
     
     conn.commit()
     conn.close()
@@ -919,10 +1000,16 @@ async def login(request: LoginRequest):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute(
-        "SELECT id, username, password_hash FROM users WHERE username = ?",
-        (request.username,)
-    )
+    if USE_POSTGRES:
+        cursor.execute(
+            "SELECT id, username, password_hash FROM users WHERE username = %s",
+            (request.username,)
+        )
+    else:
+        cursor.execute(
+            "SELECT id, username, password_hash FROM users WHERE username = ?",
+            (request.username,)
+        )
     user = cursor.fetchone()
     
     if not user:
@@ -934,10 +1021,16 @@ async def login(request: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid username or password")
     
     # Get user's character
-    cursor.execute(
-        "SELECT * FROM characters WHERE user_id = ? LIMIT 1",
-        (user['id'],)
-    )
+    if USE_POSTGRES:
+        cursor.execute(
+            "SELECT * FROM characters WHERE user_id = %s LIMIT 1",
+            (user['id'],)
+        )
+    else:
+        cursor.execute(
+            "SELECT * FROM characters WHERE user_id = ? LIMIT 1",
+            (user['id'],)
+        )
     character = cursor.fetchone()
     
     conn.close()
