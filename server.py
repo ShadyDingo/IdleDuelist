@@ -272,8 +272,30 @@ def init_database():
             )
         ''')
     
+    # Commit initial table creation so subsequent ALTER statements see the tables
+    if USE_POSTGRES:
+        conn.commit()
+    
     # Add gold and pvp_enabled columns if they don't exist (for existing databases)
     # For PostgreSQL, we need to handle transaction rollbacks on errors
+    def table_exists(table_name: str) -> bool:
+        """Check if a table exists in the current database"""
+        try:
+            if USE_POSTGRES:
+                cursor.execute("SELECT to_regclass(%s)", (f'public.{table_name}',))
+                result = cursor.fetchone()
+                return result is not None and result[0] is not None
+            else:
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+                return cursor.fetchone() is not None
+        except Exception:
+            if USE_POSTGRES:
+                try:
+                    conn.rollback()
+                except:
+                    pass
+            return False
+    
     def safe_alter_table(alter_sql):
         """Safely execute ALTER TABLE, handling duplicate column errors"""
         try:
@@ -290,28 +312,29 @@ def init_database():
             # Column already exists or other error - ignore
             pass
     
-    safe_alter_table('ALTER TABLE characters ADD COLUMN gold INTEGER DEFAULT 0')
-    
-    if USE_POSTGRES:
-        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT FALSE')
-    else:
-        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT 0')
-    
-    if USE_POSTGRES:
-        safe_alter_table("ALTER TABLE characters ADD COLUMN combat_stance VARCHAR(50) DEFAULT 'balanced'")
-    else:
-        safe_alter_table('ALTER TABLE characters ADD COLUMN combat_stance TEXT DEFAULT "balanced"')
-    
-    # Add PvP stats columns if they don't exist
-    safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_wins INTEGER DEFAULT 0')
-    safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_losses INTEGER DEFAULT 0')
-    safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_mmr INTEGER DEFAULT 1000')
-    safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_last_week_rank INTEGER')
-    
-    if USE_POSTGRES:
-        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT FALSE')
-    else:
-        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT 0')
+    if table_exists('characters'):
+        safe_alter_table('ALTER TABLE characters ADD COLUMN gold INTEGER DEFAULT 0')
+        
+        if USE_POSTGRES:
+            safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT FALSE')
+        else:
+            safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT 0')
+        
+        if USE_POSTGRES:
+            safe_alter_table("ALTER TABLE characters ADD COLUMN combat_stance VARCHAR(50) DEFAULT 'balanced'")
+        else:
+            safe_alter_table('ALTER TABLE characters ADD COLUMN combat_stance TEXT DEFAULT "balanced"')
+        
+        # Add PvP stats columns if they don't exist
+        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_wins INTEGER DEFAULT 0')
+        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_losses INTEGER DEFAULT 0')
+        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_mmr INTEGER DEFAULT 1000')
+        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_last_week_rank INTEGER')
+        
+        if USE_POSTGRES:
+            safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT FALSE')
+        else:
+            safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT 0')
     
     # Combat logs table
     if USE_POSTGRES:
