@@ -95,6 +95,95 @@ def get_redis_client():
             return None
     return None
 
+# Redis helper functions for combat states
+def get_combat_state(combat_id: str) -> Optional[Dict]:
+    """Get combat state from Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        data = r.get(f"combat:{combat_id}")
+        return json.loads(data) if data else None
+    return combat_states.get(combat_id)
+
+def set_combat_state(combat_id: str, state: Dict):
+    """Set combat state in Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        # Store with 1 hour expiration
+        r.setex(f"combat:{combat_id}", 3600, json.dumps(state))
+    else:
+        combat_states[combat_id] = state
+
+def delete_combat_state(combat_id: str):
+    """Delete combat state from Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        r.delete(f"combat:{combat_id}")
+    else:
+        combat_states.pop(combat_id, None)
+
+# Redis helper functions for PVP queue
+def get_pvp_queue_entry(character_id: str) -> Optional[str]:
+    """Get PVP queue entry from Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        return r.get(f"pvp_queue:{character_id}")
+    return pvp_queue.get(character_id)
+
+def set_pvp_queue_entry(character_id: str, timestamp: str):
+    """Set PVP queue entry in Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        r.setex(f"pvp_queue:{character_id}", 300, timestamp)  # 5 min expiration
+    else:
+        pvp_queue[character_id] = timestamp
+
+def delete_pvp_queue_entry(character_id: str):
+    """Delete PVP queue entry from Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        r.delete(f"pvp_queue:{character_id}")
+    else:
+        pvp_queue.pop(character_id, None)
+
+# Redis helper functions for auto-fight sessions
+def get_auto_fight_session(session_id: str) -> Optional[Dict]:
+    """Get auto-fight session from Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        data = r.get(f"autofight:{session_id}")
+        return json.loads(data) if data else None
+    return auto_fight_sessions.get(session_id)
+
+def set_auto_fight_session(session_id: str, session: Dict):
+    """Set auto-fight session in Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        # Store with 2 hour expiration (longer than 1 hour session)
+        r.setex(f"autofight:{session_id}", 7200, json.dumps(session))
+    else:
+        auto_fight_sessions[session_id] = session
+
+def delete_auto_fight_session(session_id: str):
+    """Delete auto-fight session from Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        r.delete(f"autofight:{session_id}")
+    else:
+        auto_fight_sessions.pop(session_id, None)
+
+def get_all_auto_fight_sessions() -> Dict[str, Dict]:
+    """Get all auto-fight sessions from Redis or in-memory"""
+    r = get_redis_client()
+    if r:
+        sessions = {}
+        for key in r.keys("autofight:*"):
+            session_id = key.replace("autofight:", "")
+            data = r.get(key)
+            if data:
+                sessions[session_id] = json.loads(data)
+        return sessions
+    return auto_fight_sessions.copy()
+
 def init_database():
     """Initialize database with all tables - compatible with both SQLite and PostgreSQL"""
     conn = get_db_connection()
@@ -1320,7 +1409,7 @@ async def start_combat(request: Dict = Body(...), current_user: dict = Depends(g
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/combat/state/{combat_id}")
-async def get_combat_state(combat_id: str):
+async def get_combat_state_endpoint(combat_id: str):
     """Get current combat state (polling endpoint)"""
     state = get_combat_state(combat_id)
     if state is None:
