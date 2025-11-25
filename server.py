@@ -273,55 +273,45 @@ def init_database():
         ''')
     
     # Add gold and pvp_enabled columns if they don't exist (for existing databases)
-    try:
-        cursor.execute('ALTER TABLE characters ADD COLUMN gold INTEGER DEFAULT 0')
-    except (sqlite3.OperationalError, Exception):
-        pass  # Column already exists
+    # For PostgreSQL, we need to handle transaction rollbacks on errors
+    def safe_alter_table(alter_sql):
+        """Safely execute ALTER TABLE, handling duplicate column errors"""
+        try:
+            cursor.execute(alter_sql)
+            if USE_POSTGRES:
+                conn.commit()  # Commit after each successful ALTER
+        except Exception as e:
+            # For PostgreSQL, rollback on any error to clear failed transaction state
+            if USE_POSTGRES:
+                try:
+                    conn.rollback()
+                except:
+                    pass  # Ignore rollback errors
+            # Column already exists or other error - ignore
+            pass
     
-    try:
-        if USE_POSTGRES:
-            cursor.execute('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT FALSE')
-        else:
-            cursor.execute('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT 0')
-    except:
-        pass
+    safe_alter_table('ALTER TABLE characters ADD COLUMN gold INTEGER DEFAULT 0')
     
-    try:
-        if USE_POSTGRES:
-            cursor.execute("ALTER TABLE characters ADD COLUMN combat_stance VARCHAR(50) DEFAULT 'balanced'")
-        else:
-            cursor.execute('ALTER TABLE characters ADD COLUMN combat_stance TEXT DEFAULT "balanced"')
-    except (sqlite3.OperationalError, Exception):
-        pass  # Column already exists
+    if USE_POSTGRES:
+        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT FALSE')
+    else:
+        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_enabled BOOLEAN DEFAULT 0')
+    
+    if USE_POSTGRES:
+        safe_alter_table("ALTER TABLE characters ADD COLUMN combat_stance VARCHAR(50) DEFAULT 'balanced'")
+    else:
+        safe_alter_table('ALTER TABLE characters ADD COLUMN combat_stance TEXT DEFAULT "balanced"')
     
     # Add PvP stats columns if they don't exist
-    try:
-        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_wins INTEGER DEFAULT 0')
-    except (sqlite3.OperationalError, Exception):
-        pass  # Column already exists
+    safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_wins INTEGER DEFAULT 0')
+    safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_losses INTEGER DEFAULT 0')
+    safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_mmr INTEGER DEFAULT 1000')
+    safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_last_week_rank INTEGER')
     
-    try:
-        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_losses INTEGER DEFAULT 0')
-    except (sqlite3.OperationalError, Exception):
-        pass  # Column already exists
-    
-    try:
-        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_mmr INTEGER DEFAULT 1000')
-    except (sqlite3.OperationalError, Exception):
-        pass  # Column already exists
-    
-    try:
-        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_last_week_rank INTEGER')
-    except (sqlite3.OperationalError, Exception):
-        pass  # Column already exists
-    
-    try:
-        if USE_POSTGRES:
-            cursor.execute('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT FALSE')
-        else:
-            cursor.execute('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT 0')
-    except (sqlite3.OperationalError, Exception):
-        pass  # Column already exists
+    if USE_POSTGRES:
+        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT FALSE')
+    else:
+        safe_alter_table('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT 0')
     
     # Combat logs table
     if USE_POSTGRES:
