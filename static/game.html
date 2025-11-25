@@ -1478,6 +1478,14 @@
 
         // Initialize
         window.addEventListener('DOMContentLoaded', async () => {
+            // Check if user is authenticated
+            const token = localStorage.getItem(TOKEN_KEY);
+            if (!token) {
+                alert('You are not logged in. Redirecting to login page...');
+                window.location.href = '/';
+                return;
+            }
+            
             // Check URL params for character creation
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('create_character') === 'true') {

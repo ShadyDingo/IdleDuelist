@@ -459,7 +459,7 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 # Security scheme for FastAPI
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 # Password hashing
 def hash_password(password: str) -> str:
@@ -500,9 +500,15 @@ def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
     except JWTError:
         return None
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> dict:
     """Dependency to get current authenticated user from JWT token"""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
     token = credentials.credentials
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
     payload = verify_token(token, "access")
     if payload is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
