@@ -1143,6 +1143,7 @@
             <button class="nav-btn" onclick="showScreen('combat')">Combat</button>
             <button class="nav-btn" onclick="showScreen('store')">Store</button>
             <button class="nav-btn" onclick="showScreen('chat')">Chat</button>
+            <button class="nav-btn" onclick="showScreen('leaderboard')">Leaderboard</button>
         </div>
 
         <!-- Screen Container -->
@@ -1164,6 +1165,30 @@
 
                 <h3 style="margin-top: 30px; margin-bottom: 15px;">Equipment</h3>
                 <div class="equipment-grid" id="equipment-grid"></div>
+                
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">PvP Stats</h3>
+                <div class="stat-card" id="pvp-stats-card" style="padding: 15px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+                    <div class="stat-row" style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span class="stat-label">PvP Wins:</span>
+                        <span class="stat-value" id="pvp-wins-display">0</span>
+                    </div>
+                    <div class="stat-row" style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span class="stat-label">PvP Losses:</span>
+                        <span class="stat-value" id="pvp-losses-display">0</span>
+                    </div>
+                    <div class="stat-row" style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span class="stat-label">Win Rate:</span>
+                        <span class="stat-value" id="pvp-win-rate-display">0%</span>
+                    </div>
+                    <div class="stat-row" style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span class="stat-label">MMR:</span>
+                        <span class="stat-value" id="pvp-mmr-display" style="color: var(--text-accent);">1000</span>
+                    </div>
+                    <div class="stat-row" style="display: flex; justify-content: space-between;">
+                        <span class="stat-label">MMR Rank:</span>
+                        <span class="stat-value" id="pvp-rank-display">-</span>
+                    </div>
+                </div>
             </div>
 
             <!-- Skills Screen -->
@@ -1227,7 +1252,6 @@
                             <div>
                                 <h3 style="margin-bottom: 15px;">PvP</h3>
                                 <div style="margin-bottom: 15px;">
-                                    <button class="combat-action-btn" onclick="joinPvPQueue()" id="pvp-queue-btn">Join PvP Queue</button>
                                     <button class="combat-action-btn" onclick="togglePvPEnabled()" id="pvp-toggle-btn">Enable PvP</button>
                                 </div>
                                 <div id="pvp-opponent-list" style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px;">
@@ -1329,6 +1353,21 @@
 
             <!-- Chat Screen -->
             <div id="chat-screen" class="screen">
+                <h2 style="margin-bottom: 20px;">Chat</h2>
+                <div id="chat-messages" style="max-height: 400px; overflow-y: auto; margin-bottom: 15px; padding: 10px; background: var(--bg-tertiary); border-radius: 8px;"></div>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="chat-input" placeholder="Type a message..." style="flex: 1; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 5px; color: var(--text-primary);" onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                    <button class="combat-action-btn" onclick="sendChatMessage()">Send</button>
+                </div>
+            </div>
+
+            <!-- Leaderboard Screen -->
+            <div id="leaderboard-screen" class="screen">
+                <h2 style="margin-bottom: 20px;">PvP Leaderboard</h2>
+                <div id="leaderboard-content" style="max-height: 500px; overflow-y: auto;">
+                    <p style="text-align: center; color: var(--text-secondary);">Loading leaderboard...</p>
+                </div>
+            </div>
                 <h2 style="margin-bottom: 20px;">Global Chat</h2>
                 
                 <div class="chat-container">
@@ -1670,6 +1709,26 @@
                 combatStatsEl.appendChild(row);
             }
 
+            // PvP Stats
+            if (characterData.pvp_wins !== undefined) {
+                document.getElementById('pvp-wins-display').textContent = characterData.pvp_wins || 0;
+                document.getElementById('pvp-losses-display').textContent = characterData.pvp_losses || 0;
+                document.getElementById('pvp-win-rate-display').textContent = (characterData.pvp_win_rate || 0).toFixed(2) + '%';
+                document.getElementById('pvp-mmr-display').textContent = characterData.pvp_mmr || 1000;
+                // MMR rank will be loaded from leaderboard
+                document.getElementById('pvp-rank-display').textContent = '-';
+            }
+
+            // PvP Stats
+            if (characterData.pvp_wins !== undefined) {
+                document.getElementById('pvp-wins-display').textContent = characterData.pvp_wins || 0;
+                document.getElementById('pvp-losses-display').textContent = characterData.pvp_losses || 0;
+                document.getElementById('pvp-win-rate-display').textContent = (characterData.pvp_win_rate || 0).toFixed(2) + '%';
+                document.getElementById('pvp-mmr-display').textContent = characterData.pvp_mmr || 1000;
+                // MMR rank will be loaded from leaderboard
+                document.getElementById('pvp-rank-display').textContent = '-';
+            }
+            
             // Equipment grid
             const equipmentGrid = document.getElementById('equipment-grid');
             equipmentGrid.innerHTML = '';
@@ -1681,9 +1740,7 @@
                 boots: 'Boots',
                 gloves: 'Gloves',
                 main_hand: 'Main Hand',
-                off_hand: 'Off Hand',
-                ring: 'Ring',
-                necklace: 'Necklace'
+                off_hand: 'Off Hand'
             };
 
             for (const [slot, name] of Object.entries(slotNames)) {
@@ -2339,6 +2396,73 @@
             }
         }
         
+        async function loadLeaderboard() {
+            try {
+                const response = await authenticatedFetch('/api/pvp/leaderboard?limit=100');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const leaderboardContent = document.getElementById('leaderboard-content');
+                    leaderboardContent.innerHTML = '';
+                    
+                    if (result.leaderboard.length === 0) {
+                        leaderboardContent.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No players on leaderboard yet.</p>';
+                        return;
+                    }
+                    
+                    // Create table header
+                    const table = document.createElement('table');
+                    table.style.width = '100%';
+                    table.style.borderCollapse = 'collapse';
+                    table.style.marginTop = '10px';
+                    
+                    const thead = document.createElement('thead');
+                    thead.innerHTML = `
+                        <tr style="background: var(--bg-tertiary); border-bottom: 2px solid var(--border-color);">
+                            <th style="padding: 10px; text-align: left;">Rank</th>
+                            <th style="padding: 10px; text-align: left;">Name</th>
+                            <th style="padding: 10px; text-align: left;">Level</th>
+                            <th style="padding: 10px; text-align: left;">MMR</th>
+                            <th style="padding: 10px; text-align: left;">Wins</th>
+                            <th style="padding: 10px; text-align: left;">Losses</th>
+                            <th style="padding: 10px; text-align: left;">Win Rate</th>
+                        </tr>
+                    `;
+                    table.appendChild(thead);
+                    
+                    const tbody = document.createElement('tbody');
+                    result.leaderboard.forEach((player) => {
+                        const row = document.createElement('tr');
+                        row.style.borderBottom = '1px solid var(--border-color)';
+                        if (player.id === currentCharacterId) {
+                            row.style.background = 'rgba(99, 102, 241, 0.2)';
+                            row.style.fontWeight = '600';
+                        }
+                        row.innerHTML = `
+                            <td style="padding: 10px;">${player.rank}</td>
+                            <td style="padding: 10px;">${player.name}</td>
+                            <td style="padding: 10px;">${player.level}</td>
+                            <td style="padding: 10px; color: var(--text-accent);">${player.mmr}</td>
+                            <td style="padding: 10px; color: var(--success);">${player.wins}</td>
+                            <td style="padding: 10px; color: var(--danger);">${player.losses}</td>
+                            <td style="padding: 10px;">${player.win_rate}%</td>
+                        `;
+                        tbody.appendChild(row);
+                        
+                        // Update player's rank if this is their character
+                        if (player.id === currentCharacterId) {
+                            document.getElementById('pvp-rank-display').textContent = `#${player.rank}`;
+                        }
+                    });
+                    table.appendChild(tbody);
+                    leaderboardContent.appendChild(table);
+                }
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+                document.getElementById('leaderboard-content').innerHTML = '<p style="text-align: center; color: var(--danger);">Error loading leaderboard.</p>';
+            }
+        }
+        
         async function loadPvPOpponents() {
             try {
                 const response = await fetch('/api/pvp/available');
@@ -2950,30 +3074,6 @@
             await refreshCharacterData();
         }
         
-        async function joinPvPQueue() {
-            if (!currentCharacterId) return;
-            
-            try {
-                const response = await authenticatedFetch('/api/pvp/queue', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        character_id: currentCharacterId,
-                        action: 'join'
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    alert('Joined PvP queue! Waiting for match...');
-                    // Try to match immediately
-                    tryMatch();
-                }
-            } catch (error) {
-                console.error('Error joining queue:', error);
-            }
-        }
-        
         async function tryMatch() {
             if (!currentCharacterId) return;
             
@@ -3251,6 +3351,8 @@
                 loadPvPOpponents();
             } else if (screenName === 'store') {
                 loadStoreItems();
+            } else if (screenName === 'leaderboard') {
+                loadLeaderboard();
             }
         }
         

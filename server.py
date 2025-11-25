@@ -249,6 +249,32 @@ def init_database():
     except sqlite3.OperationalError:
         pass  # Column already exists
     
+    # Add PvP stats columns if they don't exist
+    try:
+        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_wins INTEGER DEFAULT 0')
+    except (sqlite3.OperationalError, Exception):
+        pass  # Column already exists
+    
+    try:
+        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_losses INTEGER DEFAULT 0')
+    except (sqlite3.OperationalError, Exception):
+        pass  # Column already exists
+    
+    try:
+        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_mmr INTEGER DEFAULT 1000')
+    except (sqlite3.OperationalError, Exception):
+        pass  # Column already exists
+    
+    try:
+        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_last_week_rank INTEGER')
+    except (sqlite3.OperationalError, Exception):
+        pass  # Column already exists
+    
+    try:
+        cursor.execute('ALTER TABLE characters ADD COLUMN pvp_weekly_rewards_claimed BOOLEAN DEFAULT 0')
+    except (sqlite3.OperationalError, Exception):
+        pass  # Column already exists
+    
     # Combat logs table
     if USE_POSTGRES:
         cursor.execute('''
@@ -918,6 +944,26 @@ async def get_character(character_id: str, current_user: dict = Depends(get_curr
     except (KeyError, AttributeError):
         combat_stance = 'balanced'
     
+    # Get PvP stats (handle missing columns gracefully)
+    try:
+        pvp_wins = character['pvp_wins'] if 'pvp_wins' in character.keys() and character['pvp_wins'] is not None else 0
+    except (KeyError, AttributeError):
+        pvp_wins = 0
+    
+    try:
+        pvp_losses = character['pvp_losses'] if 'pvp_losses' in character.keys() and character['pvp_losses'] is not None else 0
+    except (KeyError, AttributeError):
+        pvp_losses = 0
+    
+    try:
+        pvp_mmr = character['pvp_mmr'] if 'pvp_mmr' in character.keys() and character['pvp_mmr'] is not None else 1000
+    except (KeyError, AttributeError):
+        pvp_mmr = 1000
+    
+    # Calculate win rate
+    total_games = pvp_wins + pvp_losses
+    pvp_win_rate = (pvp_wins / total_games * 100) if total_games > 0 else 0.0
+    
     return {
         "success": True,
         "character": {
@@ -933,7 +979,11 @@ async def get_character(character_id: str, current_user: dict = Depends(get_curr
             "auto_combat": bool(character['auto_combat']),
             "gold": gold,
             "pvp_enabled": pvp_enabled,
-            "combat_stance": combat_stance
+            "combat_stance": combat_stance,
+            "pvp_wins": pvp_wins,
+            "pvp_losses": pvp_losses,
+            "pvp_mmr": pvp_mmr,
+            "pvp_win_rate": round(pvp_win_rate, 2)
         }
     }
 
@@ -1219,6 +1269,7 @@ def initialize_combat_state(character1_id: str, character2_data: Dict, is_pvp: b
         combat_stance = 'balanced'
     
     # Get opponent data
+    char2_ability_loadout = {}  # Initialize for both cases
     if isinstance(character2_data, dict) and 'id' in character2_data:
         # AI or offline player
         char2_combat = character2_data.get('combat_stats', {})
@@ -1243,6 +1294,13 @@ def initialize_combat_state(character1_id: str, character2_data: Dict, is_pvp: b
         char2_id = char2['id']
         char2_level = char2['level']
         char2_weapon_type = get_weapon_type(char2_equipment)
+        
+        # For PvP, load opponent's ability loadout
+        if is_pvp:
+            cursor.execute("SELECT ability_id, slot_position FROM character_abilities WHERE character_id = ? ORDER BY slot_position", (char2_id,))
+            char2_loadout_rows = cursor.fetchall()
+            for row in char2_loadout_rows:
+                char2_ability_loadout[row['slot_position']] = row['ability_id']
     
     conn.close()
     
@@ -1289,7 +1347,8 @@ def initialize_combat_state(character1_id: str, character2_data: Dict, is_pvp: b
             'last_attack_time': datetime.now().timestamp(),
             'last_mana_regen_time': datetime.now().timestamp(),
             'auto_attack_enabled': True,
-            'auto_ability_enabled': False,
+            'auto_ability_enabled': is_pvp,  # Enable abilities for PvP opponents (not ultimates)
+            'ability_loadout': char2_ability_loadout if is_pvp else {},  # Load opponent's ability loadout in PvP
             'ability_cooldowns': {},
             'buffs': {},
             'debuffs': {}
@@ -1992,12 +2051,9 @@ async def toggle_auto_combat(combat_id: str, request: Dict = Body(...), current_
 
 def end_combat(combat_id: str):
     """End combat and award rewards"""
-    if combat_id not in combat_states:
-        return
-    
     state = get_combat_state(combat_id)
     if state is None:
-        raise HTTPException(status_code=404, detail="Combat not found")
+        return
     state['is_active'] = False
     
     # Determine winner
@@ -2101,6 +2157,44 @@ def end_combat(combat_id: str):
                     )
             
             state['rewards']['equipment_dropped'] = equipment_dropped
+            
+            # Update PvP stats if this is a PvP match
+            if state['is_pvp'] and not is_auto_fight:
+                # Get current PvP stats for both players
+                cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (winner_id,))
+                winner_stats = cursor.fetchone()
+                cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (loser_id,))
+                loser_stats = cursor.fetchone()
+                
+                # Get MMR values (default to 1000 if not set)
+                winner_mmr = winner_stats['pvp_mmr'] if winner_stats and winner_stats.get('pvp_mmr') else 1000
+                loser_mmr = loser_stats['pvp_mmr'] if loser_stats and loser_stats.get('pvp_mmr') else 1000
+                
+                # Calculate MMR change using ELO system
+                K = 32  # K-factor for competitive games
+                expected_winner = 1 / (1 + 10 ** ((loser_mmr - winner_mmr) / 400))
+                expected_loser = 1 / (1 + 10 ** ((winner_mmr - loser_mmr) / 400))
+                
+                # Winner gets 1 point, loser gets 0
+                winner_mmr_change = int(K * (1 - expected_winner))
+                loser_mmr_change = int(K * (0 - expected_loser))
+                
+                new_winner_mmr = max(0, winner_mmr + winner_mmr_change)
+                new_loser_mmr = max(0, loser_mmr + loser_mmr_change)
+                
+                # Update winner stats
+                winner_wins = (winner_stats['pvp_wins'] if winner_stats and winner_stats.get('pvp_wins') else 0) + 1
+                cursor.execute(
+                    "UPDATE characters SET pvp_wins = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (winner_wins, new_winner_mmr, winner_id)
+                )
+                
+                # Update loser stats
+                loser_losses = (loser_stats['pvp_losses'] if loser_stats and loser_stats.get('pvp_losses') else 0) + 1
+                cursor.execute(
+                    "UPDATE characters SET pvp_losses = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (loser_losses, new_loser_mmr, loser_id)
+                )
             
             conn.commit()
             conn.close()
@@ -3437,30 +3531,50 @@ async def get_pvp_opponents(character_id: str, max_level_diff: int = 5, current_
     return {"success": True, "opponents": opponents}
 
 @app.get("/api/pvp/leaderboard")
-async def get_pvp_leaderboard(limit: int = 50):
-    """Get PVP leaderboard (top players by level, exp, or wins)"""
+async def get_pvp_leaderboard(limit: int = 50, offset: int = 0):
+    """Get PVP leaderboard (ranked by MMR)"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Get top players by level and exp (as a simple ranking)
-    cursor.execute("""
-        SELECT id, name, level, exp, gold
-        FROM characters
-        WHERE pvp_enabled = 1
-        ORDER BY level DESC, exp DESC
-        LIMIT ?
-    """, (limit,))
+    # Get top players by MMR (default to 1000 if not set)
+    if USE_POSTGRES:
+        cursor.execute("""
+            SELECT id, name, level, 
+                   COALESCE(pvp_mmr, 1000) as pvp_mmr,
+                   COALESCE(pvp_wins, 0) as pvp_wins,
+                   COALESCE(pvp_losses, 0) as pvp_losses
+            FROM characters
+            ORDER BY COALESCE(pvp_mmr, 1000) DESC, COALESCE(pvp_wins, 0) DESC
+            LIMIT %s OFFSET %s
+        """, (limit, offset))
+    else:
+        cursor.execute("""
+            SELECT id, name, level, 
+                   COALESCE(pvp_mmr, 1000) as pvp_mmr,
+                   COALESCE(pvp_wins, 0) as pvp_wins,
+                   COALESCE(pvp_losses, 0) as pvp_losses
+            FROM characters
+            ORDER BY COALESCE(pvp_mmr, 1000) DESC, COALESCE(pvp_wins, 0) DESC
+            LIMIT ? OFFSET ?
+        """, (limit, offset))
     
     leaderboard = []
-    rank = 1
+    rank = offset + 1
     for row in cursor.fetchall():
+        wins = row.get('pvp_wins', 0) or 0
+        losses = row.get('pvp_losses', 0) or 0
+        total_games = wins + losses
+        win_rate = (wins / total_games * 100) if total_games > 0 else 0.0
+        
         leaderboard.append({
             'rank': rank,
             'id': row['id'],
             'name': row['name'],
             'level': row['level'],
-            'exp': row['exp'],
-            'gold': row.get('gold', 0)
+            'mmr': row.get('pvp_mmr', 1000) or 1000,
+            'wins': wins,
+            'losses': losses,
+            'win_rate': round(win_rate, 2)
         })
         rank += 1
     
