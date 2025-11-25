@@ -541,16 +541,29 @@ def initialize_default_data():
     # Initialize abilities
     for weapon_type, abilities in ABILITIES.items():
         for ability in abilities:
-            cursor.execute('''
-                INSERT OR IGNORE INTO abilities 
-                (id, name, description, cooldown_seconds, damage_multiplier, damage_type, mana_cost, weapon_type, is_ultimate)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                ability['id'], ability['name'], ability['description'],
-                ability['cooldown_seconds'], ability['damage_multiplier'],
-                ability['damage_type'], ability['mana_cost'], weapon_type,
-                ability['is_ultimate'] if USE_POSTGRES else (1 if ability['is_ultimate'] else 0)
-            ))
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO abilities 
+                    (id, name, description, cooldown_seconds, damage_multiplier, damage_type, mana_cost, weapon_type, is_ultimate)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO NOTHING
+                ''', (
+                    ability['id'], ability['name'], ability['description'],
+                    ability['cooldown_seconds'], ability['damage_multiplier'],
+                    ability['damage_type'], ability['mana_cost'], weapon_type,
+                    ability['is_ultimate']
+                ))
+            else:
+                cursor.execute('''
+                    INSERT OR IGNORE INTO abilities 
+                    (id, name, description, cooldown_seconds, damage_multiplier, damage_type, mana_cost, weapon_type, is_ultimate)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    ability['id'], ability['name'], ability['description'],
+                    ability['cooldown_seconds'], ability['damage_multiplier'],
+                    ability['damage_type'], ability['mana_cost'], weapon_type,
+                    1 if ability['is_ultimate'] else 0
+                ))
     
     # Initialize PvE enemies (30 specific enemies with exact stats and rewards)
     # Only clear if we need to update - check if enemies exist first
