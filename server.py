@@ -2171,29 +2171,41 @@ def end_combat(combat_id: str):
         
         # Only update database if not auto-fight
         if not is_auto_fight:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            
-            # Update character
-            cursor.execute("SELECT exp, level, gold, skill_points FROM characters WHERE id = ?", (winner_id,))
-            char_data = cursor.fetchone()
-            new_exp = char_data['exp'] + exp_gain
-            new_level = char_data['level']
-            new_gold = char_data['gold'] + gold_gain
-            current_skill_points = char_data['skill_points']
-            
-            # Process level up
-            char_dict = {
-                'level': new_level,
-                'exp': new_exp,
-                'skill_points': current_skill_points  # Start with current skill points
-            }
-            char_dict = process_level_up(char_dict)
-            
-            cursor.execute(
-                "UPDATE characters SET exp = ?, level = ?, skill_points = ?, gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (char_dict['exp'], char_dict['level'], char_dict.get('skill_points', 0), new_gold, winner_id)
-            )
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Update character
+                cursor.execute("SELECT exp, level, gold, skill_points FROM characters WHERE id = ?", (winner_id,))
+                char_data = cursor.fetchone()
+                if not char_data:
+                    print(f"[ERROR] Character {winner_id} not found when trying to award rewards")
+                    conn.close()
+                    return
+                
+                # Handle None values (SQLite returns None for missing/null values)
+                current_exp = char_data['exp'] if char_data['exp'] is not None else 0
+                current_gold = char_data['gold'] if char_data['gold'] is not None else 0
+                current_skill_points = char_data['skill_points'] if char_data['skill_points'] is not None else 0
+                
+                new_exp = current_exp + exp_gain
+                new_level = char_data['level']
+                new_gold = current_gold + gold_gain
+                
+                print(f"[COMBAT] Awarding rewards to {winner_id}: EXP {current_exp} + {exp_gain} = {new_exp}, Gold {current_gold} + {gold_gain} = {new_gold}")
+                
+                # Process level up
+                char_dict = {
+                    'level': new_level,
+                    'exp': new_exp,
+                    'skill_points': current_skill_points  # Start with current skill points
+                }
+                char_dict = process_level_up(char_dict)
+                
+                cursor.execute(
+                    "UPDATE characters SET exp = ?, level = ?, skill_points = ?, gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (char_dict['exp'], char_dict['level'], char_dict.get('skill_points', 0), new_gold, winner_id)
+                )
             
             # Drop equipment based on drop chance
             equipment_dropped = False
@@ -2226,8 +2238,9 @@ def end_combat(combat_id: str):
                 loser_stats = cursor.fetchone()
                 
                 # Get MMR values (default to 1000 if not set)
-                winner_mmr = winner_stats['pvp_mmr'] if winner_stats and winner_stats.get('pvp_mmr') else 1000
-                loser_mmr = loser_stats['pvp_mmr'] if loser_stats and loser_stats.get('pvp_mmr') else 1000
+                # SQLite Row objects use dictionary-style access, not .get()
+                winner_mmr = winner_stats['pvp_mmr'] if winner_stats and winner_stats['pvp_mmr'] is not None else 1000
+                loser_mmr = loser_stats['pvp_mmr'] if loser_stats and loser_stats['pvp_mmr'] is not None else 1000
                 
                 # Calculate MMR change using ELO system
                 K = 32  # K-factor for competitive games
@@ -2242,21 +2255,35 @@ def end_combat(combat_id: str):
                 new_loser_mmr = max(0, loser_mmr + loser_mmr_change)
                 
                 # Update winner stats
-                winner_wins = (winner_stats['pvp_wins'] if winner_stats and winner_stats.get('pvp_wins') else 0) + 1
+                # SQLite Row objects use dictionary-style access, not .get()
+                winner_wins = (winner_stats['pvp_wins'] if winner_stats and winner_stats['pvp_wins'] is not None else 0) + 1
                 cursor.execute(
                     "UPDATE characters SET pvp_wins = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                     (winner_wins, new_winner_mmr, winner_id)
                 )
                 
                 # Update loser stats
-                loser_losses = (loser_stats['pvp_losses'] if loser_stats and loser_stats.get('pvp_losses') else 0) + 1
+                loser_losses = (loser_stats['pvp_losses'] if loser_stats and loser_stats['pvp_losses'] is not None else 0) + 1
                 cursor.execute(
                     "UPDATE characters SET pvp_losses = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                     (loser_losses, new_loser_mmr, loser_id)
                 )
             
-            conn.commit()
-            conn.close()
+                conn.commit()
+                print(f"[COMBAT] Successfully updated character {winner_id} with new EXP: {char_dict['exp']}, Level: {char_dict['level']}, Gold: {new_gold}")
+            except Exception as e:
+                import traceback
+                print(f"[ERROR] Failed to award combat rewards: {e}")
+                print(traceback.format_exc())
+                if 'conn' in locals():
+                    conn.rollback()
+                    conn.close()
+            finally:
+                if 'conn' in locals() and conn:
+                    try:
+                        conn.close()
+                    except:
+                        pass
         
         # Always save the state after updating (even if no rewards for player)
         set_combat_state(combat_id, state)
