@@ -2206,69 +2206,69 @@ def end_combat(combat_id: str):
                     "UPDATE characters SET exp = ?, level = ?, skill_points = ?, gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                     (char_dict['exp'], char_dict['level'], char_dict.get('skill_points', 0), new_gold, winner_id)
                 )
-            
-            # Drop equipment based on drop chance
-            equipment_dropped = False
-            if random.random() * 100 < drop_chance:
-                rarity = roll_equipment_rarity(state['is_pvp'], enemy_level)
-                slot = random.choice(EQUIPMENT_SLOTS)
-                equipment = generate_equipment(slot, rarity, char_dict['level'])
                 
-                cursor.execute("SELECT inventory_json FROM characters WHERE id = ?", (winner_id,))
-                inv_data = cursor.fetchone()
-                inventory = json.loads(inv_data['inventory_json'])
+                # Drop equipment based on drop chance
+                equipment_dropped = False
+                if random.random() * 100 < drop_chance:
+                    rarity = roll_equipment_rarity(state['is_pvp'], enemy_level)
+                    slot = random.choice(EQUIPMENT_SLOTS)
+                    equipment = generate_equipment(slot, rarity, char_dict['level'])
+                    
+                    cursor.execute("SELECT inventory_json FROM characters WHERE id = ?", (winner_id,))
+                    inv_data = cursor.fetchone()
+                    inventory = json.loads(inv_data['inventory_json'])
+                    
+                    # Check inventory limit (100 items)
+                    if len(inventory) < 100:
+                        inventory.append(equipment)
+                        equipment_dropped = True
+                        cursor.execute(
+                            "UPDATE characters SET inventory_json = ? WHERE id = ?",
+                            (json.dumps(inventory), winner_id)
+                        )
                 
-                # Check inventory limit (100 items)
-                if len(inventory) < 100:
-                    inventory.append(equipment)
-                    equipment_dropped = True
+                state['rewards']['equipment_dropped'] = equipment_dropped
+                
+                # Update PvP stats if this is a PvP match
+                if state['is_pvp'] and not is_auto_fight:
+                    # Get current PvP stats for both players
+                    cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (winner_id,))
+                    winner_stats = cursor.fetchone()
+                    cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (loser_id,))
+                    loser_stats = cursor.fetchone()
+                    
+                    # Get MMR values (default to 1000 if not set)
+                    # SQLite Row objects use dictionary-style access, not .get()
+                    winner_mmr = winner_stats['pvp_mmr'] if winner_stats and winner_stats['pvp_mmr'] is not None else 1000
+                    loser_mmr = loser_stats['pvp_mmr'] if loser_stats and loser_stats['pvp_mmr'] is not None else 1000
+                    
+                    # Calculate MMR change using ELO system
+                    K = 32  # K-factor for competitive games
+                    expected_winner = 1 / (1 + 10 ** ((loser_mmr - winner_mmr) / 400))
+                    expected_loser = 1 / (1 + 10 ** ((winner_mmr - loser_mmr) / 400))
+                    
+                    # Winner gets 1 point, loser gets 0
+                    winner_mmr_change = int(K * (1 - expected_winner))
+                    loser_mmr_change = int(K * (0 - expected_loser))
+                    
+                    new_winner_mmr = max(0, winner_mmr + winner_mmr_change)
+                    new_loser_mmr = max(0, loser_mmr + loser_mmr_change)
+                    
+                    # Update winner stats
+                    # SQLite Row objects use dictionary-style access, not .get()
+                    winner_wins = (winner_stats['pvp_wins'] if winner_stats and winner_stats['pvp_wins'] is not None else 0) + 1
                     cursor.execute(
-                        "UPDATE characters SET inventory_json = ? WHERE id = ?",
-                        (json.dumps(inventory), winner_id)
+                        "UPDATE characters SET pvp_wins = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (winner_wins, new_winner_mmr, winner_id)
                     )
-            
-            state['rewards']['equipment_dropped'] = equipment_dropped
-            
-            # Update PvP stats if this is a PvP match
-            if state['is_pvp'] and not is_auto_fight:
-                # Get current PvP stats for both players
-                cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (winner_id,))
-                winner_stats = cursor.fetchone()
-                cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (loser_id,))
-                loser_stats = cursor.fetchone()
+                    
+                    # Update loser stats
+                    loser_losses = (loser_stats['pvp_losses'] if loser_stats and loser_stats['pvp_losses'] is not None else 0) + 1
+                    cursor.execute(
+                        "UPDATE characters SET pvp_losses = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (loser_losses, new_loser_mmr, loser_id)
+                    )
                 
-                # Get MMR values (default to 1000 if not set)
-                # SQLite Row objects use dictionary-style access, not .get()
-                winner_mmr = winner_stats['pvp_mmr'] if winner_stats and winner_stats['pvp_mmr'] is not None else 1000
-                loser_mmr = loser_stats['pvp_mmr'] if loser_stats and loser_stats['pvp_mmr'] is not None else 1000
-                
-                # Calculate MMR change using ELO system
-                K = 32  # K-factor for competitive games
-                expected_winner = 1 / (1 + 10 ** ((loser_mmr - winner_mmr) / 400))
-                expected_loser = 1 / (1 + 10 ** ((winner_mmr - loser_mmr) / 400))
-                
-                # Winner gets 1 point, loser gets 0
-                winner_mmr_change = int(K * (1 - expected_winner))
-                loser_mmr_change = int(K * (0 - expected_loser))
-                
-                new_winner_mmr = max(0, winner_mmr + winner_mmr_change)
-                new_loser_mmr = max(0, loser_mmr + loser_mmr_change)
-                
-                # Update winner stats
-                # SQLite Row objects use dictionary-style access, not .get()
-                winner_wins = (winner_stats['pvp_wins'] if winner_stats and winner_stats['pvp_wins'] is not None else 0) + 1
-                cursor.execute(
-                    "UPDATE characters SET pvp_wins = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (winner_wins, new_winner_mmr, winner_id)
-                )
-                
-                # Update loser stats
-                loser_losses = (loser_stats['pvp_losses'] if loser_stats and loser_stats['pvp_losses'] is not None else 0) + 1
-                cursor.execute(
-                    "UPDATE characters SET pvp_losses = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (loser_losses, new_loser_mmr, loser_id)
-                )
-            
                 conn.commit()
                 print(f"[COMBAT] Successfully updated character {winner_id} with new EXP: {char_dict['exp']}, Level: {char_dict['level']}, Gold: {new_gold}")
             except Exception as e:
