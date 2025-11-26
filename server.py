@@ -2746,10 +2746,16 @@ async def list_pve_enemies(character_id: str):
     else:
         unlocked_enemies = ['chicken']  # Start with first enemy (Chicken)
         # Initialize progress
-        cursor.execute(
-            "INSERT OR IGNORE INTO character_pve_progress (character_id, enemies_unlocked_json) VALUES (?, ?)",
-            (character_id, json.dumps(unlocked_enemies))
-        )
+        if USE_POSTGRES:
+            cursor.execute(
+                "INSERT INTO character_pve_progress (character_id, enemies_unlocked_json) VALUES (%s, %s) ON CONFLICT (character_id) DO NOTHING",
+                (character_id, json.dumps(unlocked_enemies))
+            )
+        else:
+            cursor.execute(
+                "INSERT OR IGNORE INTO character_pve_progress (character_id, enemies_unlocked_json) VALUES (?, ?)",
+                (character_id, json.dumps(unlocked_enemies))
+            )
         conn.commit()
     
     # Get all enemies
@@ -3262,7 +3268,10 @@ async def get_pvp_available():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT id, name, level FROM characters WHERE pvp_enabled = 1 ORDER BY level DESC LIMIT 20")
+    if USE_POSTGRES:
+        cursor.execute("SELECT id, name, level FROM characters WHERE pvp_enabled = TRUE ORDER BY level DESC LIMIT 20")
+    else:
+        cursor.execute("SELECT id, name, level FROM characters WHERE pvp_enabled = 1 ORDER BY level DESC LIMIT 20")
     players = cursor.fetchall()
     
     conn.close()
@@ -3280,10 +3289,16 @@ async def toggle_pvp(request: Dict = Body(...)):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute(
-        "UPDATE characters SET pvp_enabled = ? WHERE id = ?",
-        (1 if enabled else 0, character_id)
-    )
+    if USE_POSTGRES:
+        cursor.execute(
+            "UPDATE characters SET pvp_enabled = %s WHERE id = %s",
+            (enabled, character_id)
+        )
+    else:
+        cursor.execute(
+            "UPDATE characters SET pvp_enabled = ? WHERE id = ?",
+            (1 if enabled else 0, character_id)
+        )
     
     conn.commit()
     conn.close()
@@ -3312,10 +3327,16 @@ async def pvp_match(request: Dict = Body(...)):
     # Fallback to offline players with PvP enabled
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id FROM characters WHERE pvp_enabled = 1 AND id != ? ORDER BY RANDOM() LIMIT 1",
-        (character_id,)
-    )
+    if USE_POSTGRES:
+        cursor.execute(
+            "SELECT id FROM characters WHERE pvp_enabled = TRUE AND id != %s ORDER BY RANDOM() LIMIT 1",
+            (character_id,)
+        )
+    else:
+        cursor.execute(
+            "SELECT id FROM characters WHERE pvp_enabled = 1 AND id != ? ORDER BY RANDOM() LIMIT 1",
+            (character_id,)
+        )
     opponent = cursor.fetchone()
     conn.close()
     
@@ -3788,10 +3809,16 @@ async def join_pvp_queue(request: Dict = Body(...), current_user: dict = Depends
         raise HTTPException(status_code=404, detail="Character not found")
     
     # Enable PVP for character
-    cursor.execute(
-        "UPDATE characters SET pvp_enabled = 1 WHERE id = ?",
-        (character_id,)
-    )
+    if USE_POSTGRES:
+        cursor.execute(
+            "UPDATE characters SET pvp_enabled = TRUE WHERE id = %s",
+            (character_id,)
+        )
+    else:
+        cursor.execute(
+            "UPDATE characters SET pvp_enabled = 1 WHERE id = ?",
+            (character_id,)
+        )
     
     # Add to queue
     pvp_queue[character_id] = datetime.now().timestamp()
@@ -3823,10 +3850,16 @@ async def leave_pvp_queue(request: Dict = Body(...), current_user: dict = Depend
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE characters SET pvp_enabled = 0 WHERE id = ?",
-        (character_id,)
-    )
+    if USE_POSTGRES:
+        cursor.execute(
+            "UPDATE characters SET pvp_enabled = FALSE WHERE id = %s",
+            (character_id,)
+        )
+    else:
+        cursor.execute(
+            "UPDATE characters SET pvp_enabled = 0 WHERE id = ?",
+            (character_id,)
+        )
     conn.commit()
     conn.close()
     
@@ -3854,15 +3887,26 @@ async def get_pvp_opponents(character_id: str, max_level_diff: int = 5, current_
     min_level = max(1, char_level - max_level_diff)
     max_level = min(100, char_level + max_level_diff)
     
-    cursor.execute("""
-        SELECT id, name, level, exp, pvp_enabled
-        FROM characters
-        WHERE id != ? 
-        AND level BETWEEN ? AND ?
-        AND pvp_enabled = 1
-        ORDER BY ABS(level - ?) ASC, name ASC
-        LIMIT 20
-    """, (character_id, min_level, max_level, char_level))
+    if USE_POSTGRES:
+        cursor.execute("""
+            SELECT id, name, level, exp, pvp_enabled
+            FROM characters
+            WHERE id != %s 
+            AND level BETWEEN %s AND %s
+            AND pvp_enabled = TRUE
+            ORDER BY ABS(level - %s) ASC, name ASC
+            LIMIT 20
+        """, (character_id, min_level, max_level, char_level))
+    else:
+        cursor.execute("""
+            SELECT id, name, level, exp, pvp_enabled
+            FROM characters
+            WHERE id != ? 
+            AND level BETWEEN ? AND ?
+            AND pvp_enabled = 1
+            ORDER BY ABS(level - ?) ASC, name ASC
+            LIMIT 20
+        """, (character_id, min_level, max_level, char_level))
     
     opponents = []
     for row in cursor.fetchall():
