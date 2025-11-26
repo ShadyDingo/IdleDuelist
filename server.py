@@ -4351,6 +4351,7 @@ async def get_pvp_opponents(character_id: str, max_level_diff: int = 5, current_
 @app.get("/api/pvp/leaderboard")
 async def get_pvp_leaderboard(limit: int = 50, offset: int = 0):
     """Get PVP leaderboard (ranked by MMR)"""
+    conn = None
     try:
         # Validate and clamp parameters
         limit = max(1, min(100, int(limit)))  # Clamp between 1 and 100
@@ -4359,35 +4360,80 @@ async def get_pvp_leaderboard(limit: int = 50, offset: int = 0):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Get top players by MMR (default to 1000 if not set)
+        # Check if PvP columns exist, if not use defaults
+        def check_column_exists(col_name):
+            try:
+                if USE_POSTGRES:
+                    cursor.execute("""
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'characters' AND column_name = %s
+                    """, (col_name,))
+                    return cursor.fetchone() is not None
+                else:
+                    cursor.execute("PRAGMA table_info(characters)")
+                    columns = cursor.fetchall()
+                    return any(col[1] == col_name for col in columns)
+            except:
+                return False
+        
+        has_pvp_mmr = check_column_exists('pvp_mmr')
+        has_pvp_wins = check_column_exists('pvp_wins')
+        has_pvp_losses = check_column_exists('pvp_losses')
+        
+        # Build query based on available columns
         if USE_POSTGRES:
-            cursor.execute("""
-                SELECT id, name, level, 
-                       COALESCE(pvp_mmr, 1000) as pvp_mmr,
-                       COALESCE(pvp_wins, 0) as pvp_wins,
-                       COALESCE(pvp_losses, 0) as pvp_losses
-                FROM characters
-                ORDER BY COALESCE(pvp_mmr, 1000) DESC, COALESCE(pvp_wins, 0) DESC
-                LIMIT %s OFFSET %s
-            """, (limit, offset))
+            if has_pvp_mmr and has_pvp_wins and has_pvp_losses:
+                cursor.execute("""
+                    SELECT id, name, level, 
+                           COALESCE(pvp_mmr, 1000) as pvp_mmr,
+                           COALESCE(pvp_wins, 0) as pvp_wins,
+                           COALESCE(pvp_losses, 0) as pvp_losses
+                    FROM characters
+                    ORDER BY COALESCE(pvp_mmr, 1000) DESC, COALESCE(pvp_wins, 0) DESC
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
+            else:
+                # Fallback: use default values if columns don't exist
+                cursor.execute("""
+                    SELECT id, name, level
+                    FROM characters
+                    ORDER BY level DESC, name ASC
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
         else:
-            cursor.execute("""
-                SELECT id, name, level, pvp_mmr, pvp_wins, pvp_losses
-                FROM characters
-                ORDER BY CASE WHEN pvp_mmr IS NULL THEN 1000 ELSE pvp_mmr END DESC, 
-                         CASE WHEN pvp_wins IS NULL THEN 0 ELSE pvp_wins END DESC
-                LIMIT ? OFFSET ?
-            """, (limit, offset))
+            if has_pvp_mmr and has_pvp_wins and has_pvp_losses:
+                cursor.execute("""
+                    SELECT id, name, level, pvp_mmr, pvp_wins, pvp_losses
+                    FROM characters
+                    ORDER BY CASE WHEN pvp_mmr IS NULL THEN 1000 ELSE pvp_mmr END DESC, 
+                             CASE WHEN pvp_wins IS NULL THEN 0 ELSE pvp_wins END DESC
+                    LIMIT ? OFFSET ?
+                """, (limit, offset))
+            else:
+                # Fallback: use default values if columns don't exist
+                cursor.execute("""
+                    SELECT id, name, level
+                    FROM characters
+                    ORDER BY level DESC, name ASC
+                    LIMIT ? OFFSET ?
+                """, (limit, offset))
         
         leaderboard = []
         rank = offset + 1
         for row in cursor.fetchall():
-            # SQLite Row objects use dictionary-style access, not .get()
-            wins = row['pvp_wins'] if row['pvp_wins'] is not None else 0
-            losses = row['pvp_losses'] if row['pvp_losses'] is not None else 0
-            total_games = wins + losses
-            win_rate = (wins / total_games * 100) if total_games > 0 else 0.0
-            mmr = row['pvp_mmr'] if row['pvp_mmr'] is not None else 1000
+            # Handle both cases: with and without PvP columns
+            if has_pvp_mmr and has_pvp_wins and has_pvp_losses:
+                wins = row['pvp_wins'] if row['pvp_wins'] is not None else 0
+                losses = row['pvp_losses'] if row['pvp_losses'] is not None else 0
+                total_games = wins + losses
+                win_rate = (wins / total_games * 100) if total_games > 0 else 0.0
+                mmr = row['pvp_mmr'] if row['pvp_mmr'] is not None else 1000
+            else:
+                # Default values when columns don't exist
+                wins = 0
+                losses = 0
+                win_rate = 0.0
+                mmr = 1000
             
             leaderboard.append({
                 'rank': rank,
@@ -4408,8 +4454,11 @@ async def get_pvp_leaderboard(limit: int = 50, offset: int = 0):
         import traceback
         print(f"Error in leaderboard endpoint: {e}")
         print(traceback.format_exc())
-        if 'conn' in locals():
-            conn.close()
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/pvp/queue-status")

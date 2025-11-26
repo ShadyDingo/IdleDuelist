@@ -1391,6 +1391,30 @@
         </div>
     </div>
 
+    <!-- Item Enhancement/Reroll Modal -->
+    <div class="modal" id="item-enhancement-modal" onclick="if(event.target.id === 'item-enhancement-modal') closeItemEnhancementModal()">
+        <div class="modal-content" style="max-width: 500px; max-height: 80vh; overflow-y: auto;">
+            <h2 id="enhancement-item-name" style="margin-bottom: 15px;"></h2>
+            <div id="enhancement-item-details" style="margin-bottom: 20px;"></div>
+            <div style="margin-bottom: 20px; padding: 15px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+                <div style="margin-bottom: 10px;">
+                    <strong>Upgrade Cost:</strong> <span id="upgrade-cost" style="color: var(--text-accent);">-</span> gold
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong>Reroll Cost:</strong> <span id="reroll-cost" style="color: var(--text-accent);">-</span> gold
+                </div>
+                <div style="margin-top: 15px;">
+                    <strong>Current Gold:</strong> <span id="current-gold-display" style="color: var(--success);">-</span>
+                </div>
+            </div>
+            <div class="modal-buttons" style="display: flex; gap: 10px; flex-direction: column;">
+                <button class="modal-btn modal-btn-primary" onclick="handleUpgradeFromModal()" id="upgrade-btn-modal" style="width: 100%;">Upgrade Item</button>
+                <button class="modal-btn" onclick="handleRerollFromModal()" id="reroll-btn-modal" style="width: 100%; background: var(--accent-tertiary);">Re-roll Stats</button>
+                <button class="modal-btn modal-btn-secondary" onclick="closeItemEnhancementModal()" style="width: 100%; margin-top: 10px;">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Character Creation Modal -->
     <div class="modal" id="character-modal">
         <div class="modal-content">
@@ -2126,7 +2150,7 @@
                 panel.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <h3 style="margin: 0;">${name}</h3>
-                        <button class="combat-action-btn" onclick="showSkillInfo('${stat}')" style="padding: 3px 8px; font-size: 0.75em; min-width: auto;">More Info</button>
+                        <button class="combat-action-btn" onclick="showSkillInfo('${stat}')" style="padding: 2px 6px; font-size: 0.7em; min-width: auto; max-width: 70px; white-space: nowrap;">More Info</button>
                     </div>
                     <div class="skill-controls">
                         <button class="skill-btn decrease" onclick="adjustSkill('${stat}', -1)">-</button>
@@ -2315,8 +2339,7 @@
                     <div class="item-actions">
                         <button class="item-action-btn equip-btn" onclick="equipItem('${item.id}', '${item.slot}')">Equip</button>
                         <button class="item-action-btn" onclick="sellItem('${item.id}')" style="background: var(--danger); margin-left: 5px;">Sell</button>
-                        <button class="item-action-btn" onclick="upgradeItem('${item.id}')" style="background: var(--accent-secondary); margin-left: 5px; font-size: 0.85em;">Upgrade</button>
-                        <button class="item-action-btn" onclick="rerollItem('${item.id}')" style="background: var(--accent-tertiary); margin-left: 5px; font-size: 0.85em;">Re-roll</button>
+                        <button class="item-action-btn" onclick="openItemEnhancementModal('${item.id}')" style="background: var(--accent-secondary); margin-left: 5px; font-size: 0.85em;">Enhance</button>
                     </div>
                     ${weaponTooltip ? `<div class="tooltip" style="min-width: 300px;">${weaponTooltip}</div>` : ''}
                 `;
@@ -2413,6 +2436,7 @@
                 if (result.success) {
                     await refreshCharacterData();
                     alert(`Item upgraded! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                    closeItemEnhancementModal();
                 } else {
                     alert('Error upgrading item: ' + (result.detail || 'Unknown error'));
                 }
@@ -2444,6 +2468,9 @@
                 if (result.success) {
                     await refreshCharacterData();
                     alert(`Item stats re-rolled! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                    if (currentEnhancementItemId === itemId) {
+                        closeItemEnhancementModal();
+                    }
                 } else {
                     alert('Error re-rolling item: ' + (result.detail || 'Unknown error'));
                 }
@@ -2484,6 +2511,103 @@
                 console.error('Error resetting skills:', error);
                 alert('Error resetting skills');
             }
+        }
+
+        let currentEnhancementItemId = null;
+
+        function openItemEnhancementModal(itemId) {
+            if (!characterData || !characterData.inventory) return;
+            
+            // Find the item in inventory
+            const item = characterData.inventory.find(i => i.id === itemId);
+            if (!item) {
+                alert('Item not found');
+                return;
+            }
+            
+            currentEnhancementItemId = itemId;
+            const modal = document.getElementById('item-enhancement-modal');
+            const itemNameEl = document.getElementById('enhancement-item-name');
+            const itemDetailsEl = document.getElementById('enhancement-item-details');
+            const upgradeCostEl = document.getElementById('upgrade-cost');
+            const rerollCostEl = document.getElementById('reroll-cost');
+            const currentGoldEl = document.getElementById('current-gold-display');
+            
+            // Set item name
+            itemNameEl.textContent = item.name;
+            itemNameEl.className = `rarity-${item.rarity}`;
+            
+            // Build item details
+            const statsText = Object.entries(item.stats || {})
+                .map(([stat, val]) => `<div style="margin: 5px 0;"><strong>${stat}:</strong> +${val}</div>`)
+                .join('');
+            
+            const itemLevel = item.level || 1;
+            const charLevel = characterData.level || 1;
+            
+            itemDetailsEl.innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    <strong>Rarity:</strong> <span class="rarity-${item.rarity}">${item.rarity.toUpperCase()}</span>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong>Level:</strong> ${itemLevel}${itemLevel >= charLevel ? ' (Max)' : ` / ${charLevel}`}
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong>Slot:</strong> ${item.slot}
+                </div>
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                    <strong>Stats:</strong>
+                    ${statsText || '<div style="color: var(--text-secondary);">No stats</div>'}
+                </div>
+            `;
+            
+            // Calculate costs
+            const upgradeCost = itemLevel >= charLevel ? 0 : 500 * (itemLevel + 1);
+            const rerollCost = Math.floor(1000 * (1 + itemLevel * 0.1));
+            const currentGold = characterData.gold || 0;
+            
+            upgradeCostEl.textContent = upgradeCost.toLocaleString();
+            rerollCostEl.textContent = rerollCost.toLocaleString();
+            currentGoldEl.textContent = currentGold.toLocaleString();
+            
+            // Enable/disable buttons based on gold and item level
+            const upgradeBtn = document.getElementById('upgrade-btn-modal');
+            const rerollBtn = document.getElementById('reroll-btn-modal');
+            
+            if (itemLevel >= charLevel) {
+                upgradeBtn.disabled = true;
+                upgradeBtn.textContent = 'Item at Max Level';
+                upgradeBtn.style.opacity = '0.5';
+            } else {
+                upgradeBtn.disabled = currentGold < upgradeCost;
+                upgradeBtn.textContent = `Upgrade Item (${upgradeCost.toLocaleString()}g)`;
+                upgradeBtn.style.opacity = currentGold < upgradeCost ? '0.5' : '1';
+            }
+            
+            rerollBtn.disabled = currentGold < rerollCost;
+            rerollBtn.textContent = `Re-roll Stats (${rerollCost.toLocaleString()}g)`;
+            rerollBtn.style.opacity = currentGold < rerollCost ? '0.5' : '1';
+            
+            modal.style.display = 'flex';
+        }
+
+        function closeItemEnhancementModal() {
+            const modal = document.getElementById('item-enhancement-modal');
+            modal.style.display = 'none';
+            currentEnhancementItemId = null;
+        }
+
+        async function handleUpgradeFromModal() {
+            if (!currentEnhancementItemId) return;
+            await upgradeItem(currentEnhancementItemId);
+        }
+
+        async function handleRerollFromModal() {
+            if (!currentEnhancementItemId) return;
+            if (!confirm('Re-roll this item\'s stats? This will randomly regenerate all stats.')) {
+                return;
+            }
+            await rerollItem(currentEnhancementItemId);
         }
 
         // Combat functions
