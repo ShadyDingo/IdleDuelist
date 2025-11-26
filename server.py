@@ -2778,6 +2778,12 @@ def end_combat(combat_id: str):
     state = get_combat_state(combat_id)
     if state is None:
         return
+    
+    # Prevent multiple calls to end_combat for the same combat
+    if not state.get('is_active', True):
+        print(f"[COMBAT] Combat {combat_id} already ended, skipping end_combat")
+        return
+    
     state['is_active'] = False
     
     # Determine winner
@@ -2963,7 +2969,18 @@ def end_combat(combat_id: str):
                 )
             
             conn.commit()
-            print(f"[COMBAT] Successfully updated character {winner_id} with new EXP: {char_dict['exp']}, Level: {char_dict['level']}, Gold: {new_gold}")
+            
+            # Verify the update was actually saved by reading it back
+            cursor.execute("SELECT exp, level, gold FROM characters WHERE id = ?", (winner_id,))
+            verify_data = cursor.fetchone()
+            if verify_data:
+                print(f"[COMBAT] Successfully updated character {winner_id}: EXP {verify_data['exp']}, Level {verify_data['level']}, Gold {verify_data['gold']}")
+                print(f"[COMBAT] Expected: EXP {char_dict['exp']}, Level {char_dict['level']}, Gold {new_gold}")
+                if verify_data['exp'] != char_dict['exp'] or verify_data['gold'] != new_gold:
+                    print(f"[ERROR] Database update verification failed! Expected EXP {char_dict['exp']}, got {verify_data['exp']}")
+            else:
+                print(f"[ERROR] Could not verify database update - character not found after commit!")
+            
             # Mark rewards as successfully applied and store in state
             rewards['applied'] = True
             state['rewards'] = rewards

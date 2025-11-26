@@ -2058,6 +2058,7 @@
         let chatPollInterval = null;
         let currentCombatId = null;
         let combatPollInterval = null;
+        let combatRewardsShown = false; // Flag to prevent showing rewards multiple times
         let abilityLoadout = {};
         let currentAutoFightSessionId = null;
         let autoFightPollInterval = null;
@@ -3408,6 +3409,7 @@
             if (combatPollInterval) {
                 clearInterval(combatPollInterval);
             }
+            combatRewardsShown = false; // Reset flag when starting new combat
             
             combatPollInterval = setInterval(async () => {
                 if (!currentCombatId) return;
@@ -3434,9 +3436,15 @@
                             clearInterval(combatPollInterval);
                             combatPollInterval = null;
                             
-                            // Show rewards
-                            if (result.combat.rewards) {
-                                showToast(`Victory! Gained ${result.combat.rewards.exp_gained} EXP and ${result.combat.rewards.gold_gained} gold!`, 'success');
+                            // Show rewards only once
+                            if (result.combat.rewards && !combatRewardsShown) {
+                                combatRewardsShown = true; // Set flag to prevent showing again
+                                // Only show toast if rewards were successfully applied
+                                if (result.combat.rewards.applied !== false) {
+                                    showToast(`Victory! Gained ${result.combat.rewards.exp_gained} EXP and ${result.combat.rewards.gold_gained} gold!`, 'success');
+                                } else {
+                                    showToast(`Combat ended but rewards failed to apply: ${result.combat.rewards.error || 'Unknown error'}`, 'error');
+                                }
                                 await refreshCharacterData();
                                 
                                 // Unlock next enemy if PvE
