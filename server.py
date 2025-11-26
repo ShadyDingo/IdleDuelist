@@ -1353,6 +1353,69 @@ async def allocate_skills(character_id: str, request: AllocateSkillsRequest, cur
             conn.close()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@app.post("/api/character/respec")
+async def reset_skill_points(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
+    """Reset all allocated skill points (respec) - refunds all skill points for reallocation"""
+    user_id = current_user["user_id"]
+    character_id = request.get('character_id')
+    
+    if not character_id:
+        raise HTTPException(status_code=400, detail="character_id required")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Verify character belongs to user
+    cursor.execute("SELECT level, gold, stats_json, skill_points FROM characters WHERE id = ? AND user_id = ?", (character_id, user_id))
+    char = cursor.fetchone()
+    
+    if not char:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    char_level = char['level']
+    current_gold = char['gold'] if char['gold'] is not None else 0
+    
+    # Calculate cost: 5000 + (character_level * 200)
+    cost = 5000 + (char_level * 200)
+    
+    if current_gold < cost:
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"Not enough gold. Required: {cost}, Have: {current_gold}")
+    
+    # Reset stats to base values (10 in each stat)
+    base_stats = {stat: 10 for stat in PRIMARY_STATS}
+    
+    # Calculate refunded skill points: 3 per level (starting with 3 at level 1)
+    # Level 1: 3 points, Level 2: 6 points, Level 3: 9 points, etc.
+    refunded_skill_points = 3 + (char_level - 1) * 3
+    
+    # Deduct gold
+    new_gold = current_gold - cost
+    
+    # Update character
+    if USE_POSTGRES:
+        cursor.execute(
+            "UPDATE characters SET stats_json = %s, skill_points = %s, gold = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (json.dumps(base_stats), refunded_skill_points, new_gold, character_id)
+        )
+    else:
+        cursor.execute(
+            "UPDATE characters SET stats_json = ?, skill_points = ?, gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (json.dumps(base_stats), refunded_skill_points, new_gold, character_id)
+        )
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        "success": True,
+        "message": "Skill points reset successfully",
+        "refunded_skill_points": refunded_skill_points,
+        "gold_spent": cost,
+        "gold_remaining": new_gold
+    }
+
 # Equipment endpoints
 @app.post("/api/equipment/drop")
 async def drop_equipment(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
@@ -1513,6 +1576,295 @@ async def unequip_item(request: Dict = Body(...), current_user: dict = Depends(g
     conn.close()
     
     return {"success": True, "message": "Item unequipped successfully"}
+
+@app.post("/api/equipment/upgrade")
+async def upgrade_equipment(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
+    """Upgrade an equipment item's level (increases stats)"""
+    user_id = current_user["user_id"]
+    character_id = request.get('character_id')
+    item_id = request.get('item_id')
+    
+    if not character_id or not item_id:
+        raise HTTPException(status_code=400, detail="character_id and item_id required")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Verify character belongs to user
+    cursor.execute("SELECT level, gold, equipment_json, inventory_json FROM characters WHERE id = ? AND user_id = ?", (character_id, user_id))
+    char = cursor.fetchone()
+    
+    if not char:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    char_level = char['level']
+    current_gold = char['gold'] if char['gold'] is not None else 0
+    equipment = json.loads(char['equipment_json'])
+    inventory = json.loads(char['inventory_json'])
+    
+    # Find item in equipment or inventory
+    item = None
+    item_location = None
+    item_index = None
+    
+    # Check equipped items
+    for slot, eq_item in equipment.items():
+        if eq_item and eq_item.get('id') == item_id:
+            item = eq_item
+            item_location = 'equipment'
+            break
+    
+    # Check inventory
+    if not item:
+        for i, inv_item in enumerate(inventory):
+            if inv_item.get('id') == item_id:
+                item = inv_item
+                item_location = 'inventory'
+                item_index = i
+                break
+    
+    if not item:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    # Check if item can be upgraded (not already at character level)
+    item_level = item.get('level', 1)
+    if item_level >= char_level:
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"Item is already at maximum level ({char_level})")
+    
+    # Calculate cost: 500 * (item_level + 1)
+    cost = 500 * (item_level + 1)
+    
+    if current_gold < cost:
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"Not enough gold. Required: {cost}, Have: {current_gold}")
+    
+    # Upgrade item level
+    new_level = item_level + 1
+    
+    # Recalculate stats based on new level
+    rarity = item.get('rarity', 'common')
+    slot = item.get('slot')
+    
+    # Use the same logic as generate_equipment but preserve existing stat types
+    from game_logic import RARITY_STAT_RANGES, PRIMARY_STATS
+    ranges = RARITY_STAT_RANGES.get(rarity, RARITY_STAT_RANGES['common'])
+    
+    # Level scaling factor (1.0 at level 1, 2.0 at level 100)
+    level_scale = 1.0 + ((new_level - 1) / 99.0)
+    
+    # Get existing stat keys to preserve stat types
+    existing_stats = item.get('stats', {})
+    existing_stat_keys = list(existing_stats.keys())
+    
+    # Recalculate stats with new level, preserving which stats the item has
+    new_stats = {}
+    stat_index = 0
+    
+    # Primary stat
+    if ranges['primary'][1] > 0 and stat_index < len(existing_stat_keys):
+        stat_name = existing_stat_keys[stat_index] if stat_index < len(existing_stat_keys) else random.choice(PRIMARY_STATS)
+        base_value = random.randint(ranges['primary'][0], ranges['primary'][1])
+        new_stats[stat_name] = int(base_value * level_scale)
+        stat_index += 1
+    
+    # Secondary stat
+    if ranges['secondary'][1] > 0 and stat_index < len(existing_stat_keys):
+        stat_name = existing_stat_keys[stat_index] if stat_index < len(existing_stat_keys) else random.choice([s for s in PRIMARY_STATS if s not in new_stats])
+        base_value = random.randint(ranges['secondary'][0], ranges['secondary'][1])
+        new_stats[stat_name] = int(base_value * level_scale)
+        stat_index += 1
+    
+    # Tertiary stat
+    if ranges['tertiary'][1] > 0 and stat_index < len(existing_stat_keys):
+        stat_name = existing_stat_keys[stat_index] if stat_index < len(existing_stat_keys) else random.choice([s for s in PRIMARY_STATS if s not in new_stats])
+        base_value = random.randint(ranges['tertiary'][0], ranges['tertiary'][1])
+        new_stats[stat_name] = int(base_value * level_scale)
+        stat_index += 1
+    
+    # Quaternary stat (mythic only)
+    if ranges['quaternary'][1] > 0 and stat_index < len(existing_stat_keys):
+        stat_name = existing_stat_keys[stat_index] if stat_index < len(existing_stat_keys) else random.choice([s for s in PRIMARY_STATS if s not in new_stats])
+        base_value = random.randint(ranges['quaternary'][0], ranges['quaternary'][1])
+        new_stats[stat_name] = int(base_value * level_scale)
+    
+    # Update item
+    item['level'] = new_level
+    item['stats'] = new_stats
+    
+    # Update in appropriate location
+    if item_location == 'equipment':
+        for slot_key, eq_item in equipment.items():
+            if eq_item and eq_item.get('id') == item_id:
+                equipment[slot_key] = item
+                break
+    else:
+        inventory[item_index] = item
+    
+    # Deduct gold and save
+    new_gold = current_gold - cost
+    
+    if USE_POSTGRES:
+        cursor.execute(
+            "UPDATE characters SET equipment_json = %s, inventory_json = %s, gold = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (json.dumps(equipment), json.dumps(inventory), new_gold, character_id)
+        )
+    else:
+        cursor.execute(
+            "UPDATE characters SET equipment_json = ?, inventory_json = ?, gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (json.dumps(equipment), json.dumps(inventory), new_gold, character_id)
+        )
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        "success": True,
+        "message": f"Item upgraded to level {new_level}",
+        "item": item,
+        "gold_spent": cost,
+        "gold_remaining": new_gold
+    }
+
+@app.post("/api/equipment/reroll")
+async def reroll_equipment_stats(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
+    """Re-roll all stats on an equipment item (keep rarity, slot, level)"""
+    user_id = current_user["user_id"]
+    character_id = request.get('character_id')
+    item_id = request.get('item_id')
+    
+    if not character_id or not item_id:
+        raise HTTPException(status_code=400, detail="character_id and item_id required")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Verify character belongs to user
+    cursor.execute("SELECT gold, equipment_json, inventory_json FROM characters WHERE id = ? AND user_id = ?", (character_id, user_id))
+    char = cursor.fetchone()
+    
+    if not char:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    current_gold = char['gold'] if char['gold'] is not None else 0
+    equipment = json.loads(char['equipment_json'])
+    inventory = json.loads(char['inventory_json'])
+    
+    # Find item in equipment or inventory
+    item = None
+    item_location = None
+    item_index = None
+    
+    # Check equipped items
+    for slot, eq_item in equipment.items():
+        if eq_item and eq_item.get('id') == item_id:
+            item = eq_item
+            item_location = 'equipment'
+            break
+    
+    # Check inventory
+    if not item:
+        for i, inv_item in enumerate(inventory):
+            if inv_item.get('id') == item_id:
+                item = inv_item
+                item_location = 'inventory'
+                item_index = i
+                break
+    
+    if not item:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    # Calculate cost: 1000 * (1 + item_level * 0.1)
+    item_level = item.get('level', 1)
+    cost = int(1000 * (1 + item_level * 0.1))
+    
+    if current_gold < cost:
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"Not enough gold. Required: {cost}, Have: {current_gold}")
+    
+    # Re-roll stats (keep rarity, slot, level)
+    rarity = item.get('rarity', 'common')
+    slot = item.get('slot')
+    
+    from game_logic import RARITY_STAT_RANGES, PRIMARY_STATS
+    ranges = RARITY_STAT_RANGES.get(rarity, RARITY_STAT_RANGES['common'])
+    
+    # Level scaling factor (1.0 at level 1, 2.0 at level 100)
+    level_scale = 1.0 + ((item_level - 1) / 99.0)
+    
+    # Generate new stats
+    new_stats = {}
+    
+    # Primary stat
+    if ranges['primary'][1] > 0:
+        primary_stat = random.choice(PRIMARY_STATS)
+        base_value = random.randint(ranges['primary'][0], ranges['primary'][1])
+        new_stats[primary_stat] = int(base_value * level_scale)
+    
+    # Secondary stat
+    if ranges['secondary'][1] > 0:
+        available_stats = [s for s in PRIMARY_STATS if s not in new_stats]
+        if available_stats:
+            secondary_stat = random.choice(available_stats)
+            base_value = random.randint(ranges['secondary'][0], ranges['secondary'][1])
+            new_stats[secondary_stat] = int(base_value * level_scale)
+    
+    # Tertiary stat
+    if ranges['tertiary'][1] > 0:
+        available_stats = [s for s in PRIMARY_STATS if s not in new_stats]
+        if available_stats:
+            tertiary_stat = random.choice(available_stats)
+            base_value = random.randint(ranges['tertiary'][0], ranges['tertiary'][1])
+            new_stats[tertiary_stat] = int(base_value * level_scale)
+    
+    # Quaternary stat (mythic only)
+    if ranges['quaternary'][1] > 0:
+        available_stats = [s for s in PRIMARY_STATS if s not in new_stats]
+        if available_stats:
+            quaternary_stat = random.choice(available_stats)
+            base_value = random.randint(ranges['quaternary'][0], ranges['quaternary'][1])
+            new_stats[quaternary_stat] = int(base_value * level_scale)
+    
+    # Update item stats
+    item['stats'] = new_stats
+    
+    # Update in appropriate location
+    if item_location == 'equipment':
+        for slot_key, eq_item in equipment.items():
+            if eq_item and eq_item.get('id') == item_id:
+                equipment[slot_key] = item
+                break
+    else:
+        inventory[item_index] = item
+    
+    # Deduct gold and save
+    new_gold = current_gold - cost
+    
+    if USE_POSTGRES:
+        cursor.execute(
+            "UPDATE characters SET equipment_json = %s, inventory_json = %s, gold = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (json.dumps(equipment), json.dumps(inventory), new_gold, character_id)
+        )
+    else:
+        cursor.execute(
+            "UPDATE characters SET equipment_json = ?, inventory_json = ?, gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (json.dumps(equipment), json.dumps(inventory), new_gold, character_id)
+        )
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        "success": True,
+        "message": "Item stats re-rolled",
+        "item": item,
+        "gold_spent": cost,
+        "gold_remaining": new_gold
+    }
 
 # Combat state management functions
 def generate_combat_id() -> str:
@@ -3032,6 +3384,88 @@ async def get_auto_fight_status(session_id: str):
             "fastest_victory": session['fastest_victory'],
             "slowest_victory": session['slowest_victory']
         }
+    }
+
+@app.post("/api/pve/auto-fight/extend")
+async def extend_auto_fight(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
+    """Extend an active auto-fight session by adding hours"""
+    user_id = current_user["user_id"]
+    session_id = request.get('session_id')
+    hours = request.get('hours', 1)  # 1, 2, or 4 hours
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+    
+    if hours not in [1, 2, 4]:
+        raise HTTPException(status_code=400, detail="hours must be 1, 2, or 4")
+    
+    # Get session
+    session = get_auto_fight_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    if not session['is_active']:
+        raise HTTPException(status_code=400, detail="Session is not active")
+    
+    # Verify character belongs to user
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT gold FROM characters WHERE id = ? AND user_id = ?", (session['character_id'], user_id))
+    char = cursor.fetchone()
+    
+    if not char:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Character not found")
+    
+    current_gold = char['gold'] if char['gold'] is not None else 0
+    
+    # Calculate cost (flat pricing, no level scaling)
+    costs = {
+        1: 2000,
+        2: 3500,
+        4: 6000
+    }
+    cost = costs[hours]
+    
+    if current_gold < cost:
+        conn.close()
+        raise HTTPException(status_code=400, detail=f"Not enough gold. Required: {cost}, Have: {current_gold}")
+    
+    # Add time to session
+    seconds_to_add = hours * 3600
+    session['end_time'] += seconds_to_add
+    
+    # Update session
+    set_auto_fight_session(session_id, session)
+    
+    # Deduct gold
+    new_gold = current_gold - cost
+    
+    if USE_POSTGRES:
+        cursor.execute(
+            "UPDATE characters SET gold = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (new_gold, session['character_id'])
+        )
+    else:
+        cursor.execute(
+            "UPDATE characters SET gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (new_gold, session['character_id'])
+        )
+    
+    conn.commit()
+    conn.close()
+    
+    # Calculate new time remaining
+    current_time = datetime.now().timestamp()
+    time_remaining = max(0, session['end_time'] - current_time)
+    
+    return {
+        "success": True,
+        "message": f"Auto-fight extended by {hours} hour(s)",
+        "hours_added": hours,
+        "time_remaining": int(time_remaining),
+        "gold_spent": cost,
+        "gold_remaining": new_gold
     }
 
 def process_auto_fight(session_id: str):

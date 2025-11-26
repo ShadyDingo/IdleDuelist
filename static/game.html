@@ -1210,6 +1210,7 @@
 
                     <div style="text-align: center;">
                         <button class="save-skills-btn" onclick="saveSkills()">Save Skill Allocation</button>
+                        <button class="save-skills-btn" onclick="resetSkillPoints()" style="background: var(--accent-secondary); margin-top: 10px;">Reset Skills (Respec)</button>
                     </div>
                 </div>
             </div>
@@ -1433,6 +1434,14 @@
                 </div>
             </div>
             <div id="auto-fight-results" style="display: none; margin-bottom: 20px; padding: 15px; background: var(--bg-tertiary); border-radius: 8px;"></div>
+            <div style="margin-bottom: 15px; padding: 15px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color);">
+                <h4 style="margin-bottom: 10px; font-size: 0.95em;">Extend Session</h4>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="modal-btn modal-btn-secondary" onclick="extendAutoFight(1)" style="flex: 1; min-width: 80px; font-size: 0.9em;">+1 Hour (2,000g)</button>
+                    <button class="modal-btn modal-btn-secondary" onclick="extendAutoFight(2)" style="flex: 1; min-width: 80px; font-size: 0.9em;">+2 Hours (3,500g)</button>
+                    <button class="modal-btn modal-btn-secondary" onclick="extendAutoFight(4)" style="flex: 1; min-width: 80px; font-size: 0.9em;">+4 Hours (6,000g)</button>
+                </div>
+            </div>
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-secondary" onclick="stopAutoFight()">Stop Early</button>
                 <button class="modal-btn modal-btn-primary" onclick="closeAutoFightModal()" id="auto-fight-close-btn" style="display: none;">Close</button>
@@ -2306,6 +2315,8 @@
                     <div class="item-actions">
                         <button class="item-action-btn equip-btn" onclick="equipItem('${item.id}', '${item.slot}')">Equip</button>
                         <button class="item-action-btn" onclick="sellItem('${item.id}')" style="background: var(--danger); margin-left: 5px;">Sell</button>
+                        <button class="item-action-btn" onclick="upgradeItem('${item.id}')" style="background: var(--accent-secondary); margin-left: 5px; font-size: 0.85em;">Upgrade</button>
+                        <button class="item-action-btn" onclick="rerollItem('${item.id}')" style="background: var(--accent-tertiary); margin-left: 5px; font-size: 0.85em;">Re-roll</button>
                     </div>
                     ${weaponTooltip ? `<div class="tooltip" style="min-width: 300px;">${weaponTooltip}</div>` : ''}
                 `;
@@ -2381,6 +2392,97 @@
             } catch (error) {
                 console.error('Error selling item:', error);
                 alert('Error selling item');
+            }
+        }
+
+        async function upgradeItem(itemId) {
+            if (!currentCharacterId) return;
+
+            try {
+                const response = await authenticatedFetch(`/api/equipment/upgrade`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        character_id: currentCharacterId,
+                        item_id: itemId
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    await refreshCharacterData();
+                    alert(`Item upgraded! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                } else {
+                    alert('Error upgrading item: ' + (result.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error upgrading item:', error);
+                alert('Error upgrading item');
+            }
+        }
+
+        async function rerollItem(itemId) {
+            if (!currentCharacterId) return;
+
+            if (!confirm('Re-roll this item\'s stats? This will randomly regenerate all stats.')) {
+                return;
+            }
+
+            try {
+                const response = await authenticatedFetch(`/api/equipment/reroll`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        character_id: currentCharacterId,
+                        item_id: itemId
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    await refreshCharacterData();
+                    alert(`Item stats re-rolled! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                } else {
+                    alert('Error re-rolling item: ' + (result.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error re-rolling item:', error);
+                alert('Error re-rolling item');
+            }
+        }
+
+        async function resetSkillPoints() {
+            if (!currentCharacterId) return;
+
+            const charLevel = characterData.level || 1;
+            const cost = 5000 + (charLevel * 200);
+
+            if (!confirm(`Reset all skill points? This will refund all skill points and reset stats to base values.\n\nCost: ${cost} gold`)) {
+                return;
+            }
+
+            try {
+                const response = await authenticatedFetch(`/api/character/respec`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        character_id: currentCharacterId
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    await refreshCharacterData();
+                    alert(`Skills reset! Refunded ${result.refunded_skill_points} skill points. Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                } else {
+                    alert('Error resetting skills: ' + (result.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error resetting skills:', error);
+                alert('Error resetting skills');
             }
         }
 
@@ -3302,6 +3404,51 @@
                 }
             } catch (error) {
                 console.error('Error stopping auto-fight:', error);
+            }
+        }
+
+        async function extendAutoFight(hours) {
+            if (!currentAutoFightSessionId) return;
+
+            const costs = {
+                1: 2000,
+                2: 3500,
+                4: 6000
+            };
+            const cost = costs[hours];
+
+            if (!confirm(`Extend auto-fight session by ${hours} hour(s)?\n\nCost: ${cost} gold`)) {
+                return;
+            }
+
+            try {
+                const response = await authenticatedFetch(`/api/pve/auto-fight/extend`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        session_id: currentAutoFightSessionId,
+                        hours: hours
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    await refreshCharacterData();
+                    // Update the time display
+                    const timeEl = document.getElementById('auto-fight-time');
+                    if (timeEl) {
+                        const minutes = Math.floor(result.time_remaining / 60);
+                        const seconds = result.time_remaining % 60;
+                        timeEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    }
+                    alert(`Auto-fight extended by ${hours} hour(s)! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                } else {
+                    alert('Error extending auto-fight: ' + (result.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error extending auto-fight:', error);
+                alert('Error extending auto-fight');
             }
         }
 
