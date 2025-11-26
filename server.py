@@ -4247,32 +4247,39 @@ async def create_feedback(request: Dict = Body(...), current_user: dict = Depend
 @app.get("/api/feedback/list")
 async def list_feedback(limit: int = 50, offset: int = 0):
     """Get list of feedback posts with vote counts"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute(
-        """SELECT id, character_name, content, upvotes, downvotes, created_at 
-           FROM feedback 
-           ORDER BY (upvotes - downvotes) DESC, created_at DESC 
-           LIMIT ? OFFSET ?""",
-        (limit, offset)
-    )
-    
-    feedback_list = []
-    for row in cursor.fetchall():
-        feedback_list.append({
-            'id': row['id'],
-            'character_name': row['character_name'],
-            'content': row['content'],
-            'upvotes': row['upvotes'],
-            'downvotes': row['downvotes'],
-            'score': row['upvotes'] - row['downvotes'],
-            'created_at': row['created_at']
-        })
-    
-    conn.close()
-    
-    return {"success": True, "feedback": feedback_list}
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """SELECT id, character_name, content, upvotes, downvotes, created_at 
+               FROM feedback 
+               ORDER BY (upvotes - downvotes) DESC, created_at DESC 
+               LIMIT ? OFFSET ?""",
+            (limit, offset)
+        )
+        
+        feedback_list = []
+        for row in cursor.fetchall():
+            feedback_list.append({
+                'id': row['id'],
+                'character_name': row['character_name'],
+                'content': row['content'],
+                'upvotes': row['upvotes'],
+                'downvotes': row['downvotes'],
+                'score': row['upvotes'] - row['downvotes'],
+                'created_at': row['created_at']
+            })
+        
+        conn.close()
+        
+        return {"success": True, "feedback": feedback_list}
+    except Exception as e:
+        import traceback
+        print(f"Error in list_feedback: {e}")
+        print(traceback.format_exc())
+        # Return empty list on error instead of crashing
+        return {"success": True, "feedback": []}
 
 @app.post("/api/feedback/vote")
 async def vote_feedback(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):

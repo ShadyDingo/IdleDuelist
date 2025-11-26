@@ -2504,6 +2504,32 @@
             return tooltips[stat] || '';
         }
 
+        // Helper function to get armor file path with correct extension
+        function getArmorFilePath(armorType, slotName) {
+            // Map of actual file extensions (some are .PNG, some are .png)
+            const fileExtensions = {
+                'cloth_armor': '.PNG',
+                'cloth_boots': '.PNG',
+                'cloth_gloves': '.png',
+                'cloth_helmet': '.png',
+                'cloth_pants': '.PNG',
+                'leather_armor': '.PNG',
+                'leather_boots': '.png',
+                'leather_gloves': '.png',
+                'leather_helmet': '.png',
+                'leather_pants': '.png',
+                'metal_armor': '.png',
+                'metal_boots': '.png',
+                'metal_gloves': '.PNG',
+                'metal_helmet': '.PNG',
+                'metal_pants': '.png'
+            };
+            
+            const fileKey = `${armorType}_${slotName}`;
+            const extension = fileExtensions[fileKey] || '.png'; // Default to .png
+            return `/assets/armor/${fileKey}${extension}`;
+        }
+
         function getEnemyIconPath(enemyId) {
             // Map enemy IDs to icon file paths
             // Icon naming convention: enemy_{enemy_id}.png
@@ -2555,9 +2581,7 @@
                     'gloves': 'gloves'
                 };
                 const slotName = slotNameMap[slot] || slot;
-                // Try lowercase .png first, fallback to .PNG for backwards compatibility
-                const basePath = `/assets/armor/${armorTypeToUse}_${slotName}`;
-                return `${basePath}.png`;
+                return getArmorFilePath(armorTypeToUse, slotName);
             }
             
             // Default fallback
@@ -4208,13 +4232,28 @@
             try {
                 // Load feedback list
                 const response = await authenticatedFetch('/api/feedback/list?limit=50');
+                
+                if (!response.ok) {
+                    console.error('Feedback API error:', response.status, response.statusText);
+                    const listEl = document.getElementById('feedback-list');
+                    if (listEl) {
+                        listEl.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px;">Unable to load feedback at this time.</p>';
+                    }
+                    return;
+                }
+                
                 const result = await response.json();
 
-                // Load user's votes
-                const votesResponse = await authenticatedFetch('/api/feedback/my-votes');
-                const votesResult = await votesResponse.json();
-                if (votesResult.success) {
-                    myVotes = votesResult.votes;
+                // Load user's votes (optional, don't fail if this fails)
+                try {
+                    const votesResponse = await authenticatedFetch('/api/feedback/my-votes');
+                    const votesResult = await votesResponse.json();
+                    if (votesResult.success) {
+                        myVotes = votesResult.votes;
+                    }
+                } catch (votesError) {
+                    console.warn('Could not load user votes:', votesError);
+                    myVotes = {};
                 }
 
                 if (result.success) {
@@ -4259,8 +4298,18 @@
                         listEl.appendChild(itemDiv);
                     }
                 }
+                } else {
+                    const listEl = document.getElementById('feedback-list');
+                    if (listEl) {
+                        listEl.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px;">Unable to load feedback at this time.</p>';
+                    }
+                }
             } catch (error) {
                 console.error('Error loading feedback:', error);
+                const listEl = document.getElementById('feedback-list');
+                if (listEl) {
+                    listEl.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px;">Unable to load feedback at this time.</p>';
+                }
             }
         }
 
