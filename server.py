@@ -2810,7 +2810,8 @@ def end_combat(combat_id: str):
         enemy_data = cursor.fetchone()
         
         if enemy_data:
-            exp_gain = enemy_data.get('exp_reward', 50)  # Use fixed EXP reward from enemy
+            # SQLite Row objects don't support .get(), use bracket notation instead
+            exp_gain = enemy_data['exp_reward'] if enemy_data['exp_reward'] is not None else 50  # Use fixed EXP reward from enemy
             gold_gain = random.randint(enemy_data['gold_min'], enemy_data['gold_max'])
             drop_chance = enemy_data['drop_chance']
             enemy_level = enemy_data['level']
@@ -3064,7 +3065,8 @@ async def resolve_combat(character1_id: str, character2_id_or_data, is_pvp: bool
         enemy_id = character2_id_or_data.get('id')
         cursor.execute("SELECT exp_reward FROM pve_enemies WHERE id = ?", (enemy_id,))
         enemy_exp = cursor.fetchone()
-        exp_gain = enemy_exp['exp_reward'] if enemy_exp and enemy_exp.get('exp_reward') else 50
+        # SQLite Row objects don't support .get(), use bracket notation instead
+        exp_gain = enemy_exp['exp_reward'] if enemy_exp and enemy_exp['exp_reward'] is not None else 50
     else:
         # PvP - use variable EXP
         exp_gain = calculate_exp_gain(winner_level, loser_level, True)
