@@ -1013,6 +1013,315 @@
             box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
         }
 
+        /* Feedback Screen */
+        .feedback-item {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+
+        .feedback-item:hover {
+            border-color: var(--accent-primary);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+        }
+
+        .feedback-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .feedback-author {
+            font-weight: 600;
+            color: var(--text-accent);
+        }
+
+        .feedback-date {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+        }
+
+        .feedback-content {
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .feedback-votes {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .feedback-score {
+            font-weight: 600;
+            color: var(--text-primary);
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .feedback-score.positive {
+            color: var(--success);
+        }
+
+        .feedback-score.negative {
+            color: var(--danger);
+        }
+
+        .vote-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .vote-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .vote-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .vote-btn.upvote.active {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .vote-btn.downvote.active {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+
+        .vote-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Toast Notification System */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 15px 20px;
+            min-width: 300px;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            pointer-events: auto;
+            animation: slideInRight 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--success);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--danger);
+        }
+
+        .toast.info {
+            border-left: 4px solid var(--accent-primary);
+        }
+
+        .toast.warning {
+            border-left: 4px solid var(--warning);
+        }
+
+        .toast-icon {
+            font-size: 1.5em;
+            flex-shrink: 0;
+        }
+
+        .toast.success .toast-icon {
+            color: var(--success);
+        }
+
+        .toast.error .toast-icon {
+            color: var(--danger);
+        }
+
+        .toast.info .toast-icon {
+            color: var(--accent-primary);
+        }
+
+        .toast.warning .toast-icon {
+            color: var(--warning);
+        }
+
+        .toast-content {
+            flex: 1;
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1.2em;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .toast-close:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        .toast.fade-out {
+            animation: slideOutRight 0.3s ease-in forwards;
+        }
+
+        /* Confirm Modal */
+        .confirm-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+            backdrop-filter: blur(4px);
+        }
+
+        .confirm-modal.active {
+            display: flex;
+        }
+
+        .confirm-modal-content {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .confirm-modal-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+        }
+
+        .confirm-modal-message {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 25px;
+            white-space: pre-line;
+        }
+
+        .confirm-modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .confirm-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .confirm-btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+
+        .confirm-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .confirm-btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .confirm-btn-secondary:hover {
+            background: var(--bg-secondary);
+        }
+
         /* Character Creation Modal */
         .modal {
             display: none;
@@ -1151,6 +1460,7 @@
             <button class="nav-btn" onclick="showScreen('store')">Store</button>
             <button class="nav-btn" onclick="showScreen('leaderboard')">Leaderboard</button>
             <button class="nav-btn" onclick="showScreen('chat')">Chat</button>
+            <button class="nav-btn" onclick="showScreen('feedback')">Feedback</button>
         </div>
 
         <!-- Screen Container -->
@@ -1351,8 +1661,8 @@
                 <div style="margin-bottom: 20px; padding: 15px; background: var(--bg-tertiary); border-radius: 12px; border: 1px solid var(--border-color);">
                     <h3 style="margin-bottom: 10px;">Forge Items</h3>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <button class="combat-action-btn" onclick="forgeItem('uncommon')">Forge Uncommon (2000g)</button>
-                        <button class="combat-action-btn" onclick="forgeItem('rare')">Forge Rare (5000g)</button>
+                        <button class="combat-action-btn" onclick="forgeItem('uncommon')">Forge Uncommon (1000g)</button>
+                        <button class="combat-action-btn" onclick="forgeItem('rare')">Forge Rare (3000g)</button>
                     </div>
                 </div>
                 
@@ -1376,6 +1686,26 @@
                         <input type="text" id="chat-input" placeholder="Type your message..." maxlength="500" style="flex: 1; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px;" onkeypress="if(event.key==='Enter') sendChatMessage()">
                         <button class="combat-action-btn" onclick="sendChatMessage()">Send</button>
                     </div>
+                </div>
+            </div>
+
+            <!-- Feedback Screen -->
+            <div id="feedback-screen" class="screen">
+                <h2 style="margin-bottom: 20px;">Feedback & Suggestions</h2>
+                
+                <!-- Post Feedback Form -->
+                <div style="margin-bottom: 30px; padding: 20px; background: var(--bg-tertiary); border-radius: 12px; border: 1px solid var(--border-color);">
+                    <h3 style="margin-bottom: 15px;">Share Your Feedback</h3>
+                    <textarea id="feedback-input" placeholder="Share your feedback, suggestions, or ideas..." maxlength="1000" style="width: 100%; min-height: 100px; padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px; font-family: inherit; resize: vertical; margin-bottom: 10px;"></textarea>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span id="feedback-char-count" style="font-size: 0.85em; color: var(--text-secondary);">0/1000 characters</span>
+                        <button class="combat-action-btn" onclick="submitFeedback()">Post Feedback</button>
+                    </div>
+                </div>
+
+                <!-- Feedback List -->
+                <div id="feedback-list" style="display: flex; flex-direction: column; gap: 15px;">
+                    <!-- Feedback items will be loaded here -->
                 </div>
             </div>
         </div>
@@ -1411,6 +1741,21 @@
                 <button class="modal-btn modal-btn-primary" onclick="handleUpgradeFromModal()" id="upgrade-btn-modal" style="width: 100%;">Upgrade Item</button>
                 <button class="modal-btn" onclick="handleRerollFromModal()" id="reroll-btn-modal" style="width: 100%; background: var(--accent-tertiary);">Re-roll Stats</button>
                 <button class="modal-btn modal-btn-secondary" onclick="closeItemEnhancementModal()" style="width: 100%; margin-top: 10px;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Confirm Modal -->
+    <div class="confirm-modal" id="confirm-modal" onclick="if(event.target.id === 'confirm-modal') closeConfirmModal()">
+        <div class="confirm-modal-content">
+            <div class="confirm-modal-title" id="confirm-title">Confirm</div>
+            <div class="confirm-modal-message" id="confirm-message"></div>
+            <div class="confirm-modal-buttons">
+                <button class="confirm-btn confirm-btn-secondary" id="confirm-cancel" onclick="closeConfirmModal()">Cancel</button>
+                <button class="confirm-btn confirm-btn-primary" id="confirm-ok" onclick="confirmOk()">OK</button>
             </div>
         </div>
     </div>
@@ -1477,6 +1822,89 @@
         // Global state
         const TOKEN_KEY = 'idleAccessToken';
         const REFRESH_TOKEN_KEY = 'idleRefreshToken';
+        
+        // Toast notification system
+        function showToast(message, type = 'info', duration = 5000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = {
+                success: '✓',
+                error: '✕',
+                info: 'ℹ',
+                warning: '⚠'
+            };
+            
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type] || icons.info}</span>
+                <div class="toast-content">${escapeHtml(message)}</div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Auto remove after duration
+            if (duration > 0) {
+                setTimeout(() => {
+                    toast.classList.add('fade-out');
+                    setTimeout(() => {
+                        if (toast.parentElement) {
+                            toast.remove();
+                        }
+                    }, 300);
+                }, duration);
+            }
+        }
+        
+        // Confirm dialog system
+        let confirmResolve = null;
+        let currentConfirmPromise = null;
+        
+        function showConfirm(message, title = 'Confirm') {
+            return new Promise((resolve) => {
+                // If there's already a confirm open, resolve it as false
+                if (currentConfirmPromise && confirmResolve) {
+                    confirmResolve(false);
+                }
+                
+                confirmResolve = resolve;
+                currentConfirmPromise = true;
+                
+                document.getElementById('confirm-title').textContent = title;
+                document.getElementById('confirm-message').textContent = message;
+                document.getElementById('confirm-modal').classList.add('active');
+            });
+        }
+        
+        function confirmOk() {
+            if (confirmResolve) {
+                confirmResolve(true);
+                confirmResolve = null;
+                currentConfirmPromise = null;
+            }
+            closeConfirmModal();
+        }
+        
+        function closeConfirmModal() {
+            if (confirmResolve) {
+                confirmResolve(false);
+                confirmResolve = null;
+                currentConfirmPromise = null;
+            }
+            document.getElementById('confirm-modal').classList.remove('active');
+        }
+        
+        // Replace browser alert and confirm with custom functions
+        window.alert = function(message) {
+            showToast(message, 'info', 4000);
+        };
+        
+        window.confirm = function(message) {
+            return showConfirm(message, 'Confirm');
+        };
         const USER_ID_KEY = 'idleUserId';
         const CHARACTER_ID_KEY = 'idleCharacterId';
         const USERNAME_KEY = 'idleUsername';
@@ -1562,7 +1990,7 @@
             // Check if user is authenticated
             const token = localStorage.getItem(TOKEN_KEY);
             if (!token) {
-                alert('You are not logged in. Redirecting to login page...');
+                showToast('You are not logged in. Redirecting to login page...', 'warning');
                 window.location.href = '/';
                 return;
             }
@@ -2295,13 +2723,13 @@
                 
                 if (result.success) {
                     await refreshCharacterData();
-                    alert('Skills saved successfully!');
+                    showToast('Skills saved successfully!', 'success');
                 } else {
-                    alert('Error saving skills: ' + (result.detail || 'Unknown error'));
+                    showToast('Error saving skills: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error saving skills:', error);
-                alert('Error saving skills');
+                showToast('Error saving skills', 'error');
             }
         }
 
@@ -2379,18 +2807,19 @@
                 if (result.success) {
                     await refreshCharacterData();
                 } else {
-                    alert('Error equipping item: ' + (result.detail || 'Unknown error'));
+                    showToast('Error equipping item: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error equipping item:', error);
-                alert('Error equipping item');
+                showToast('Error equipping item', 'error');
             }
         }
 
         async function sellItem(itemId) {
             if (!currentCharacterId) return;
 
-            if (!confirm('Are you sure you want to sell this item?')) {
+            const confirmed = await showConfirm('Are you sure you want to sell this item?', 'Sell Item');
+            if (!confirmed) {
                 return;
             }
 
@@ -2408,13 +2837,13 @@
                 
                 if (result.success) {
                     await refreshCharacterData();
-                    alert(`Item sold for ${result.gold_gained} gold!`);
+                    showToast(`Item sold for ${result.gold_gained} gold!`, 'success');
                 } else {
-                    alert('Error selling item: ' + (result.detail || 'Unknown error'));
+                    showToast('Error selling item: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error selling item:', error);
-                alert('Error selling item');
+                showToast('Error selling item', 'error');
             }
         }
 
@@ -2435,21 +2864,22 @@
                 
                 if (result.success) {
                     await refreshCharacterData();
-                    alert(`Item upgraded! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                    showToast(`Item upgraded! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`, 'success');
                     closeItemEnhancementModal();
                 } else {
-                    alert('Error upgrading item: ' + (result.detail || 'Unknown error'));
+                    showToast('Error upgrading item: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error upgrading item:', error);
-                alert('Error upgrading item');
+                showToast('Error upgrading item', 'error');
             }
         }
 
         async function rerollItem(itemId) {
             if (!currentCharacterId) return;
 
-            if (!confirm('Re-roll this item\'s stats? This will randomly regenerate all stats.')) {
+            const confirmed = await showConfirm('Re-roll this item\'s stats? This will randomly regenerate all stats.', 'Re-roll Stats');
+            if (!confirmed) {
                 return;
             }
 
@@ -2467,16 +2897,16 @@
                 
                 if (result.success) {
                     await refreshCharacterData();
-                    alert(`Item stats re-rolled! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                    showToast(`Item stats re-rolled! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`, 'success');
                     if (currentEnhancementItemId === itemId) {
                         closeItemEnhancementModal();
                     }
                 } else {
-                    alert('Error re-rolling item: ' + (result.detail || 'Unknown error'));
+                    showToast('Error re-rolling item: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error re-rolling item:', error);
-                alert('Error re-rolling item');
+                showToast('Error re-rolling item', 'error');
             }
         }
 
@@ -2486,7 +2916,8 @@
             const charLevel = characterData.level || 1;
             const cost = 5000 + (charLevel * 200);
 
-            if (!confirm(`Reset all skill points? This will refund all skill points and reset stats to base values.\n\nCost: ${cost} gold`)) {
+            const confirmed = await showConfirm(`Reset all skill points? This will refund all skill points and reset stats to base values.\n\nCost: ${cost} gold`, 'Reset Skills');
+            if (!confirmed) {
                 return;
             }
 
@@ -2503,13 +2934,13 @@
                 
                 if (result.success) {
                     await refreshCharacterData();
-                    alert(`Skills reset! Refunded ${result.refunded_skill_points} skill points. Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                    showToast(`Skills reset! Refunded ${result.refunded_skill_points} skill points. Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`, 'success');
                 } else {
-                    alert('Error resetting skills: ' + (result.detail || 'Unknown error'));
+                    showToast('Error resetting skills: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error resetting skills:', error);
-                alert('Error resetting skills');
+                showToast('Error resetting skills', 'error');
             }
         }
 
@@ -2521,7 +2952,7 @@
             // Find the item in inventory
             const item = characterData.inventory.find(i => i.id === itemId);
             if (!item) {
-                alert('Item not found');
+                showToast('Item not found', 'error');
                 return;
             }
             
@@ -2604,7 +3035,8 @@
 
         async function handleRerollFromModal() {
             if (!currentEnhancementItemId) return;
-            if (!confirm('Re-roll this item\'s stats? This will randomly regenerate all stats.')) {
+            const confirmed = await showConfirm('Re-roll this item\'s stats? This will randomly regenerate all stats.', 'Re-roll Stats');
+            if (!confirmed) {
                 return;
             }
             await rerollItem(currentEnhancementItemId);
@@ -2794,7 +3226,7 @@
                     } catch (e) {
                         errorDetail = errorText || `HTTP ${response.status}`;
                     }
-                    alert('Error starting combat: ' + errorDetail);
+                    showToast('Error starting combat: ' + errorDetail, 'error');
                     console.error('Combat start error:', response.status, errorDetail);
                     return;
                 }
@@ -2807,12 +3239,12 @@
                     startCombatPolling();
                     loadAbilities();
                 } else {
-                    alert('Error starting combat: ' + (result.detail || 'Unknown error'));
+                    showToast('Error starting combat: ' + (result.detail || 'Unknown error'), 'error');
                     console.error('Combat start failed:', result);
                 }
             } catch (error) {
                 console.error('Error starting combat:', error);
-                alert('Error starting combat');
+                showToast('Error starting combat', 'error');
             }
         }
         
@@ -2866,7 +3298,7 @@
                             
                             // Show rewards
                             if (result.combat.rewards) {
-                                alert(`Victory! Gained ${result.combat.rewards.exp_gained} EXP and ${result.combat.rewards.gold_gained} gold!`);
+                                showToast(`Victory! Gained ${result.combat.rewards.exp_gained} EXP and ${result.combat.rewards.gold_gained} gold!`, 'success');
                                 await refreshCharacterData();
                                 
                                 // Unlock next enemy if PvE
@@ -3265,7 +3697,7 @@
                 
                 const result = await response.json();
                 if (!result.success) {
-                    alert('Error using ability: ' + (result.detail || 'Unknown error'));
+                    showToast('Error using ability: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error using ability:', error);
@@ -3355,7 +3787,7 @@
                 if (result.success && result.opponent_id) {
                     startCombat(result.opponent_id, true);
                 } else {
-                    alert('No opponents available. You will be matched when someone joins.');
+                    showToast('No opponents available. You will be matched when someone joins.', 'info');
                 }
             } catch (error) {
                 console.error('Error matching:', error);
@@ -3377,7 +3809,7 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    alert('PvP enabled! Other players can now challenge you.');
+                    showToast('PvP enabled! Other players can now challenge you.', 'success');
                     loadPvPOpponents();
                 }
             } catch (error) {
@@ -3388,7 +3820,8 @@
         async function startAutoFight(enemyId) {
             if (!currentCharacterId) return;
             
-            if (!confirm('Start auto-fight for 1 hour? You can stop early, but rewards are only applied when the session completes or is stopped.')) {
+            const confirmed = await showConfirm('Start auto-fight for 1 hour? You can stop early, but rewards are only applied when the session completes or is stopped.', 'Start Auto-Fight');
+            if (!confirmed) {
                 return;
             }
             
@@ -3409,11 +3842,11 @@
                     showAutoFightModal();
                     startAutoFightPolling();
                 } else {
-                    alert('Error starting auto-fight: ' + (result.detail || 'Unknown error'));
+                    showToast('Error starting auto-fight: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error starting auto-fight:', error);
-                alert('Error starting auto-fight');
+                showToast('Error starting auto-fight', 'error');
             }
         }
         
@@ -3498,7 +3931,8 @@
         async function stopAutoFight() {
             if (!currentAutoFightSessionId) return;
             
-            if (!confirm('Stop auto-fight session? All rewards will be applied now.')) {
+            const confirmed = await showConfirm('Stop auto-fight session? All rewards will be applied now.', 'Stop Auto-Fight');
+            if (!confirmed) {
                 return;
             }
             
@@ -3541,7 +3975,8 @@
             };
             const cost = costs[hours];
 
-            if (!confirm(`Extend auto-fight session by ${hours} hour(s)?\n\nCost: ${cost} gold`)) {
+            const confirmed = await showConfirm(`Extend auto-fight session by ${hours} hour(s)?\n\nCost: ${cost} gold`, 'Extend Auto-Fight');
+            if (!confirmed) {
                 return;
             }
 
@@ -3566,13 +4001,13 @@
                         const seconds = result.time_remaining % 60;
                         timeEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
                     }
-                    alert(`Auto-fight extended by ${hours} hour(s)! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`);
+                    showToast(`Auto-fight extended by ${hours} hour(s)! Gold spent: ${result.gold_spent}, Remaining: ${result.gold_remaining}`, 'success');
                 } else {
-                    alert('Error extending auto-fight: ' + (result.detail || 'Unknown error'));
+                    showToast('Error extending auto-fight: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error extending auto-fight:', error);
-                alert('Error extending auto-fight');
+                showToast('Error extending auto-fight', 'error');
             }
         }
 
@@ -3620,7 +4055,7 @@
 
         async function sendChatMessage() {
             if (!currentCharacterId) {
-                alert('Please create a character first');
+                showToast('Please create a character first', 'warning');
                 return;
             }
 
@@ -3645,13 +4080,204 @@
                     input.value = '';
                     loadChatMessages();
                 } else {
-                    alert('Error sending message: ' + (result.detail || 'Unknown error'));
+                    showToast('Error sending message: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error sending chat:', error);
-                alert('Error sending message');
+                showToast('Error sending message', 'error');
             }
         }
+
+        // Feedback functions
+        let myVotes = {};
+
+        async function loadFeedback() {
+            try {
+                // Load feedback list
+                const response = await authenticatedFetch('/api/feedback/list?limit=50');
+                const result = await response.json();
+
+                // Load user's votes
+                const votesResponse = await authenticatedFetch('/api/feedback/my-votes');
+                const votesResult = await votesResponse.json();
+                if (votesResult.success) {
+                    myVotes = votesResult.votes;
+                }
+
+                if (result.success) {
+                    const listEl = document.getElementById('feedback-list');
+                    listEl.innerHTML = '';
+
+                    if (result.feedback.length === 0) {
+                        listEl.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px;">No feedback yet. Be the first to share your thoughts!</p>';
+                        return;
+                    }
+
+                    for (const item of result.feedback) {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'feedback-item';
+                        itemDiv.id = `feedback-${item.id}`;
+                        
+                        const userVote = myVotes[item.id] || null;
+                        const scoreClass = item.score > 0 ? 'positive' : item.score < 0 ? 'negative' : '';
+                        
+                        itemDiv.innerHTML = `
+                            <div class="feedback-header">
+                                <span class="feedback-author">${item.character_name || 'Anonymous'}</span>
+                                <span class="feedback-date">${new Date(item.created_at).toLocaleString()}</span>
+                            </div>
+                            <div class="feedback-content">${escapeHtml(item.content)}</div>
+                            <div class="feedback-votes">
+                                <span class="feedback-score ${scoreClass}">${item.score > 0 ? '+' : ''}${item.score}</span>
+                                <div class="vote-buttons">
+                                    <button class="vote-btn upvote ${userVote === 'upvote' ? 'active' : ''}" 
+                                            onclick="voteFeedback('${item.id}', 'upvote')" 
+                                            ${!currentCharacterId ? 'disabled' : ''}>
+                                        ▲ ${item.upvotes}
+                                    </button>
+                                    <button class="vote-btn downvote ${userVote === 'downvote' ? 'active' : ''}" 
+                                            onclick="voteFeedback('${item.id}', 'downvote')" 
+                                            ${!currentCharacterId ? 'disabled' : ''}>
+                                        ▼ ${item.downvotes}
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        listEl.appendChild(itemDiv);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading feedback:', error);
+            }
+        }
+
+        async function submitFeedback() {
+            if (!currentCharacterId) {
+                showToast('Please create a character first', 'warning');
+                return;
+            }
+
+            const input = document.getElementById('feedback-input');
+            const content = input.value.trim();
+
+            if (!content) {
+                showToast('Please enter your feedback', 'warning');
+                return;
+            }
+
+            if (content.length > 1000) {
+                showToast('Feedback is too long (max 1000 characters)', 'warning');
+                return;
+            }
+
+            try {
+                const response = await authenticatedFetch('/api/feedback/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        character_id: currentCharacterId,
+                        content: content
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    input.value = '';
+                    updateFeedbackCharCount();
+                    loadFeedback();
+                } else {
+                    showToast('Error posting feedback: ' + (result.detail || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error submitting feedback:', error);
+                showToast('Error posting feedback', 'error');
+            }
+        }
+
+        async function voteFeedback(feedbackId, voteType) {
+            if (!currentCharacterId) {
+                showToast('Please create a character first', 'warning');
+                return;
+            }
+
+            try {
+                const response = await authenticatedFetch('/api/feedback/vote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        feedback_id: feedbackId,
+                        vote_type: voteType
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Update the vote counts in the UI
+                    const itemEl = document.getElementById(`feedback-${feedbackId}`);
+                    if (itemEl) {
+                        const scoreEl = itemEl.querySelector('.feedback-score');
+                        const upvoteBtn = itemEl.querySelector('.vote-btn.upvote');
+                        const downvoteBtn = itemEl.querySelector('.vote-btn.downvote');
+                        
+                        const score = result.score;
+                        scoreEl.textContent = `${score > 0 ? '+' : ''}${score}`;
+                        scoreEl.className = `feedback-score ${score > 0 ? 'positive' : score < 0 ? 'negative' : ''}`;
+                        
+                        upvoteBtn.textContent = `▲ ${result.upvotes}`;
+                        downvoteBtn.textContent = `▼ ${result.downvotes}`;
+                        
+                        // Update active states
+                        if (myVotes[feedbackId] === voteType) {
+                            // Toggled off
+                            myVotes[feedbackId] = null;
+                            delete myVotes[feedbackId];
+                            upvoteBtn.classList.remove('active');
+                            downvoteBtn.classList.remove('active');
+                        } else {
+                            // New vote or changed vote
+                            myVotes[feedbackId] = voteType;
+                            if (voteType === 'upvote') {
+                                upvoteBtn.classList.add('active');
+                                downvoteBtn.classList.remove('active');
+                            } else {
+                                upvoteBtn.classList.remove('active');
+                                downvoteBtn.classList.add('active');
+                            }
+                        }
+                    }
+                } else {
+                    showToast('Error voting: ' + (result.detail || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error voting on feedback:', error);
+                showToast('Error voting on feedback', 'error');
+            }
+        }
+
+        function updateFeedbackCharCount() {
+            const input = document.getElementById('feedback-input');
+            const countEl = document.getElementById('feedback-char-count');
+            if (input && countEl) {
+                countEl.textContent = `${input.value.length}/1000 characters`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize feedback character count on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const feedbackInput = document.getElementById('feedback-input');
+            if (feedbackInput) {
+                feedbackInput.addEventListener('input', updateFeedbackCharCount);
+                updateFeedbackCharCount();
+            }
+        });
 
         // Navigation
         function showScreen(screenName) {
@@ -3679,6 +4305,8 @@
                 loadLeaderboard();
             } else if (screenName === 'chat') {
                 loadChatMessages();
+            } else if (screenName === 'feedback') {
+                loadFeedback();
             }
         }
         
@@ -3724,7 +4352,8 @@
         async function buyStoreItem(itemId) {
             if (!currentCharacterId) return;
             
-            if (!confirm('Purchase this item?')) return;
+            const confirmed = await showConfirm('Purchase this item?', 'Purchase Item');
+            if (!confirmed) return;
             
             try {
                 const response = await authenticatedFetch('/api/store/buy', {
@@ -3739,15 +4368,15 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`Purchased! Item added to inventory.`);
+                    showToast(`Purchased! Item added to inventory.`, 'success');
                     await refreshCharacterData();
                     loadStoreItems();
                 } else {
-                    alert('Error purchasing item: ' + (result.detail || 'Unknown error'));
+                    showToast('Error purchasing item: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error buying item:', error);
-                alert('Error purchasing item');
+                showToast('Error purchasing item', 'error');
             }
         }
         
@@ -3755,11 +4384,12 @@
             if (!currentCharacterId) return;
             
             const costs = {
-                'common': 50, 'uncommon': 200, 'rare': 500,
+                'common': 50, 'uncommon': 1000, 'rare': 3000,
                 'epic': 1500, 'legendary': 5000, 'mythic': 20000
             };
             
-            if (!confirm(`Forge a random ${rarity} item for ${costs[rarity]} gold?`)) return;
+            const confirmed = await showConfirm(`Forge a random ${rarity} item for ${costs[rarity]} gold?`, 'Forge Item');
+            if (!confirmed) return;
             
             try {
                 const response = await authenticatedFetch('/api/store/forge', {
@@ -3774,14 +4404,14 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`Forged ${result.equipment.name}!`);
+                    showToast(`Forged ${result.equipment.name}!`, 'success');
                     await refreshCharacterData();
                 } else {
-                    alert('Error forging item: ' + (result.detail || 'Unknown error'));
+                    showToast('Error forging item: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error forging item:', error);
-                alert('Error forging item');
+                showToast('Error forging item', 'error');
             }
         }
         
@@ -3789,7 +4419,7 @@
         
         function showCombineModal() {
             if (!characterData || !characterData.inventory) {
-                alert('No items to combine');
+                showToast('No items to combine', 'warning');
                 return;
             }
             
@@ -3853,7 +4483,7 @@
         
         async function confirmCombine() {
             if (!currentCharacterId || combineSelectedItems.length < 2) {
-                alert('Select at least 2 items to combine');
+                showToast('Select at least 2 items to combine', 'warning');
                 return;
             }
             
@@ -3870,15 +4500,15 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`Combined items into ${result.equipment.name} (${result.rarity_created})!`);
+                    showToast(`Combined items into ${result.equipment.name} (${result.rarity_created})!`, 'success');
                     closeCombineModal();
                     await refreshCharacterData();
                 } else {
-                    alert('Error combining items: ' + (result.detail || 'Unknown error'));
+                    showToast('Error combining items: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error combining items:', error);
-                alert('Error combining items');
+                showToast('Error combining items', 'error');
             }
         }
 
@@ -3896,11 +4526,11 @@
             const name = nameInput.value.trim();
 
             if (!name || name.length < 3) {
-                alert('Character name must be at least 3 characters');
+                showToast('Character name must be at least 3 characters', 'warning');
                 return;
             }
             if (!currentUserId) {
-                alert('User information missing. Please log in again.');
+                showToast('User information missing. Please log in again.', 'error');
                 return;
             }
 
@@ -3919,16 +4549,17 @@
                     closeCharacterModal();
                     await refreshCharacterData();
                 } else {
-                    alert('Error creating character: ' + (result.detail || 'Unknown error'));
+                    showToast('Error creating character: ' + (result.detail || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error creating character:', error);
-                alert('Error creating character');
+                showToast('Error creating character', 'error');
             }
         }
 
         function logout() {
-            if (confirm('Are you sure you want to logout?')) {
+            const confirmed = await showConfirm('Are you sure you want to logout?', 'Logout');
+            if (confirmed) {
                 localStorage.removeItem(TOKEN_KEY);
                 localStorage.removeItem(REFRESH_TOKEN_KEY);
                 localStorage.removeItem(USER_ID_KEY);

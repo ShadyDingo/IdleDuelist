@@ -9,6 +9,7 @@ import json
 import sqlite3
 import random
 import bcrypt
+import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Depends, Body, Header
@@ -655,6 +656,59 @@ def init_database():
             )
         ''')
     
+    # Feedback table
+    if USE_POSTGRES:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feedback (
+                id VARCHAR(255) PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                character_name VARCHAR(255),
+                content TEXT NOT NULL,
+                upvotes INTEGER DEFAULT 0,
+                downvotes INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feedback_votes (
+                id VARCHAR(255) PRIMARY KEY,
+                feedback_id VARCHAR(255) NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
+                vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('upvote', 'downvote')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (feedback_id) REFERENCES feedback (id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                UNIQUE(feedback_id, user_id)
+            )
+        ''')
+        conn.commit()
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feedback (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                character_name TEXT,
+                content TEXT NOT NULL,
+                upvotes INTEGER DEFAULT 0,
+                downvotes INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feedback_votes (
+                id TEXT PRIMARY KEY,
+                feedback_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                vote_type TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (feedback_id) REFERENCES feedback (id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                UNIQUE(feedback_id, user_id)
+            )
+        ''')
+    
     conn.commit()
     conn.close()
     print("Database initialized successfully")
@@ -804,7 +858,7 @@ def initialize_default_data():
             'name': f"Common {slot_names[slot]}",
             'slot': slot,
             'weapon_type': None,
-            'base_price': 75,
+            'base_price': 50,
             'level_requirement': 1
         })
     
@@ -3856,9 +3910,8 @@ async def list_store_items(character_id: str):
     
     items_list = []
     for item in items:
-        # Calculate price with level scaling (prices increase by 10% per level)
-        # This ensures higher level players pay more for the same items
-        price = int(item['base_price'] * (1 + char_level * 0.1))
+        # Use base price directly - prices remain constant regardless of level
+        price = item['base_price']
         items_list.append({
             'id': item['id'],
             'name': item['name'],
@@ -3900,8 +3953,8 @@ async def buy_store_item(request: Dict = Body(...)):
         conn.close()
         raise HTTPException(status_code=400, detail="Level requirement not met")
     
-    # Calculate price
-    price = int(store_item['base_price'] * (1 + char['level'] * 0.1))
+    # Use base price directly - prices remain constant regardless of level
+    price = store_item['base_price']
     
     # Check gold
     if char['gold'] < price:
@@ -4010,7 +4063,7 @@ async def forge_item(request: Dict = Body(...)):
         raise HTTPException(status_code=400, detail="Invalid rarity")
     
     forge_costs = {
-        'uncommon': 2000, 'rare': 5000
+        'uncommon': 1000, 'rare': 3000
     }
     cost = forge_costs.get(rarity)
     if cost is None:
@@ -4142,6 +4195,177 @@ async def combine_items(request: Dict = Body(...)):
     conn.close()
     
     return {"success": True, "equipment": equipment, "rarity_created": result_rarity}
+
+# Feedback endpoints
+@app.post("/api/feedback/create")
+async def create_feedback(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
+    """Create a new feedback/suggestion post"""
+    user_id = current_user["user_id"]
+    content = request.get('content', '').strip()
+    character_id = request.get('character_id')
+    
+    if not content:
+        raise HTTPException(status_code=400, detail="Feedback content cannot be empty")
+    
+    if len(content) > 1000:
+        raise HTTPException(status_code=400, detail="Feedback too long (max 1000 characters)")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Get character name if provided
+    character_name = None
+    if character_id:
+        cursor.execute("SELECT name FROM characters WHERE id = ?", (character_id,))
+        char = cursor.fetchone()
+        if char:
+            character_name = char['name']
+    
+    # Create feedback
+    feedback_id = str(uuid.uuid4())
+    cursor.execute(
+        "INSERT INTO feedback (id, user_id, character_name, content) VALUES (?, ?, ?, ?)",
+        (feedback_id, user_id, character_name, content)
+    )
+    
+    conn.commit()
+    conn.close()
+    
+    return {"success": True, "feedback_id": feedback_id, "message": "Feedback posted successfully"}
+
+@app.get("/api/feedback/list")
+async def list_feedback(limit: int = 50, offset: int = 0):
+    """Get list of feedback posts with vote counts"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        """SELECT id, character_name, content, upvotes, downvotes, created_at 
+           FROM feedback 
+           ORDER BY (upvotes - downvotes) DESC, created_at DESC 
+           LIMIT ? OFFSET ?""",
+        (limit, offset)
+    )
+    
+    feedback_list = []
+    for row in cursor.fetchall():
+        feedback_list.append({
+            'id': row['id'],
+            'character_name': row['character_name'],
+            'content': row['content'],
+            'upvotes': row['upvotes'],
+            'downvotes': row['downvotes'],
+            'score': row['upvotes'] - row['downvotes'],
+            'created_at': row['created_at']
+        })
+    
+    conn.close()
+    
+    return {"success": True, "feedback": feedback_list}
+
+@app.post("/api/feedback/vote")
+async def vote_feedback(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
+    """Vote on a feedback post (upvote or downvote)"""
+    user_id = current_user["user_id"]
+    feedback_id = request.get('feedback_id')
+    vote_type = request.get('vote_type')  # 'upvote' or 'downvote'
+    
+    if not feedback_id:
+        raise HTTPException(status_code=400, detail="feedback_id required")
+    
+    if vote_type not in ['upvote', 'downvote']:
+        raise HTTPException(status_code=400, detail="vote_type must be 'upvote' or 'downvote'")
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Check if feedback exists
+    cursor.execute("SELECT id FROM feedback WHERE id = ?", (feedback_id,))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Feedback not found")
+    
+    # Check if user already voted
+    cursor.execute(
+        "SELECT id, vote_type FROM feedback_votes WHERE feedback_id = ? AND user_id = ?",
+        (feedback_id, user_id)
+    )
+    existing_vote = cursor.fetchone()
+    
+    vote_id = str(uuid.uuid4())
+    
+    if existing_vote:
+        # User already voted - update or remove vote
+        old_vote_type = existing_vote['vote_type']
+        
+        if old_vote_type == vote_type:
+            # Same vote - remove it (toggle off)
+            cursor.execute("DELETE FROM feedback_votes WHERE id = ?", (existing_vote['id'],))
+            
+            # Update feedback vote counts
+            if vote_type == 'upvote':
+                cursor.execute("UPDATE feedback SET upvotes = upvotes - 1 WHERE id = ?", (feedback_id,))
+            else:
+                cursor.execute("UPDATE feedback SET downvotes = downvotes - 1 WHERE id = ?", (feedback_id,))
+        else:
+            # Different vote - change it
+            cursor.execute(
+                "UPDATE feedback_votes SET vote_type = ? WHERE id = ?",
+                (vote_type, existing_vote['id'])
+            )
+            
+            # Update feedback vote counts
+            if old_vote_type == 'upvote':
+                cursor.execute("UPDATE feedback SET upvotes = upvotes - 1, downvotes = downvotes + 1 WHERE id = ?", (feedback_id,))
+            else:
+                cursor.execute("UPDATE feedback SET upvotes = upvotes + 1, downvotes = downvotes - 1 WHERE id = ?", (feedback_id,))
+    else:
+        # New vote
+        cursor.execute(
+            "INSERT INTO feedback_votes (id, feedback_id, user_id, vote_type) VALUES (?, ?, ?, ?)",
+            (vote_id, feedback_id, user_id, vote_type)
+        )
+        
+        # Update feedback vote counts
+        if vote_type == 'upvote':
+            cursor.execute("UPDATE feedback SET upvotes = upvotes + 1 WHERE id = ?", (feedback_id,))
+        else:
+            cursor.execute("UPDATE feedback SET downvotes = downvotes + 1 WHERE id = ?", (feedback_id,))
+    
+    # Get updated vote counts
+    cursor.execute("SELECT upvotes, downvotes FROM feedback WHERE id = ?", (feedback_id,))
+    result = cursor.fetchone()
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        "success": True,
+        "upvotes": result['upvotes'],
+        "downvotes": result['downvotes'],
+        "score": result['upvotes'] - result['downvotes']
+    }
+
+@app.get("/api/feedback/my-votes")
+async def get_my_votes(current_user: dict = Depends(get_current_user)):
+    """Get all feedback IDs that the current user has voted on"""
+    user_id = current_user["user_id"]
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        "SELECT feedback_id, vote_type FROM feedback_votes WHERE user_id = ?",
+        (user_id,)
+    )
+    
+    votes = {}
+    for row in cursor.fetchall():
+        votes[row['feedback_id']] = row['vote_type']
+    
+    conn.close()
+    
+    return {"success": True, "votes": votes}
 
 # Chat endpoints
 @app.post("/api/chat/send")
