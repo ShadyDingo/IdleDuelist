@@ -225,29 +225,49 @@ def generate_equipment(slot: str, rarity: str, level: int) -> Dict:
     }
 
 
-def roll_equipment_rarity(is_pvp: bool = False, enemy_level: int = 1) -> str:
+def roll_equipment_rarity(is_pvp: bool = False, enemy_level: int = 1, player_level: int = 1) -> str:
     """
-    Roll for equipment rarity based on PVP/PVE
+    Roll for equipment rarity based on PVP/PVE with level requirements
     
     Args:
         is_pvp: True if from PVP, False if from PVE
         enemy_level: Level of enemy (for PvE scaling, but still capped at Rare)
+        player_level: Level of the player receiving the drop (for rarity level requirements)
     
     Returns:
         Rarity string
     """
     if is_pvp:
-        # PVP drop rates: 30% Common, 25% Uncommon, 20% Rare, 15% Epic, 8% Legendary, 2% Mythic
+        # PVP drop rates with level requirements:
+        # - Legendary requires player level 75+
+        # - Mythic requires player level 95+
+        # Adjusted rates: 35% Common, 30% Uncommon, 20% Rare, 12% Epic, 2.5% Legendary, 0.5% Mythic
         roll = random.random() * 100
-        if roll < 30:
+        
+        # Check level requirements for high rarities
+        if roll >= 99.5:  # 0.5% chance for Mythic
+            if player_level >= 95:
+                return 'mythic'
+            else:
+                # Downgrade to Legendary if not high enough level
+                roll = 97.0  # Fall into Legendary range
+        elif roll >= 97:  # 2.5% chance for Legendary (97-99.5)
+            if player_level >= 75:
+                return 'legendary'
+            else:
+                # Downgrade to Epic if not high enough level
+                roll = 85.0  # Fall into Epic range
+        
+        # Standard rarity rolls (with downgrades applied if needed)
+        if roll < 35:
             return 'common'
-        elif roll < 55:
+        elif roll < 65:
             return 'uncommon'
-        elif roll < 75:
+        elif roll < 85:
             return 'rare'
-        elif roll < 90:
+        elif roll < 97:
             return 'epic'
-        elif roll < 98:
+        elif roll < 99.5:
             return 'legendary'
         else:
             return 'mythic'

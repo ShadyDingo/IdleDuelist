@@ -1375,7 +1375,7 @@ async def drop_equipment(request: Dict = Body(...), current_user: dict = Depends
         raise HTTPException(status_code=404, detail="Character not found")
     
     level = character['level']
-    rarity = roll_equipment_rarity(is_pvp)
+    rarity = roll_equipment_rarity(is_pvp, enemy_level=1, player_level=level)
     slot = random.choice(EQUIPMENT_SLOTS)
     
     equipment = generate_equipment(slot, rarity, level)
@@ -2452,7 +2452,7 @@ def end_combat(combat_id: str):
                 # Drop equipment based on drop chance
                 equipment_dropped = False
                 if random.random() * 100 < drop_chance:
-                    rarity = roll_equipment_rarity(state['is_pvp'], enemy_level)
+                    rarity = roll_equipment_rarity(state['is_pvp'], enemy_level, char_dict['level'])
                     slot = random.choice(EQUIPMENT_SLOTS)
                     equipment = generate_equipment(slot, rarity, char_dict['level'])
                     
@@ -2659,7 +2659,7 @@ async def resolve_combat(character1_id: str, character2_id_or_data, is_pvp: bool
         
         # Drop equipment
         if random.random() < 0.7:  # 70% drop chance
-            rarity = roll_equipment_rarity(is_pvp)
+            rarity = roll_equipment_rarity(is_pvp, enemy_level=loser_level, player_level=char_dict['level'])
             slot = random.choice(EQUIPMENT_SLOTS)
             equipment = generate_equipment(slot, rarity, char_dict['level'])
             
@@ -3087,7 +3087,7 @@ def process_auto_fight(session_id: str):
             
             # If equipment was dropped, generate it
             if equipment_dropped:
-                rarity = roll_equipment_rarity(False, session['enemy_level'])
+                rarity = roll_equipment_rarity(False, session['enemy_level'], session['player_level'])
                 slot = random.choice(EQUIPMENT_SLOTS)
                 equipment = generate_equipment(slot, rarity, session['player_level'])
                 session['items_dropped'].append(equipment)
@@ -3422,7 +3422,8 @@ async def list_store_items(character_id: str):
     
     items_list = []
     for item in items:
-        # Calculate price with level scaling
+        # Calculate price with level scaling (prices increase by 10% per level)
+        # This ensures higher level players pay more for the same items
         price = int(item['base_price'] * (1 + char_level * 0.1))
         items_list.append({
             'id': item['id'],
@@ -3917,6 +3918,10 @@ async def get_pvp_opponents(character_id: str, max_level_diff: int = 5, current_
 async def get_pvp_leaderboard(limit: int = 50, offset: int = 0):
     """Get PVP leaderboard (ranked by MMR)"""
     try:
+        # Validate and clamp parameters
+        limit = max(1, min(100, int(limit)))  # Clamp between 1 and 100
+        offset = max(0, int(offset))  # Ensure non-negative
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         
