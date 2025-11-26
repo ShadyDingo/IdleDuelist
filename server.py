@@ -588,7 +588,8 @@ def init_database():
                 unlocked_at_level INTEGER DEFAULT 1,
                 gold_min INTEGER DEFAULT 1,
                 gold_max INTEGER DEFAULT 1,
-                drop_chance REAL DEFAULT 0.0
+                drop_chance REAL DEFAULT 0.0,
+                exp_reward INTEGER DEFAULT 50
             )
         ''')
         conn.commit()
@@ -604,7 +605,8 @@ def init_database():
                 unlocked_at_level INTEGER DEFAULT 1,
                 gold_min INTEGER DEFAULT 1,
                 gold_max INTEGER DEFAULT 1,
-                drop_chance REAL DEFAULT 0.0
+                drop_chance REAL DEFAULT 0.0,
+                exp_reward INTEGER DEFAULT 50
             )
         ''')
     
@@ -617,6 +619,8 @@ def init_database():
             safe_alter_table('ALTER TABLE pve_enemies ADD COLUMN gold_max INTEGER DEFAULT 1')
         if not column_exists('pve_enemies', 'drop_chance'):
             safe_alter_table('ALTER TABLE pve_enemies ADD COLUMN drop_chance REAL DEFAULT 0.0')
+        if not column_exists('pve_enemies', 'exp_reward'):
+            safe_alter_table('ALTER TABLE pve_enemies ADD COLUMN exp_reward INTEGER DEFAULT 50')
     
     # Character PvE progress
     if USE_POSTGRES:
@@ -772,37 +776,38 @@ def initialize_default_data():
     
     # Balanced PvE enemies - roughly 2.5-3x level in total stats for appropriate challenge
     # Enemies should be beatable by similarly-leveled players with decent equipment
+    # EXP reward formula: 50 + (level * 5) - fixed per enemy type
     pve_enemies_data = [
-        {'id': 'chicken', 'name': 'Chicken', 'level': 1, 'stats': {'might': 1, 'agility': 2, 'vitality': 1, 'intellect': 0, 'wisdom': 0, 'charisma': 0}, 'description': 'Harmless barn birds that peck at ankles. More annoying than dangerous.', 'gold_min': 1, 'gold_max': 1, 'drop_chance': 0.0},
-        {'id': 'forest_rat', 'name': 'Forest Rat', 'level': 3, 'stats': {'might': 2, 'agility': 6, 'vitality': 3, 'intellect': 1, 'wisdom': 0, 'charisma': 0}, 'description': 'Oversized rodents twisted by wild magic. Quick and skittish.', 'gold_min': 1, 'gold_max': 2, 'drop_chance': 0.0},
-        {'id': 'goblin_scout', 'name': 'Goblin Scout', 'level': 5, 'stats': {'might': 4, 'agility': 9, 'vitality': 4, 'intellect': 1, 'wisdom': 1, 'charisma': 0}, 'description': 'Sneaky ambushers who dart from shadow to shadow.', 'gold_min': 1, 'gold_max': 3, 'drop_chance': 0.1},
-        {'id': 'cave_slime', 'name': 'Cave Slime', 'level': 8, 'stats': {'might': 3, 'agility': 2, 'vitality': 16, 'intellect': 2, 'wisdom': 3, 'charisma': 0}, 'description': 'Gelatinous blobs that digest anything organic.', 'gold_min': 2, 'gold_max': 4, 'drop_chance': 0.2},
-        {'id': 'ork_grunt', 'name': 'Ork Grunt', 'level': 10, 'stats': {'might': 18, 'agility': 4, 'vitality': 12, 'intellect': 1, 'wisdom': 0, 'charisma': 0}, 'description': 'Brutish frontline fighters serving stronger warlords.', 'gold_min': 2, 'gold_max': 5, 'drop_chance': 0.5},
-        {'id': 'bandit_cutpurse', 'name': 'Bandit Cutpurse', 'level': 12, 'stats': {'might': 8, 'agility': 22, 'vitality': 6, 'intellect': 2, 'wisdom': 2, 'charisma': 0}, 'description': 'High-speed thieves who rely on mobility to survive.', 'gold_min': 4, 'gold_max': 7, 'drop_chance': 0.5},
-        {'id': 'skeleton_warrior', 'name': 'Skeleton Warrior', 'level': 15, 'stats': {'might': 18, 'agility': 3, 'vitality': 25, 'intellect': 0, 'wisdom': 4, 'charisma': 0}, 'description': 'Reanimated bones that act on forgotten commands.', 'gold_min': 6, 'gold_max': 10, 'drop_chance': 0.7},
-        {'id': 'gnoll_raider', 'name': 'Gnoll Raider', 'level': 18, 'stats': {'might': 26, 'agility': 16, 'vitality': 16, 'intellect': 0, 'wisdom': 2, 'charisma': 0}, 'description': 'Savage hyena-folk who overwhelm caravans in packs.', 'gold_min': 8, 'gold_max': 12, 'drop_chance': 0.8},
-        {'id': 'cave_spider', 'name': 'Cave Spider', 'level': 20, 'stats': {'might': 7, 'agility': 30, 'vitality': 14, 'intellect': 13, 'wisdom': 4, 'charisma': 0}, 'description': 'Venomous hunters whose webs block entire tunnels.', 'gold_min': 10, 'gold_max': 15, 'drop_chance': 1.0},
-        {'id': 'bog_zombie', 'name': 'Bog Zombie', 'level': 23, 'stats': {'might': 16, 'agility': 1, 'vitality': 50, 'intellect': 4, 'wisdom': 5, 'charisma': 0}, 'description': 'Rotting corpses preserved by swamp sorcery.', 'gold_min': 12, 'gold_max': 18, 'drop_chance': 1.0},
-        {'id': 'lizardfolk_scout', 'name': 'Lizardfolk Scout', 'level': 26, 'stats': {'might': 22, 'agility': 33, 'vitality': 22, 'intellect': 5, 'wisdom': 4, 'charisma': 0}, 'description': 'Cold-blooded hunters defending marsh territory.', 'gold_min': 14, 'gold_max': 22, 'drop_chance': 1.2},
-        {'id': 'dire_wolf', 'name': 'Dire Wolf', 'level': 30, 'stats': {'might': 33, 'agility': 43, 'vitality': 20, 'intellect': 0, 'wisdom': 0, 'charisma': 0}, 'description': 'Moon-touched predators leading lesser wolf packs.', 'gold_min': 18, 'gold_max': 28, 'drop_chance': 1.5},
-        {'id': 'ogre_brute', 'name': 'Ogre Brute', 'level': 33, 'stats': {'might': 62, 'agility': 6, 'vitality': 37, 'intellect': 0, 'wisdom': 0, 'charisma': 0}, 'description': 'Massive simple monsters who smash everything.', 'gold_min': 22, 'gold_max': 32, 'drop_chance': 1.7},
-        {'id': 'wraithling', 'name': 'Wraithling', 'level': 36, 'stats': {'might': 6, 'agility': 24, 'vitality': 6, 'intellect': 35, 'wisdom': 46, 'charisma': 0}, 'description': 'Flickering spirits wandering ruins in search of warmth.', 'gold_min': 24, 'gold_max': 35, 'drop_chance': 1.8},
-        {'id': 'lizardfolk_shaman', 'name': 'Lizardfolk Shaman', 'level': 40, 'stats': {'might': 7, 'agility': 7, 'vitality': 20, 'intellect': 39, 'wisdom': 56, 'charisma': 0}, 'description': 'Mystics who summon storms and serpents.', 'gold_min': 28, 'gold_max': 40, 'drop_chance': 2.0},
-        {'id': 'stone_golem', 'name': 'Stone Golem', 'level': 44, 'stats': {'might': 28, 'agility': 1, 'vitality': 95, 'intellect': 0, 'wisdom': 16, 'charisma': 0}, 'description': 'Ancient guardians carved from enchanted rock.', 'gold_min': 40, 'gold_max': 60, 'drop_chance': 2.5},
-        {'id': 'frost_troll', 'name': 'Frost Troll', 'level': 48, 'stats': {'might': 45, 'agility': 8, 'vitality': 82, 'intellect': 0, 'wisdom': 15, 'charisma': 0}, 'description': 'Regenerating monsters of the frozen wastes.', 'gold_min': 45, 'gold_max': 70, 'drop_chance': 2.7},
-        {'id': 'vampire_thrall', 'name': 'Vampire Thrall', 'level': 52, 'stats': {'might': 33, 'agility': 65, 'vitality': 18, 'intellect': 41, 'wisdom': 0, 'charisma': 9}, 'description': 'Graceful undead servants with life-draining strikes.', 'gold_min': 50, 'gold_max': 80, 'drop_chance': 3.0},
-        {'id': 'flame_elemental', 'name': 'Flame Elemental', 'level': 56, 'stats': {'might': 1, 'agility': 27, 'vitality': 19, 'intellect': 79, 'wisdom': 52, 'charisma': 0}, 'description': 'Living firestorms born from volcanic vents.', 'gold_min': 55, 'gold_max': 90, 'drop_chance': 3.2},
-        {'id': 'arcane_sentinel', 'name': 'Arcane Sentinel', 'level': 60, 'stats': {'might': 10, 'agility': 1, 'vitality': 20, 'intellect': 93, 'wisdom': 65, 'charisma': 0}, 'description': 'Hovering constructs guarding forgotten libraries.', 'gold_min': 60, 'gold_max': 100, 'drop_chance': 3.5},
-        {'id': 'corrupted_druid', 'name': 'Corrupted Druid', 'level': 65, 'stats': {'might': 11, 'agility': 11, 'vitality': 31, 'intellect': 51, 'wisdom': 100, 'charisma': 0}, 'description': 'Once-kind wardens now twisted by blight magic.', 'gold_min': 70, 'gold_max': 120, 'drop_chance': 4.0},
-        {'id': 'blighted_treant', 'name': 'Blighted Treant', 'level': 70, 'stats': {'might': 23, 'agility': 1, 'vitality': 162, 'intellect': 1, 'wisdom': 33, 'charisma': 0}, 'description': 'Infected forest guardians dripping toxic sap.', 'gold_min': 80, 'gold_max': 130, 'drop_chance': 4.5},
-        {'id': 'aether_warden', 'name': 'Aether Warden', 'level': 74, 'stats': {'might': 1, 'agility': 24, 'vitality': 24, 'intellect': 81, 'wisdom': 103, 'charisma': 0}, 'description': 'Riftwalkers who bend space around them.', 'gold_min': 90, 'gold_max': 150, 'drop_chance': 5.0},
-        {'id': 'lich_adept', 'name': 'Lich Adept', 'level': 78, 'stats': {'might': 1, 'agility': 1, 'vitality': 25, 'intellect': 132, 'wisdom': 85, 'charisma': 0}, 'description': 'Apprentice necromancers wielding soul-draining magic.', 'gold_min': 100, 'gold_max': 160, 'drop_chance': 5.5},
-        {'id': 'wyvern_stalker', 'name': 'Wyvern Stalker', 'level': 82, 'stats': {'might': 77, 'agility': 114, 'vitality': 51, 'intellect': 13, 'wisdom': 1, 'charisma': 0}, 'description': 'Silent aerial hunters with venomous tails.', 'gold_min': 120, 'gold_max': 180, 'drop_chance': 6.0},
-        {'id': 'void_wraith', 'name': 'Void Wraith', 'level': 86, 'stats': {'might': 1, 'agility': 41, 'vitality': 15, 'intellect': 80, 'wisdom': 132, 'charisma': 0}, 'description': 'Entities from a lightless dimension whispering madness.', 'gold_min': 130, 'gold_max': 200, 'drop_chance': 7.0},
-        {'id': 'titan_construct', 'name': 'Titan Construct', 'level': 90, 'stats': {'might': 84, 'agility': 1, 'vitality': 167, 'intellect': 28, 'wisdom': 1, 'charisma': 0}, 'description': 'Colossal machines built by civilizations long gone.', 'gold_min': 150, 'gold_max': 230, 'drop_chance': 8.0},
-        {'id': 'demon_knight', 'name': 'Demon Knight', 'level': 94, 'stats': {'might': 145, 'agility': 30, 'vitality': 88, 'intellect': 1, 'wisdom': 30, 'charisma': 0}, 'description': 'Elite hellwarriors clad in cursed armor.', 'gold_min': 170, 'gold_max': 260, 'drop_chance': 9.0},
-        {'id': 'ancient_dragon', 'name': 'Ancient Dragon', 'level': 98, 'stats': {'might': 91, 'agility': 46, 'vitality': 91, 'intellect': 46, 'wisdom': 32, 'charisma': 0}, 'description': 'World-shaping titans whose breath shifts landscapes.', 'gold_min': 200, 'gold_max': 300, 'drop_chance': 10.0},
-        {'id': 'demon_lord_regent', 'name': 'Demon Lord Regent', 'level': 100, 'stats': {'might': 63, 'agility': 32, 'vitality': 47, 'intellect': 93, 'wisdom': 78, 'charisma': 0}, 'description': 'Infernal rulers capable of warping reality itself.', 'gold_min': 250, 'gold_max': 350, 'drop_chance': 12.0}
+        {'id': 'chicken', 'name': 'Chicken', 'level': 1, 'stats': {'might': 1, 'agility': 2, 'vitality': 1, 'intellect': 0, 'wisdom': 0, 'charisma': 0}, 'description': 'Harmless barn birds that peck at ankles. More annoying than dangerous.', 'gold_min': 1, 'gold_max': 1, 'drop_chance': 0.0, 'exp_reward': 50},
+        {'id': 'forest_rat', 'name': 'Forest Rat', 'level': 3, 'stats': {'might': 2, 'agility': 6, 'vitality': 3, 'intellect': 1, 'wisdom': 0, 'charisma': 0}, 'description': 'Oversized rodents twisted by wild magic. Quick and skittish.', 'gold_min': 1, 'gold_max': 2, 'drop_chance': 0.0, 'exp_reward': 65},
+        {'id': 'goblin_scout', 'name': 'Goblin Scout', 'level': 5, 'stats': {'might': 4, 'agility': 9, 'vitality': 4, 'intellect': 1, 'wisdom': 1, 'charisma': 0}, 'description': 'Sneaky ambushers who dart from shadow to shadow.', 'gold_min': 1, 'gold_max': 3, 'drop_chance': 0.1, 'exp_reward': 75},
+        {'id': 'cave_slime', 'name': 'Cave Slime', 'level': 8, 'stats': {'might': 3, 'agility': 2, 'vitality': 16, 'intellect': 2, 'wisdom': 3, 'charisma': 0}, 'description': 'Gelatinous blobs that digest anything organic.', 'gold_min': 2, 'gold_max': 4, 'drop_chance': 0.2, 'exp_reward': 90},
+        {'id': 'ork_grunt', 'name': 'Ork Grunt', 'level': 10, 'stats': {'might': 18, 'agility': 4, 'vitality': 12, 'intellect': 1, 'wisdom': 0, 'charisma': 0}, 'description': 'Brutish frontline fighters serving stronger warlords.', 'gold_min': 2, 'gold_max': 5, 'drop_chance': 0.5, 'exp_reward': 100},
+        {'id': 'bandit_cutpurse', 'name': 'Bandit Cutpurse', 'level': 12, 'stats': {'might': 8, 'agility': 22, 'vitality': 6, 'intellect': 2, 'wisdom': 2, 'charisma': 0}, 'description': 'High-speed thieves who rely on mobility to survive.', 'gold_min': 4, 'gold_max': 7, 'drop_chance': 0.5, 'exp_reward': 110},
+        {'id': 'skeleton_warrior', 'name': 'Skeleton Warrior', 'level': 15, 'stats': {'might': 18, 'agility': 3, 'vitality': 25, 'intellect': 0, 'wisdom': 4, 'charisma': 0}, 'description': 'Reanimated bones that act on forgotten commands.', 'gold_min': 6, 'gold_max': 10, 'drop_chance': 0.7, 'exp_reward': 125},
+        {'id': 'gnoll_raider', 'name': 'Gnoll Raider', 'level': 18, 'stats': {'might': 26, 'agility': 16, 'vitality': 16, 'intellect': 0, 'wisdom': 2, 'charisma': 0}, 'description': 'Savage hyena-folk who overwhelm caravans in packs.', 'gold_min': 8, 'gold_max': 12, 'drop_chance': 0.8, 'exp_reward': 140},
+        {'id': 'cave_spider', 'name': 'Cave Spider', 'level': 20, 'stats': {'might': 7, 'agility': 30, 'vitality': 14, 'intellect': 13, 'wisdom': 4, 'charisma': 0}, 'description': 'Venomous hunters whose webs block entire tunnels.', 'gold_min': 10, 'gold_max': 15, 'drop_chance': 1.0, 'exp_reward': 150},
+        {'id': 'bog_zombie', 'name': 'Bog Zombie', 'level': 23, 'stats': {'might': 16, 'agility': 1, 'vitality': 50, 'intellect': 4, 'wisdom': 5, 'charisma': 0}, 'description': 'Rotting corpses preserved by swamp sorcery.', 'gold_min': 12, 'gold_max': 18, 'drop_chance': 1.0, 'exp_reward': 165},
+        {'id': 'lizardfolk_scout', 'name': 'Lizardfolk Scout', 'level': 26, 'stats': {'might': 22, 'agility': 33, 'vitality': 22, 'intellect': 5, 'wisdom': 4, 'charisma': 0}, 'description': 'Cold-blooded hunters defending marsh territory.', 'gold_min': 14, 'gold_max': 22, 'drop_chance': 1.2, 'exp_reward': 180},
+        {'id': 'dire_wolf', 'name': 'Dire Wolf', 'level': 30, 'stats': {'might': 33, 'agility': 43, 'vitality': 20, 'intellect': 0, 'wisdom': 0, 'charisma': 0}, 'description': 'Moon-touched predators leading lesser wolf packs.', 'gold_min': 18, 'gold_max': 28, 'drop_chance': 1.5, 'exp_reward': 200},
+        {'id': 'ogre_brute', 'name': 'Ogre Brute', 'level': 33, 'stats': {'might': 62, 'agility': 6, 'vitality': 37, 'intellect': 0, 'wisdom': 0, 'charisma': 0}, 'description': 'Massive simple monsters who smash everything.', 'gold_min': 22, 'gold_max': 32, 'drop_chance': 1.7, 'exp_reward': 215},
+        {'id': 'wraithling', 'name': 'Wraithling', 'level': 36, 'stats': {'might': 6, 'agility': 24, 'vitality': 6, 'intellect': 35, 'wisdom': 46, 'charisma': 0}, 'description': 'Flickering spirits wandering ruins in search of warmth.', 'gold_min': 24, 'gold_max': 35, 'drop_chance': 1.8, 'exp_reward': 230},
+        {'id': 'lizardfolk_shaman', 'name': 'Lizardfolk Shaman', 'level': 40, 'stats': {'might': 7, 'agility': 7, 'vitality': 20, 'intellect': 39, 'wisdom': 56, 'charisma': 0}, 'description': 'Mystics who summon storms and serpents.', 'gold_min': 28, 'gold_max': 40, 'drop_chance': 2.0, 'exp_reward': 250},
+        {'id': 'stone_golem', 'name': 'Stone Golem', 'level': 44, 'stats': {'might': 28, 'agility': 1, 'vitality': 95, 'intellect': 0, 'wisdom': 16, 'charisma': 0}, 'description': 'Ancient guardians carved from enchanted rock.', 'gold_min': 40, 'gold_max': 60, 'drop_chance': 2.5, 'exp_reward': 270},
+        {'id': 'frost_troll', 'name': 'Frost Troll', 'level': 48, 'stats': {'might': 45, 'agility': 8, 'vitality': 82, 'intellect': 0, 'wisdom': 15, 'charisma': 0}, 'description': 'Regenerating monsters of the frozen wastes.', 'gold_min': 45, 'gold_max': 70, 'drop_chance': 2.7, 'exp_reward': 290},
+        {'id': 'vampire_thrall', 'name': 'Vampire Thrall', 'level': 52, 'stats': {'might': 33, 'agility': 65, 'vitality': 18, 'intellect': 41, 'wisdom': 0, 'charisma': 9}, 'description': 'Graceful undead servants with life-draining strikes.', 'gold_min': 50, 'gold_max': 80, 'drop_chance': 3.0, 'exp_reward': 310},
+        {'id': 'flame_elemental', 'name': 'Flame Elemental', 'level': 56, 'stats': {'might': 1, 'agility': 27, 'vitality': 19, 'intellect': 79, 'wisdom': 52, 'charisma': 0}, 'description': 'Living firestorms born from volcanic vents.', 'gold_min': 55, 'gold_max': 90, 'drop_chance': 3.2, 'exp_reward': 330},
+        {'id': 'arcane_sentinel', 'name': 'Arcane Sentinel', 'level': 60, 'stats': {'might': 10, 'agility': 1, 'vitality': 20, 'intellect': 93, 'wisdom': 65, 'charisma': 0}, 'description': 'Hovering constructs guarding forgotten libraries.', 'gold_min': 60, 'gold_max': 100, 'drop_chance': 3.5, 'exp_reward': 350},
+        {'id': 'corrupted_druid', 'name': 'Corrupted Druid', 'level': 65, 'stats': {'might': 11, 'agility': 11, 'vitality': 31, 'intellect': 51, 'wisdom': 100, 'charisma': 0}, 'description': 'Once-kind wardens now twisted by blight magic.', 'gold_min': 70, 'gold_max': 120, 'drop_chance': 4.0, 'exp_reward': 375},
+        {'id': 'blighted_treant', 'name': 'Blighted Treant', 'level': 70, 'stats': {'might': 23, 'agility': 1, 'vitality': 162, 'intellect': 1, 'wisdom': 33, 'charisma': 0}, 'description': 'Infected forest guardians dripping toxic sap.', 'gold_min': 80, 'gold_max': 130, 'drop_chance': 4.5, 'exp_reward': 400},
+        {'id': 'aether_warden', 'name': 'Aether Warden', 'level': 74, 'stats': {'might': 1, 'agility': 24, 'vitality': 24, 'intellect': 81, 'wisdom': 103, 'charisma': 0}, 'description': 'Riftwalkers who bend space around them.', 'gold_min': 90, 'gold_max': 150, 'drop_chance': 5.0, 'exp_reward': 420},
+        {'id': 'lich_adept', 'name': 'Lich Adept', 'level': 78, 'stats': {'might': 1, 'agility': 1, 'vitality': 25, 'intellect': 132, 'wisdom': 85, 'charisma': 0}, 'description': 'Apprentice necromancers wielding soul-draining magic.', 'gold_min': 100, 'gold_max': 160, 'drop_chance': 5.5, 'exp_reward': 440},
+        {'id': 'wyvern_stalker', 'name': 'Wyvern Stalker', 'level': 82, 'stats': {'might': 77, 'agility': 114, 'vitality': 51, 'intellect': 13, 'wisdom': 1, 'charisma': 0}, 'description': 'Silent aerial hunters with venomous tails.', 'gold_min': 120, 'gold_max': 180, 'drop_chance': 6.0, 'exp_reward': 460},
+        {'id': 'void_wraith', 'name': 'Void Wraith', 'level': 86, 'stats': {'might': 1, 'agility': 41, 'vitality': 15, 'intellect': 80, 'wisdom': 132, 'charisma': 0}, 'description': 'Entities from a lightless dimension whispering madness.', 'gold_min': 130, 'gold_max': 200, 'drop_chance': 7.0, 'exp_reward': 480},
+        {'id': 'titan_construct', 'name': 'Titan Construct', 'level': 90, 'stats': {'might': 84, 'agility': 1, 'vitality': 167, 'intellect': 28, 'wisdom': 1, 'charisma': 0}, 'description': 'Colossal machines built by civilizations long gone.', 'gold_min': 150, 'gold_max': 230, 'drop_chance': 8.0, 'exp_reward': 500},
+        {'id': 'demon_knight', 'name': 'Demon Knight', 'level': 94, 'stats': {'might': 145, 'agility': 30, 'vitality': 88, 'intellect': 1, 'wisdom': 30, 'charisma': 0}, 'description': 'Elite hellwarriors clad in cursed armor.', 'gold_min': 170, 'gold_max': 260, 'drop_chance': 9.0, 'exp_reward': 520},
+        {'id': 'ancient_dragon', 'name': 'Ancient Dragon', 'level': 98, 'stats': {'might': 91, 'agility': 46, 'vitality': 91, 'intellect': 46, 'wisdom': 32, 'charisma': 0}, 'description': 'World-shaping titans whose breath shifts landscapes.', 'gold_min': 200, 'gold_max': 300, 'drop_chance': 10.0, 'exp_reward': 540},
+        {'id': 'demon_lord_regent', 'name': 'Demon Lord Regent', 'level': 100, 'stats': {'might': 63, 'agility': 32, 'vitality': 47, 'intellect': 93, 'wisdom': 78, 'charisma': 0}, 'description': 'Infernal rulers capable of warping reality itself.', 'gold_min': 250, 'gold_max': 350, 'drop_chance': 12.0, 'exp_reward': 550}
     ]
     
     for i, enemy in enumerate(pve_enemies_data):
@@ -810,8 +815,8 @@ def initialize_default_data():
             # PostgreSQL uses ON CONFLICT
             cursor.execute('''
                 INSERT INTO pve_enemies 
-                (id, name, level, stats_json, description, story_order, unlocked_at_level, gold_min, gold_max, drop_chance)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (id, name, level, stats_json, description, story_order, unlocked_at_level, gold_min, gold_max, drop_chance, exp_reward)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id) DO UPDATE SET
                     name = EXCLUDED.name,
                     level = EXCLUDED.level,
@@ -821,24 +826,25 @@ def initialize_default_data():
                     unlocked_at_level = EXCLUDED.unlocked_at_level,
                     gold_min = EXCLUDED.gold_min,
                     gold_max = EXCLUDED.gold_max,
-                    drop_chance = EXCLUDED.drop_chance
+                    drop_chance = EXCLUDED.drop_chance,
+                    exp_reward = EXCLUDED.exp_reward
             ''', (
                 enemy['id'], enemy['name'], enemy['level'],
                 json.dumps(enemy['stats']), enemy['description'],
                 i + 1, enemy['level'],  # story_order and unlocked_at_level
-                enemy['gold_min'], enemy['gold_max'], enemy['drop_chance']
+                enemy['gold_min'], enemy['gold_max'], enemy['drop_chance'], enemy.get('exp_reward', 50)
             ))
         else:
             # SQLite uses INSERT OR REPLACE
             cursor.execute('''
                 INSERT OR REPLACE INTO pve_enemies 
-                (id, name, level, stats_json, description, story_order, unlocked_at_level, gold_min, gold_max, drop_chance)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, name, level, stats_json, description, story_order, unlocked_at_level, gold_min, gold_max, drop_chance, exp_reward)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 enemy['id'], enemy['name'], enemy['level'],
                 json.dumps(enemy['stats']), enemy['description'],
                 i + 1, enemy['level'],  # story_order and unlocked_at_level
-                enemy['gold_min'], enemy['gold_max'], enemy['drop_chance']
+                enemy['gold_min'], enemy['gold_max'], enemy['drop_chance'], enemy.get('exp_reward', 50)
             ))
     
     # Initialize store items (Common rarity only, all weapon types)
@@ -2795,28 +2801,28 @@ def end_combat(combat_id: str):
     # Calculate rewards (always, so they can be extracted for auto-fight)
     # Award rewards to the winner, regardless of whether it's player1 or player2
     # Calculate rewards
-    exp_gain = calculate_exp_gain(winner_level, loser_level, state['is_pvp'])
-    
-    # Calculate gold gain based on enemy data for PvE, or opponent level for PvP
     if not state['is_pvp']:
-        # PvE - get enemy data
+        # PvE - get enemy data and use fixed exp_reward
         enemy_id = state['character2_id']
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT gold_min, gold_max, drop_chance, level FROM pve_enemies WHERE id = ?", (enemy_id,))
+        cursor.execute("SELECT gold_min, gold_max, drop_chance, level, exp_reward FROM pve_enemies WHERE id = ?", (enemy_id,))
         enemy_data = cursor.fetchone()
         
         if enemy_data:
+            exp_gain = enemy_data.get('exp_reward', 50)  # Use fixed EXP reward from enemy
             gold_gain = random.randint(enemy_data['gold_min'], enemy_data['gold_max'])
             drop_chance = enemy_data['drop_chance']
             enemy_level = enemy_data['level']
         else:
+            exp_gain = 50  # Default fallback
             gold_gain = random.randint(1, 5)
             drop_chance = 0.0
             enemy_level = loser_level
         conn.close()
     else:
-        # PvP
+        # PvP - use variable EXP based on level difference
+        exp_gain = calculate_exp_gain(winner_level, loser_level, True)
         gold_gain = 100 + loser_level * 10
         drop_chance = 0.7  # 70% for PvP
         enemy_level = loser_level
@@ -3052,7 +3058,16 @@ async def resolve_combat(character1_id: str, character2_id_or_data, is_pvp: bool
     
     # Calculate EXP
     winner_level = char1['level'] if winner_id == character1_id else (char2_data.get('level', 0) if isinstance(character2_id_or_data, dict) else char2['level'])
-    exp_gain = calculate_exp_gain(winner_level, loser_level, is_pvp)
+    
+    if not is_pvp and isinstance(character2_id_or_data, dict) and 'id' in character2_id_or_data:
+        # PvE - get enemy's fixed exp_reward
+        enemy_id = character2_id_or_data.get('id')
+        cursor.execute("SELECT exp_reward FROM pve_enemies WHERE id = ?", (enemy_id,))
+        enemy_exp = cursor.fetchone()
+        exp_gain = enemy_exp['exp_reward'] if enemy_exp and enemy_exp.get('exp_reward') else 50
+    else:
+        # PvP - use variable EXP
+        exp_gain = calculate_exp_gain(winner_level, loser_level, True)
     
     # Update winner's EXP and level
     if winner_id == character1_id:
