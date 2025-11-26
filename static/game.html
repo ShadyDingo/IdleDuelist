@@ -1677,7 +1677,8 @@
                             <div class="vs-indicator">VS</div>
                             <div class="combatant" style="position: relative;">
                                 <div class="character-icon-container" id="opponent-icon-container" style="position: relative; width: 100px; height: 100px; margin: 0 auto 10px;">
-                                    <div class="character-icon" id="opponent-icon" style="width: 100px; height: 100px; background: var(--danger); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2em; transition: transform 0.3s ease;">👹</div>
+                                    <img id="opponent-icon" src="" alt="Opponent" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; background: var(--danger); border: 2px solid var(--border-color); transition: transform 0.3s ease; display: none;">
+                                    <div class="character-icon" id="opponent-icon-fallback" style="width: 100px; height: 100px; background: var(--danger); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2em; transition: transform 0.3s ease;">👹</div>
                                 </div>
                                 <div class="combatant-name" id="opponent-combat-name">Opponent</div>
                                 <div class="hp-bar-container">
@@ -3510,6 +3511,26 @@
             document.getElementById('opponent-hp-fill').style.width = opponentHpPercent + '%';
             document.getElementById('opponent-hp-text').textContent = `${Math.max(0, Math.floor(player2.current_hp))}/${player2.max_hp}`;
             
+            // Update opponent icon - use enemy PNG for PvE, fallback for PvP
+            const opponentIcon = document.getElementById('opponent-icon');
+            const opponentIconFallback = document.getElementById('opponent-icon-fallback');
+            if (!combat.is_pvp && combat.character2_id) {
+                // PvE - use enemy PNG
+                const enemyIconPath = getEnemyIconPath(combat.character2_id);
+                opponentIcon.src = enemyIconPath;
+                opponentIcon.style.display = 'block';
+                opponentIconFallback.style.display = 'none';
+                opponentIcon.onerror = function() {
+                    // If PNG fails to load, show fallback
+                    this.style.display = 'none';
+                    opponentIconFallback.style.display = 'flex';
+                };
+            } else {
+                // PvP - use fallback icon
+                opponentIcon.style.display = 'none';
+                opponentIconFallback.style.display = 'flex';
+            }
+            
             // Update toggles
             const attackToggle = document.getElementById('auto-attack-toggle');
             const abilityToggle = document.getElementById('auto-ability-toggle');
@@ -3550,7 +3571,7 @@
             if (!events || events.length === 0) return;
             
             const playerIcon = document.getElementById('player-icon');
-            const opponentIcon = document.getElementById('opponent-icon');
+            const opponentIcon = document.getElementById('opponent-icon') || document.getElementById('opponent-icon-fallback');
             const playerContainer = document.getElementById('player-icon-container');
             const opponentContainer = document.getElementById('opponent-icon-container');
             const damageContainer = document.getElementById('damage-numbers-container');
