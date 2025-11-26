@@ -2804,23 +2804,39 @@ def end_combat(combat_id: str):
     if not state['is_pvp']:
         # PvE - get enemy data and use fixed exp_reward
         enemy_id = state['character2_id']
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT gold_min, gold_max, drop_chance, level, exp_reward FROM pve_enemies WHERE id = ?", (enemy_id,))
-        enemy_data = cursor.fetchone()
-        
-        if enemy_data:
-            # SQLite Row objects don't support .get(), use bracket notation instead
-            exp_gain = enemy_data['exp_reward'] if enemy_data['exp_reward'] is not None else 50  # Use fixed EXP reward from enemy
-            gold_gain = random.randint(enemy_data['gold_min'], enemy_data['gold_max'])
-            drop_chance = enemy_data['drop_chance']
-            enemy_level = enemy_data['level']
-        else:
-            exp_gain = 50  # Default fallback
+        enemy_conn = None
+        try:
+            enemy_conn = get_db_connection()
+            cursor = enemy_conn.cursor()
+            cursor.execute("SELECT gold_min, gold_max, drop_chance, level, exp_reward FROM pve_enemies WHERE id = ?", (enemy_id,))
+            enemy_data = cursor.fetchone()
+            
+            if enemy_data:
+                # SQLite Row objects don't support .get(), use bracket notation instead
+                exp_gain = enemy_data['exp_reward'] if enemy_data['exp_reward'] is not None else 50  # Use fixed EXP reward from enemy
+                gold_gain = random.randint(enemy_data['gold_min'], enemy_data['gold_max'])
+                drop_chance = enemy_data['drop_chance']
+                enemy_level = enemy_data['level']
+            else:
+                exp_gain = 50  # Default fallback
+                gold_gain = random.randint(1, 5)
+                drop_chance = 0.0
+                enemy_level = loser_level
+        except Exception as e:
+            import traceback
+            print(f"[ERROR] Failed to fetch enemy data for {enemy_id}: {e}")
+            print(traceback.format_exc())
+            # Use defaults if enemy data fetch fails
+            exp_gain = 50
             gold_gain = random.randint(1, 5)
             drop_chance = 0.0
             enemy_level = loser_level
-        conn.close()
+        finally:
+            if enemy_conn:
+                try:
+                    enemy_conn.close()
+                except:
+                    pass
     else:
         # PvP - use variable EXP based on level difference
         exp_gain = calculate_exp_gain(winner_level, loser_level, True)
@@ -2828,131 +2844,163 @@ def end_combat(combat_id: str):
         drop_chance = 0.7  # 70% for PvP
         enemy_level = loser_level
     
-    # Store rewards in combat state (for auto-fight extraction)
-    state['rewards'] = {
+    # Store rewards in combat state (for auto-fight extraction or display)
+    rewards = {
         'exp_gained': exp_gain,
         'gold_gained': gold_gain,
         'equipment_dropped': False  # Will be calculated if not auto-fight
     }
     
-    # Only update database if not auto-fight
-    if not is_auto_fight:
-            try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                
-                # Update character
-                cursor.execute("SELECT exp, level, gold, skill_points FROM characters WHERE id = ?", (winner_id,))
-                char_data = cursor.fetchone()
-                if not char_data:
-                    print(f"[ERROR] Character {winner_id} not found when trying to award rewards")
+    # For auto-fight, just store rewards in state (will be applied later)
+    if is_auto_fight:
+        state['rewards'] = rewards
+    else:
+        # Only update database if not auto-fight
+        rewards_applied = False
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Update character
+            cursor.execute("SELECT exp, level, gold, skill_points FROM characters WHERE id = ?", (winner_id,))
+            char_data = cursor.fetchone()
+            if not char_data:
+                print(f"[ERROR] Character {winner_id} not found when trying to award rewards")
+                rewards['applied'] = False
+                rewards['error'] = f"Character {winner_id} not found"
+                state['rewards'] = rewards
+                if conn:
                     conn.close()
-                    return
+                # Don't return early - save state with error flag
+                set_combat_state(combat_id, state)
+                return
+            
+            # Handle None values (SQLite returns None for missing/null values)
+            current_exp = char_data['exp'] if char_data['exp'] is not None else 0
+            current_gold = char_data['gold'] if char_data['gold'] is not None else 0
+            current_skill_points = char_data['skill_points'] if char_data['skill_points'] is not None else 0
+            
+            new_exp = current_exp + exp_gain
+            new_level = char_data['level']
+            new_gold = current_gold + gold_gain
+            
+            print(f"[COMBAT] Awarding rewards to {winner_id}: EXP {current_exp} + {exp_gain} = {new_exp}, Gold {current_gold} + {gold_gain} = {new_gold}")
+            
+            # Process level up
+            char_dict = {
+                'level': new_level,
+                'exp': new_exp,
+                'skill_points': current_skill_points  # Start with current skill points
+            }
+            char_dict = process_level_up(char_dict)
+            
+            cursor.execute(
+                "UPDATE characters SET exp = ?, level = ?, skill_points = ?, gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (char_dict['exp'], char_dict['level'], char_dict.get('skill_points', 0), new_gold, winner_id)
+            )
+            
+            # Drop equipment based on drop chance
+            equipment_dropped = False
+            if random.random() * 100 < drop_chance:
+                rarity = roll_equipment_rarity(state['is_pvp'], enemy_level, char_dict['level'])
+                slot = random.choice(EQUIPMENT_SLOTS)
+                equipment = generate_equipment(slot, rarity, char_dict['level'])
                 
-                # Handle None values (SQLite returns None for missing/null values)
-                current_exp = char_data['exp'] if char_data['exp'] is not None else 0
-                current_gold = char_data['gold'] if char_data['gold'] is not None else 0
-                current_skill_points = char_data['skill_points'] if char_data['skill_points'] is not None else 0
+                cursor.execute("SELECT inventory_json FROM characters WHERE id = ?", (winner_id,))
+                inv_data = cursor.fetchone()
+                inventory = json.loads(inv_data['inventory_json'])
                 
-                new_exp = current_exp + exp_gain
-                new_level = char_data['level']
-                new_gold = current_gold + gold_gain
+                # Check inventory limit (100 items)
+                if len(inventory) < 100:
+                    inventory.append(equipment)
+                    equipment_dropped = True
+                    cursor.execute(
+                        "UPDATE characters SET inventory_json = ? WHERE id = ?",
+                        (json.dumps(inventory), winner_id)
+                    )
+            
+            rewards['equipment_dropped'] = equipment_dropped
+            
+            # Update PvP stats if this is a PvP match
+            if state['is_pvp'] and not is_auto_fight:
+                # Get current PvP stats for both players
+                cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (winner_id,))
+                winner_stats = cursor.fetchone()
+                cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (loser_id,))
+                loser_stats = cursor.fetchone()
                 
-                print(f"[COMBAT] Awarding rewards to {winner_id}: EXP {current_exp} + {exp_gain} = {new_exp}, Gold {current_gold} + {gold_gain} = {new_gold}")
+                # Get MMR values (default to 1000 if not set)
+                # SQLite Row objects use dictionary-style access, not .get()
+                winner_mmr = winner_stats['pvp_mmr'] if winner_stats and winner_stats['pvp_mmr'] is not None else 1000
+                loser_mmr = loser_stats['pvp_mmr'] if loser_stats and loser_stats['pvp_mmr'] is not None else 1000
                 
-                # Process level up
-                char_dict = {
-                    'level': new_level,
-                    'exp': new_exp,
-                    'skill_points': current_skill_points  # Start with current skill points
-                }
-                char_dict = process_level_up(char_dict)
+                # Calculate MMR change using ELO system
+                K = 32  # K-factor for competitive games
+                expected_winner = 1 / (1 + 10 ** ((loser_mmr - winner_mmr) / 400))
+                expected_loser = 1 / (1 + 10 ** ((winner_mmr - loser_mmr) / 400))
                 
+                # Winner gets 1 point, loser gets 0
+                winner_mmr_change = int(K * (1 - expected_winner))
+                loser_mmr_change = int(K * (0 - expected_loser))
+                
+                new_winner_mmr = max(0, winner_mmr + winner_mmr_change)
+                new_loser_mmr = max(0, loser_mmr + loser_mmr_change)
+                
+                # Update winner stats
+                # SQLite Row objects use dictionary-style access, not .get()
+                winner_wins = (winner_stats['pvp_wins'] if winner_stats and winner_stats['pvp_wins'] is not None else 0) + 1
                 cursor.execute(
-                    "UPDATE characters SET exp = ?, level = ?, skill_points = ?, gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (char_dict['exp'], char_dict['level'], char_dict.get('skill_points', 0), new_gold, winner_id)
+                    "UPDATE characters SET pvp_wins = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (winner_wins, new_winner_mmr, winner_id)
                 )
                 
-                # Drop equipment based on drop chance
-                equipment_dropped = False
-                if random.random() * 100 < drop_chance:
-                    rarity = roll_equipment_rarity(state['is_pvp'], enemy_level, char_dict['level'])
-                    slot = random.choice(EQUIPMENT_SLOTS)
-                    equipment = generate_equipment(slot, rarity, char_dict['level'])
-                    
-                    cursor.execute("SELECT inventory_json FROM characters WHERE id = ?", (winner_id,))
-                    inv_data = cursor.fetchone()
-                    inventory = json.loads(inv_data['inventory_json'])
-                    
-                    # Check inventory limit (100 items)
-                    if len(inventory) < 100:
-                        inventory.append(equipment)
-                        equipment_dropped = True
-                        cursor.execute(
-                            "UPDATE characters SET inventory_json = ? WHERE id = ?",
-                            (json.dumps(inventory), winner_id)
-                        )
-                
-                state['rewards']['equipment_dropped'] = equipment_dropped
-                
-                # Update PvP stats if this is a PvP match
-                if state['is_pvp'] and not is_auto_fight:
-                    # Get current PvP stats for both players
-                    cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (winner_id,))
-                    winner_stats = cursor.fetchone()
-                    cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (loser_id,))
-                    loser_stats = cursor.fetchone()
-                    
-                    # Get MMR values (default to 1000 if not set)
-                    # SQLite Row objects use dictionary-style access, not .get()
-                    winner_mmr = winner_stats['pvp_mmr'] if winner_stats and winner_stats['pvp_mmr'] is not None else 1000
-                    loser_mmr = loser_stats['pvp_mmr'] if loser_stats and loser_stats['pvp_mmr'] is not None else 1000
-                    
-                    # Calculate MMR change using ELO system
-                    K = 32  # K-factor for competitive games
-                    expected_winner = 1 / (1 + 10 ** ((loser_mmr - winner_mmr) / 400))
-                    expected_loser = 1 / (1 + 10 ** ((winner_mmr - loser_mmr) / 400))
-                    
-                    # Winner gets 1 point, loser gets 0
-                    winner_mmr_change = int(K * (1 - expected_winner))
-                    loser_mmr_change = int(K * (0 - expected_loser))
-                    
-                    new_winner_mmr = max(0, winner_mmr + winner_mmr_change)
-                    new_loser_mmr = max(0, loser_mmr + loser_mmr_change)
-                    
-                    # Update winner stats
-                    # SQLite Row objects use dictionary-style access, not .get()
-                    winner_wins = (winner_stats['pvp_wins'] if winner_stats and winner_stats['pvp_wins'] is not None else 0) + 1
-                    cursor.execute(
-                        "UPDATE characters SET pvp_wins = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                        (winner_wins, new_winner_mmr, winner_id)
-                    )
-                    
-                    # Update loser stats
-                    loser_losses = (loser_stats['pvp_losses'] if loser_stats and loser_stats['pvp_losses'] is not None else 0) + 1
-                    cursor.execute(
-                        "UPDATE characters SET pvp_losses = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                        (loser_losses, new_loser_mmr, loser_id)
-                    )
-                
-                conn.commit()
-                print(f"[COMBAT] Successfully updated character {winner_id} with new EXP: {char_dict['exp']}, Level: {char_dict['level']}, Gold: {new_gold}")
-            except Exception as e:
-                import traceback
-                print(f"[ERROR] Failed to award combat rewards: {e}")
-                print(traceback.format_exc())
-                if 'conn' in locals():
+                # Update loser stats
+                loser_losses = (loser_stats['pvp_losses'] if loser_stats and loser_stats['pvp_losses'] is not None else 0) + 1
+                cursor.execute(
+                    "UPDATE characters SET pvp_losses = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (loser_losses, new_loser_mmr, loser_id)
+                )
+            
+            conn.commit()
+            print(f"[COMBAT] Successfully updated character {winner_id} with new EXP: {char_dict['exp']}, Level: {char_dict['level']}, Gold: {new_gold}")
+            # Mark rewards as successfully applied and store in state
+            rewards['applied'] = True
+            state['rewards'] = rewards
+            rewards_applied = True
+        except Exception as e:
+            import traceback
+            error_msg = f"Failed to award combat rewards: {e}"
+            print(f"[ERROR] {error_msg}")
+            print(traceback.format_exc())
+            # Store rewards with error flag so frontend can show error
+            rewards['applied'] = False
+            rewards['error'] = str(e)
+            state['rewards'] = rewards
+            rewards_applied = False
+            if conn:
+                try:
                     conn.rollback()
+                except:
+                    pass
+                try:
                     conn.close()
-            finally:
-                if 'conn' in locals() and conn:
-                    try:
-                        conn.close()
-                    except:
-                        pass
+                except:
+                    pass
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
     
-    # Always save the state after updating
-    set_combat_state(combat_id, state)
+    # Always save the state after updating (even if rewards failed to apply)
+    try:
+        set_combat_state(combat_id, state)
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Failed to save combat state: {e}")
+        print(traceback.format_exc())
 
 @app.post("/api/combat/end/{combat_id}")
 async def end_combat_endpoint(combat_id: str):
