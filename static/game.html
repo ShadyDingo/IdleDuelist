@@ -4297,7 +4297,6 @@
                         `;
                         listEl.appendChild(itemDiv);
                     }
-                }
                 } else {
                     const listEl = document.getElementById('feedback-list');
                     if (listEl) {
@@ -4442,7 +4441,7 @@
         });
 
         // Navigation
-        function showScreen(screenName, buttonElement) {
+        window.showScreen = function(screenName, buttonElement) {
             // Hide all screens
             document.querySelectorAll('.screen').forEach(screen => {
                 screen.classList.remove('active');
