@@ -2376,43 +2376,43 @@ def end_combat(combat_id: str):
     is_auto_fight = state.get('is_auto_fight', False)
     
     # Calculate rewards (always, so they can be extracted for auto-fight)
-    if winner_id == state['player1']['id']:
-        # Calculate rewards
-        exp_gain = calculate_exp_gain(winner_level, loser_level, state['is_pvp'])
+    # Award rewards to the winner, regardless of whether it's player1 or player2
+    # Calculate rewards
+    exp_gain = calculate_exp_gain(winner_level, loser_level, state['is_pvp'])
+    
+    # Calculate gold gain based on enemy data for PvE, or opponent level for PvP
+    if not state['is_pvp']:
+        # PvE - get enemy data
+        enemy_id = state['character2_id']
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT gold_min, gold_max, drop_chance, level FROM pve_enemies WHERE id = ?", (enemy_id,))
+        enemy_data = cursor.fetchone()
         
-        # Calculate gold gain based on enemy data for PvE, or opponent level for PvP
-        if not state['is_pvp']:
-            # PvE - get enemy data
-            enemy_id = state['character2_id']
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT gold_min, gold_max, drop_chance, level FROM pve_enemies WHERE id = ?", (enemy_id,))
-            enemy_data = cursor.fetchone()
-            
-            if enemy_data:
-                gold_gain = random.randint(enemy_data['gold_min'], enemy_data['gold_max'])
-                drop_chance = enemy_data['drop_chance']
-                enemy_level = enemy_data['level']
-            else:
-                gold_gain = random.randint(1, 5)
-                drop_chance = 0.0
-                enemy_level = loser_level
-            conn.close()
+        if enemy_data:
+            gold_gain = random.randint(enemy_data['gold_min'], enemy_data['gold_max'])
+            drop_chance = enemy_data['drop_chance']
+            enemy_level = enemy_data['level']
         else:
-            # PvP
-            gold_gain = 100 + loser_level * 10
-            drop_chance = 0.7  # 70% for PvP
+            gold_gain = random.randint(1, 5)
+            drop_chance = 0.0
             enemy_level = loser_level
-        
-        # Store rewards in combat state (for auto-fight extraction)
-        state['rewards'] = {
-            'exp_gained': exp_gain,
-            'gold_gained': gold_gain,
-            'equipment_dropped': False  # Will be calculated if not auto-fight
-        }
-        
-        # Only update database if not auto-fight
-        if not is_auto_fight:
+        conn.close()
+    else:
+        # PvP
+        gold_gain = 100 + loser_level * 10
+        drop_chance = 0.7  # 70% for PvP
+        enemy_level = loser_level
+    
+    # Store rewards in combat state (for auto-fight extraction)
+    state['rewards'] = {
+        'exp_gained': exp_gain,
+        'gold_gained': gold_gain,
+        'equipment_dropped': False  # Will be calculated if not auto-fight
+    }
+    
+    # Only update database if not auto-fight
+    if not is_auto_fight:
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
@@ -2526,17 +2526,9 @@ def end_combat(combat_id: str):
                         conn.close()
                     except:
                         pass
-        
-        # Always save the state after updating (even if no rewards for player)
-        set_combat_state(combat_id, state)
-    else:
-        # Player lost - still store empty rewards for frontend
-        state['rewards'] = {
-            'exp_gained': 0,
-            'gold_gained': 0,
-            'equipment_dropped': False
-        }
-        set_combat_state(combat_id, state)
+    
+    # Always save the state after updating
+    set_combat_state(combat_id, state)
 
 @app.post("/api/combat/end/{combat_id}")
 async def end_combat_endpoint(combat_id: str):
