@@ -3996,6 +3996,11 @@ async def buy_store_item(request: Dict = Body(...)):
         'stats': stats
     }
     
+    # Add armor_type for armor slots (randomly choose between cloth, leather, metal)
+    armor_slots = ['helmet', 'chest', 'legs', 'boots', 'gloves']
+    if store_item['slot'] in armor_slots:
+        equipment['armor_type'] = random.choice(['cloth', 'leather', 'metal'])
+    
     # Add to inventory and deduct gold
     inventory.append(equipment)
     new_gold = char['gold'] - price

@@ -2558,7 +2558,7 @@
                     'bow': 'weapon_bow.png',
                     'staff': 'weapon_staff.png',
                     'mace': 'weapon_mace.png',
-                    'dagger': 'weapon_knife.png',
+                    'dagger': 'weapon_dagger.png',
                     'wand': 'weapon_wand.png'
                 };
                 const iconFile = weaponMap[weaponType] || 'weapon_sword.png';
@@ -3206,8 +3206,8 @@
                         
                         const enemyIconPath = getEnemyIconPath(enemy.id);
                         enemyDiv.innerHTML = `
-                            <img src="${enemyIconPath}" alt="${enemy.name}" class="enemy-icon" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                            <div style="display: none; width: 64px; height: 64px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2em;">👹</div>
+                            <img src="${enemyIconPath}" alt="${enemy.name}" class="enemy-icon" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div style="display: none; width: 64px; height: 64px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; align-items: center; justify-content: center; font-size: 2em;">👹</div>
                             <div style="flex: 1;">
                                 <div style="font-weight: 600;">${enemy.name}</div>
                                 <div style="font-size: 0.9em; color: var(--text-secondary);">Level ${enemy.level} ${enemy.unlocked ? '' : '(Locked)'}</div>

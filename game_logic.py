@@ -428,7 +428,9 @@ def calculate_exp_gain(winner_level: int, loser_level: int, is_pvp: bool = True)
         base_exp = 200 + (loser_level * 6)
         level_diff = loser_level - winner_level
         exp_multiplier = 1.0 + (level_diff * 0.1)
-        return int(base_exp * exp_multiplier)
+        # Ensure minimum EXP gain of 1 for PvE (you should always gain EXP for winning)
+        exp_gain = int(base_exp * exp_multiplier)
+        return max(1, exp_gain)  # Never return negative or zero EXP for PvE
 
 
 def process_level_up(character_data: Dict) -> Dict:
