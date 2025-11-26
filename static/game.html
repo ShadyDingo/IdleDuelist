@@ -342,6 +342,15 @@
             image-rendering: pixelated;
         }
 
+        /* Legacy support - keep for backwards compatibility */
+        .inventory-item-icon {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            margin-bottom: 8px;
+            image-rendering: pixelated;
+        }
+
         .equipment-item-name {
             font-size: 0.8em;
             color: var(--text-primary);
@@ -506,6 +515,73 @@
             object-fit: contain;
             margin-bottom: 8px;
             image-rendering: pixelated;
+        }
+
+        /* Enemy Icon Styles */
+        .enemy-icon {
+            width: 64px;
+            height: 64px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            image-rendering: pixelated;
+        }
+
+        /* Item Icon Container for Rarity Overlays */
+        .item-icon-container {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 48px;
+        }
+
+        .item-icon-base {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            image-rendering: pixelated;
+            position: relative;
+            z-index: 1;
+        }
+
+        .rarity-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 48px;
+            height: 48px;
+            object-fit: cover;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .equipment-icon-container {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 48px;
+            margin-bottom: 5px;
+        }
+
+        .equipment-icon-base {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            image-rendering: pixelated;
+            position: relative;
+            z-index: 1;
+        }
+
+        .equipment-rarity-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 48px;
+            height: 48px;
+            object-fit: cover;
+            z-index: 2;
+            pointer-events: none;
         }
 
         .item-rarity {
@@ -2224,12 +2300,16 @@
                 
                 if (item) {
                     slotDiv.classList.add('filled');
-                    const iconPath = getItemIconPath(slot, item.weapon_type, item.rarity);
+                    const iconPath = getItemIconPath(slot, item.weapon_type, item.rarity, item.armor_type);
+                    const rarityOverlayPath = getRarityOverlayPath(item.rarity);
                     const weaponTooltip = item.weapon_type ? getWeaponTooltip(item.weapon_type) : '';
                     slotDiv.innerHTML = `
                         <div class="equipment-slot-name">${name}</div>
-                        <img src="${iconPath}" alt="${item.name}" class="equipment-icon" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                        <div class="equipment-item" style="display: none;">⚔️</div>
+                        <div class="equipment-icon-container">
+                            <img src="${iconPath}" alt="${item.name}" class="equipment-icon-base" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                            <img src="${rarityOverlayPath}" alt="${item.rarity} rarity" class="equipment-rarity-overlay" onerror="this.style.display='none';">
+                            <div class="equipment-item" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.5em;">⚔️</div>
+                        </div>
                         <div class="equipment-item-name rarity-${item.rarity}">${item.name}</div>
                         ${weaponTooltip ? `<div class="tooltip" style="min-width: 300px;">${weaponTooltip}</div>` : ''}
                     `;
@@ -2424,36 +2504,60 @@
             return tooltips[stat] || '';
         }
 
-        function getItemIconPath(slot, weaponType, rarity) {
+        function getEnemyIconPath(enemyId) {
+            // Map enemy IDs to icon file paths
+            // Icon naming convention: enemy_{enemy_id}.png
+            return `/assets/enemies/enemy_${enemyId}.png`;
+        }
+
+        function getRarityOverlayPath(rarity) {
+            // Map rarity names to rarity overlay PNG files
+            const rarityMap = {
+                'common': 'rarity_normal.png',
+                'uncommon': 'rarity_uncommon.png',
+                'rare': 'rarity_rare.png',
+                'epic': 'rarity_epic.png',
+                'legendary': 'rarity_legendary.png',
+                'mythic': 'rarity_mythic.png'
+            };
+            const overlayFile = rarityMap[rarity] || 'rarity_normal.png';
+            return `/assets/rarity/${overlayFile}`;
+        }
+
+        function getItemIconPath(slot, weaponType, rarity, armorType) {
             // Weapon icons
             if (slot === 'main_hand' && weaponType) {
                 const weaponMap = {
                     'sword': 'weapon_sword.png',
-                    'bow': 'weapon_bow.PNG',
+                    'bow': 'weapon_bow.png',
                     'staff': 'weapon_staff.png',
-                    'mace': 'weapon_mace.PNG',
-                    'dagger': 'weapon_knife.PNG',
-                    'wand': 'weapon_staff.png' // Use staff icon for wand
+                    'mace': 'weapon_mace.png',
+                    'dagger': 'weapon_knife.png',
+                    'wand': 'weapon_wand.png'
                 };
                 const iconFile = weaponMap[weaponType] || 'weapon_sword.png';
                 return `/assets/weapons/${iconFile}`;
             }
             
             if (slot === 'off_hand') {
-                return '/assets/weapons/weapon_shield.PNG';
+                return '/assets/weapons/weapon_shield.png';
             }
             
-            // Armor icons - try to determine armor type from rarity or use default
-            const armorMap = {
-                'helmet': 'metal_helmet.PNG',
-                'chest': 'metal_armor.png',
-                'legs': 'metal_pants.png',
-                'boots': 'metal_boots.png',
-                'gloves': 'metal_gloves.PNG'
-            };
-            
-            if (armorMap[slot]) {
-                return `/assets/armor/${armorMap[slot]}`;
+            // Armor icons - use armor_type if provided, otherwise default to metal
+            const armorSlots = ['helmet', 'chest', 'legs', 'boots', 'gloves'];
+            if (armorSlots.includes(slot)) {
+                const armorTypeToUse = armorType || 'metal'; // Default to metal if not specified
+                const slotNameMap = {
+                    'helmet': 'helmet',
+                    'chest': 'armor',
+                    'legs': 'pants',
+                    'boots': 'boots',
+                    'gloves': 'gloves'
+                };
+                const slotName = slotNameMap[slot] || slot;
+                // Try lowercase .png first, fallback to .PNG for backwards compatibility
+                const basePath = `/assets/armor/${armorTypeToUse}_${slotName}`;
+                return `${basePath}.png`;
             }
             
             // Default fallback
@@ -2756,11 +2860,15 @@
                     .map(([stat, val]) => `${stat}: +${val}`)
                     .join(', ');
 
-                const iconPath = getItemIconPath(item.slot, item.weapon_type, item.rarity);
+                const iconPath = getItemIconPath(item.slot, item.weapon_type, item.rarity, item.armor_type);
+                const rarityOverlayPath = getRarityOverlayPath(item.rarity);
                 const weaponTooltip = item.weapon_type ? getWeaponTooltip(item.weapon_type) : '';
                 itemDiv.className = 'inventory-item tooltip-container';
                 itemDiv.innerHTML = `
-                    <img src="${iconPath}" alt="${item.name}" class="inventory-item-icon" onerror="this.style.display='none';">
+                    <div class="item-icon-container">
+                        <img src="${iconPath}" alt="${item.name}" class="item-icon-base" onerror="this.style.display='none';">
+                        <img src="${rarityOverlayPath}" alt="${item.rarity} rarity" class="rarity-overlay" onerror="this.style.display='none';">
+                    </div>
                     <div class="item-rarity rarity-${item.rarity}">${item.rarity.toUpperCase()}</div>
                     <div class="item-name">${item.name}</div>
                     <div class="item-stats">${statsText}</div>
@@ -3061,7 +3169,7 @@
                     
                     for (const enemy of result.enemies) {
                         const enemyDiv = document.createElement('div');
-                        enemyDiv.style.cssText = 'padding: 10px; margin: 5px 0; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: all 0.2s;';
+                        enemyDiv.style.cssText = 'padding: 10px; margin: 5px 0; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; gap: 15px; align-items: flex-start;';
                         if (!enemy.unlocked) {
                             enemyDiv.style.opacity = '0.5';
                             enemyDiv.style.cursor = 'not-allowed';
@@ -3072,19 +3180,24 @@
                             enemyDiv.onclick = () => startCombat(enemy.id, false);
                         }
                         
+                        const enemyIconPath = getEnemyIconPath(enemy.id);
                         enemyDiv.innerHTML = `
-                            <div style="font-weight: 600;">${enemy.name}</div>
-                            <div style="font-size: 0.9em; color: var(--text-secondary);">Level ${enemy.level} ${enemy.unlocked ? '' : '(Locked)'}</div>
-                            ${enemy.description ? `<div style="font-size: 0.85em; color: var(--text-secondary); margin-top: 5px; font-style: italic;">${enemy.description}</div>` : ''}
-                            <div style="font-size: 0.85em; color: var(--text-accent); margin-top: 5px;">
-                                Reward: ${enemy.gold_min}-${enemy.gold_max}g | Drop: ${enemy.drop_chance}%
-                            </div>
-                            ${enemy.unlocked ? `
-                                <div style="display: flex; gap: 5px; margin-top: 10px;">
-                                    <button class="combat-action-btn" onclick="event.stopPropagation(); startCombat('${enemy.id}', false);" style="flex: 1; font-size: 0.9em; padding: 8px;">Fight</button>
-                                    <button class="combat-action-btn" onclick="event.stopPropagation(); startAutoFight('${enemy.id}');" style="flex: 1; font-size: 0.9em; padding: 8px;">Auto-Fight (1 Hour)</button>
+                            <img src="${enemyIconPath}" alt="${enemy.name}" class="enemy-icon" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                            <div style="display: none; width: 64px; height: 64px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2em;">👹</div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">${enemy.name}</div>
+                                <div style="font-size: 0.9em; color: var(--text-secondary);">Level ${enemy.level} ${enemy.unlocked ? '' : '(Locked)'}</div>
+                                ${enemy.description ? `<div style="font-size: 0.85em; color: var(--text-secondary); margin-top: 5px; font-style: italic;">${enemy.description}</div>` : ''}
+                                <div style="font-size: 0.85em; color: var(--text-accent); margin-top: 5px;">
+                                    Reward: ${enemy.gold_min}-${enemy.gold_max}g | Drop: ${enemy.drop_chance}%
                                 </div>
-                            ` : ''}
+                                ${enemy.unlocked ? `
+                                    <div style="display: flex; gap: 5px; margin-top: 10px;">
+                                        <button class="combat-action-btn" onclick="event.stopPropagation(); startCombat('${enemy.id}', false);" style="flex: 1; font-size: 0.9em; padding: 8px;">Fight</button>
+                                        <button class="combat-action-btn" onclick="event.stopPropagation(); startAutoFight('${enemy.id}');" style="flex: 1; font-size: 0.9em; padding: 8px;">Auto-Fight (1 Hour)</button>
+                                    </div>
+                                ` : ''}
+                            </div>
                         `;
                         
                         listEl.appendChild(enemyDiv);
@@ -4346,7 +4459,15 @@
                         const itemDiv = document.createElement('div');
                         itemDiv.className = 'inventory-item';
                         
+                        // Get icon path for store items (all are common rarity, default to metal armor)
+                        const iconPath = getItemIconPath(item.slot, item.weapon_type, 'common', 'metal');
+                        const rarityOverlayPath = getRarityOverlayPath('common');
+                        
                         itemDiv.innerHTML = `
+                            <div class="item-icon-container">
+                                <img src="${iconPath}" alt="${item.name}" class="item-icon-base" onerror="this.style.display='none';">
+                                <img src="${rarityOverlayPath}" alt="common rarity" class="rarity-overlay" onerror="this.style.display='none';">
+                            </div>
                             <div class="item-rarity rarity-common">COMMON</div>
                             <div class="item-name">${item.name}</div>
                             <div class="item-stats" style="margin: 10px 0;">Level ${item.level_requirement}+</div>

@@ -215,7 +215,7 @@ def generate_equipment(slot: str, rarity: str, level: int) -> Dict:
     
     name = f"{rarity_names[rarity]} {slot_names.get(slot, slot.title())}"
     
-    return {
+    equipment = {
         'id': f"eq_{random.randint(100000, 999999)}",
         'name': name,
         'slot': slot,
@@ -223,6 +223,13 @@ def generate_equipment(slot: str, rarity: str, level: int) -> Dict:
         'level': level,
         'stats': stats
     }
+    
+    # Add armor_type for armor slots (randomly choose between cloth, leather, metal)
+    armor_slots = ['helmet', 'chest', 'legs', 'boots', 'gloves']
+    if slot in armor_slots:
+        equipment['armor_type'] = random.choice(['cloth', 'leather', 'metal'])
+    
+    return equipment
 
 
 def roll_equipment_rarity(is_pvp: bool = False, enemy_level: int = 1, player_level: int = 1) -> str:
