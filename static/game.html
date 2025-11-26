@@ -1453,14 +1453,14 @@
 
         <!-- Navigation -->
         <div class="nav-bar">
-            <button class="nav-btn active" onclick="showScreen('character')">Character</button>
-            <button class="nav-btn" onclick="showScreen('skills')">Skills</button>
-            <button class="nav-btn" onclick="showScreen('inventory')">Inventory</button>
-            <button class="nav-btn" onclick="showScreen('combat')">Combat</button>
-            <button class="nav-btn" onclick="showScreen('store')">Store</button>
-            <button class="nav-btn" onclick="showScreen('leaderboard')">Leaderboard</button>
-            <button class="nav-btn" onclick="showScreen('chat')">Chat</button>
-            <button class="nav-btn" onclick="showScreen('feedback')">Feedback</button>
+            <button class="nav-btn active" onclick="showScreen('character', this)">Character</button>
+            <button class="nav-btn" onclick="showScreen('skills', this)">Skills</button>
+            <button class="nav-btn" onclick="showScreen('inventory', this)">Inventory</button>
+            <button class="nav-btn" onclick="showScreen('combat', this)">Combat</button>
+            <button class="nav-btn" onclick="showScreen('store', this)">Store</button>
+            <button class="nav-btn" onclick="showScreen('leaderboard', this)">Leaderboard</button>
+            <button class="nav-btn" onclick="showScreen('chat', this)">Chat</button>
+            <button class="nav-btn" onclick="showScreen('feedback', this)">Feedback</button>
         </div>
 
         <!-- Screen Container -->
@@ -4280,7 +4280,7 @@
         });
 
         // Navigation
-        function showScreen(screenName) {
+        function showScreen(screenName, buttonElement) {
             // Hide all screens
             document.querySelectorAll('.screen').forEach(screen => {
                 screen.classList.remove('active');
@@ -4292,8 +4292,23 @@
             });
 
             // Show selected screen
-            document.getElementById(`${screenName}-screen`).classList.add('active');
-            event.target.classList.add('active');
+            const screenEl = document.getElementById(`${screenName}-screen`);
+            if (screenEl) {
+                screenEl.classList.add('active');
+            }
+            
+            // Set active button
+            if (buttonElement) {
+                buttonElement.classList.add('active');
+            } else {
+                // Fallback: find button by text content
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    if (btn.textContent.trim().toLowerCase() === screenName.toLowerCase() || 
+                        btn.getAttribute('onclick')?.includes(`'${screenName}'`)) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
             
             // Load data for specific screens
             if (screenName === 'combat') {
@@ -4557,7 +4572,7 @@
             }
         }
 
-        function logout() {
+        async function logout() {
             const confirmed = await showConfirm('Are you sure you want to logout?', 'Logout');
             if (confirmed) {
                 localStorage.removeItem(TOKEN_KEY);

@@ -420,7 +420,13 @@ def init_database():
                 WHERE table_name = 'combat_logs'
             )
         """)
-        table_exists = cursor.fetchone()[0]
+        result = cursor.fetchone()
+        if USE_POSTGRES:
+            # PostgreSQL RealDictCursor returns a dict with column name as key
+            table_exists = result['exists'] if result and isinstance(result, dict) else (result[0] if result else False)
+        else:
+            # SQLite returns a tuple
+            table_exists = result[0] if result else False
         
         if not table_exists:
             try:
@@ -446,7 +452,12 @@ def init_database():
                             WHERE table_name = 'combat_logs'
                         )
                     """)
-                    if not cursor.fetchone()[0]:
+                    result = cursor.fetchone()
+                    if USE_POSTGRES:
+                        table_exists = result['exists'] if result and isinstance(result, dict) else (result[0] if result else False)
+                    else:
+                        table_exists = result[0] if result else False
+                    if not table_exists:
                         # Table doesn't exist, but sequence does - drop sequence and retry
                         try:
                             cursor.execute("DROP SEQUENCE IF EXISTS combat_logs_id_seq CASCADE")
