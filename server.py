@@ -67,9 +67,18 @@ def get_db_connection():
         try:
             import psycopg2
             from psycopg2.extras import RealDictCursor
+            
+            # Create a custom cursor class that auto-converts ? to %s
+            class AutoConvertCursor(RealDictCursor):
+                def execute(self, query, vars=None):
+                    if isinstance(query, str):
+                        # Convert SQLite ? placeholders to PostgreSQL %s
+                        query = query.replace('?', '%s')
+                    return super().execute(query, vars)
+            
             # Parse DATABASE_URL (format: postgresql://user:password@host:port/dbname)
             conn = psycopg2.connect(DATABASE_URL)
-            conn.cursor_factory = RealDictCursor
+            conn.cursor_factory = AutoConvertCursor
             return conn
         except ImportError:
             print("⚠ ERROR: psycopg2 not installed, falling back to SQLite")
@@ -102,6 +111,31 @@ def execute_query(cursor, query, params=None):
         query = query.replace('?', '%s')
     
     return cursor.execute(query, params)
+
+def get_db_cursor(conn):
+    """
+    Get a database cursor with automatic parameter placeholder conversion.
+    Wraps the cursor's execute method to handle PostgreSQL vs SQLite differences.
+    """
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        # Store original execute method
+        original_execute = cursor.execute
+        
+        def wrapped_execute(query, params=None):
+            """Wrapper that converts ? to %s for PostgreSQL"""
+            if params is None:
+                params = ()
+            # Convert SQLite ? placeholders to PostgreSQL %s
+            if isinstance(query, str):
+                query = query.replace('?', '%s')
+            return original_execute(query, params)
+        
+        # Replace execute method with wrapper
+        cursor.execute = wrapped_execute
+    
+    return cursor
 
 def get_redis_client():
     """Get Redis client or return None if not available"""
