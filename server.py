@@ -12,13 +12,36 @@ import bcrypt
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-from fastapi import FastAPI, HTTPException, Depends, Body, Header
+import time
+from fastapi import FastAPI, HTTPException, Depends, Body, Header, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from jose import JWTError, jwt
+import logging
+from logging.handlers import RotatingFileHandler
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi.exceptions import RequestValidationError
+
+# Import error handlers
+try:
+    from error_handlers import (
+        create_error_response,
+        validation_exception_handler,
+        rate_limit_handler,
+        general_exception_handler
+    )
+except ImportError:
+    # Fallback if error_handlers not available
+    def create_error_response(message, status_code=500, error_type="error", details=None):
+        return JSONResponse(status_code=status_code, content={"success": False, "error": message})
+    validation_exception_handler = None
+    rate_limit_handler = _rate_limit_exceeded_handler
+    general_exception_handler = None
 
 # Import game logic
 from game_logic import (
@@ -31,8 +54,46 @@ from game_logic import (
 
 app = FastAPI(title="IdleDuelist", version="2.0.0")
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO if os.getenv("ENVIRONMENT", "development") == "production" else logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        RotatingFileHandler('idleduelist.log', maxBytes=10*1024*1024, backupCount=5) if os.getenv("ENVIRONMENT") == "production" else logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Rate limiter setup
+limiter = Limiter(key_func=get_remote_address, default_limits=["1000/hour"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+if validation_exception_handler:
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+if general_exception_handler:
+    app.add_exception_handler(Exception, general_exception_handler)
+
+# Determine environment
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+IS_PRODUCTION = ENVIRONMENT == "production"
+
 # CORS middleware - restrict to specific domains in production
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",") if os.getenv("CORS_ORIGINS") else ["*"]
+# In production, require explicit CORS_ORIGINS configuration
+# In development, allow all origins for easier local testing
+CORS_ORIGINS_STR = os.getenv("CORS_ORIGINS", "")
+if IS_PRODUCTION:
+    if not CORS_ORIGINS_STR or CORS_ORIGINS_STR == "*":
+        raise ValueError(
+            "CORS_ORIGINS must be explicitly set in production environment. "
+            "Set CORS_ORIGINS to a comma-separated list of allowed origins."
+        )
+    CORS_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_STR.split(",") if origin.strip()]
+    if not CORS_ORIGINS:
+        raise ValueError("CORS_ORIGINS cannot be empty in production")
+else:
+    # Development: allow all origins for local testing
+    CORS_ORIGINS = ["*"] if not CORS_ORIGINS_STR else [origin.strip() for origin in CORS_ORIGINS_STR.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -82,14 +143,12 @@ def get_db_connection():
             conn.cursor_factory = AutoConvertCursor
             return conn
         except ImportError:
-            print("⚠ ERROR: psycopg2 not installed, falling back to SQLite")
-            print("⚠ Install with: pip install psycopg2-binary")
+            logger.error("psycopg2 not installed, falling back to SQLite. Install with: pip install psycopg2-binary")
             conn = sqlite3.connect(DATABASE)
             conn.row_factory = sqlite3.Row
             return conn
         except Exception as e:
-            print(f"⚠ ERROR: Failed to connect to PostgreSQL: {e}")
-            print("⚠ Falling back to SQLite (data will NOT persist on Railway!)")
+            logger.error(f"Failed to connect to PostgreSQL: {e}. Falling back to SQLite (data will NOT persist on Railway!)")
             conn = sqlite3.connect(DATABASE)
             conn.row_factory = sqlite3.Row
             return conn
@@ -152,7 +211,7 @@ def get_redis_client():
             redis_client.ping()
             return redis_client
         except (ImportError, Exception) as e:
-            print(f"Warning: Redis not available: {e}, using in-memory storage")
+            logger.warning(r"Redis not available: {e}, using in-memory storage")
             return None
     return None
 
@@ -251,7 +310,7 @@ def init_database():
         conn = get_db_connection()
         cursor = conn.cursor()
     except Exception as e:
-        print(f"⚠ CRITICAL: Cannot initialize database: {e}")
+        logger.critical(r"Cannot initialize database: {e}")
         if USE_POSTGRES:
             print("⚠ PostgreSQL connection failed. Check Railway PostgreSQL service.")
         raise
@@ -475,7 +534,7 @@ def init_database():
                             ''')
                             conn.commit()
                         except Exception as e2:
-                            print(f"Warning: Could not create combat_logs table: {e2}")
+                            logger.warning(r"Could not create combat_logs table: {e2}")
                             conn.rollback()
                 else:
                     raise
@@ -726,7 +785,7 @@ def init_database():
     
     conn.commit()
     conn.close()
-    print("Database initialized successfully")
+    logger.info("Database initialized successfully")
     
     # Initialize default data
     initialize_default_data()
@@ -902,7 +961,7 @@ def initialize_default_data():
     
     conn.commit()
     conn.close()
-    print("Default data initialized")
+    logger.info("Default data initialized")
 
 # JWT Configuration
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production-min-32-chars")
@@ -991,19 +1050,47 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     
     return {"user_id": user['id'], "username": user['username']}
 
-# Pydantic models
-class RegisterRequest(BaseModel):
-    username: str
-    password: str
-    email: Optional[str] = None
+# Import Pydantic models from models.py if available, otherwise use simple definitions
+try:
+    from models import (
+        RegisterRequest,
+        LoginRequest,
+        CreateCharacterRequest,
+        StartCombatRequest,
+        CombatActionRequest,
+        EquipmentUpgradeRequest,
+        EquipmentRerollRequest,
+        AllocateSkillsRequest,
+        CreateFeedbackRequest,
+        BuyStoreItemRequest,
+        SellItemRequest,
+        UpdateStanceRequest
+    )
+except ImportError:
+    # Fallback to simple models if models.py not available
+    class RegisterRequest(BaseModel):
+        username: str
+        password: str
+        email: Optional[str] = None
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
+    class LoginRequest(BaseModel):
+        username: str
+        password: str
 
-class CreateCharacterRequest(BaseModel):
-    name: str
-    user_id: Optional[str] = None
+    class CreateCharacterRequest(BaseModel):
+        name: str
+        user_id: Optional[str] = None
+    
+    # Placeholder models for other endpoints
+    StartCombatRequest = None
+    CombatActionRequest = None
+    EquipmentUpgradeRequest = None
+    EquipmentRerollRequest = None
+    AllocateSkillsRequest = None
+    CreateFeedbackRequest = None
+    BuyStoreItemRequest = None
+    SellItemRequest = None
+    UpdateStanceRequest = None
 
 class AllocateSkillsRequest(BaseModel):
     stats: Dict[str, int]
@@ -1051,7 +1138,8 @@ async def game():
 
 # Authentication endpoints
 @app.post("/api/register")
-async def register(request: RegisterRequest):
+@limiter.limit("5/minute")
+async def register(request: RegisterRequest, req: Request = None):
     """Register a new user"""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1086,7 +1174,8 @@ async def register(request: RegisterRequest):
     return {"success": True, "user_id": user_id, "message": "Account created successfully"}
 
 @app.post("/api/login")
-async def login(request: LoginRequest):
+@limiter.limit("10/minute")
+async def login(request: LoginRequest, req: Request = None):
     """Login and return JWT tokens and user data"""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -2116,7 +2205,8 @@ def initialize_combat_state(character1_id: str, character2_data: Dict, is_pvp: b
 
 # Combat endpoints
 @app.post("/api/combat/start")
-async def start_combat(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def start_combat(request: Dict = Body(...), current_user: dict = Depends(get_current_user), req: Request = None):
     """Start a new combat encounter"""
     try:
         user_id = current_user["user_id"]
@@ -2240,7 +2330,7 @@ async def get_combat_state_endpoint(combat_id: str):
         
         # Debug: log visual events being sent
         if visual_events:
-            print(f"[DEBUG] Sending {len(visual_events)} visual events for combat {combat_id}: {[e.get('type') for e in visual_events]}")
+            logger.debug(r"Sending {len(visual_events)} visual events for combat {combat_id}: {[e.get('type') for e in visual_events]}")
         
         response = {"success": True, "combat": state}
         # Always include visual_events array, even if empty
@@ -2825,7 +2915,7 @@ def end_combat(combat_id: str):
     
     # Prevent multiple calls to end_combat for the same combat
     if not state.get('is_active', True):
-        print(f"[COMBAT] Combat {combat_id} already ended, skipping end_combat")
+        logger.info(f"[COMBAT] Combat {combat_id} already ended, skipping end_combat")
         return
     
     state['is_active'] = False
@@ -2864,6 +2954,7 @@ def end_combat(combat_id: str):
             if enemy_data:
                 # SQLite Row objects don't support .get(), use bracket notation instead
                 exp_gain = enemy_data['exp_reward'] if enemy_data['exp_reward'] is not None else 50  # Use fixed EXP reward from enemy
+                exp_gain = max(1, exp_gain)  # Ensure never negative
                 gold_gain = random.randint(enemy_data['gold_min'], enemy_data['gold_max'])
                 drop_chance = enemy_data['drop_chance']
                 enemy_level = enemy_data['level']
@@ -2874,7 +2965,7 @@ def end_combat(combat_id: str):
                 enemy_level = loser_level
         except Exception as e:
             import traceback
-            print(f"[ERROR] Failed to fetch enemy data for {enemy_id}: {e}")
+            logger.error(f"Failed to fetch enemy data for {enemy_id}: {e}")
             print(traceback.format_exc())
             # Use defaults if enemy data fetch fails
             exp_gain = 50
@@ -2890,6 +2981,7 @@ def end_combat(combat_id: str):
     else:
         # PvP - use variable EXP based on level difference
         exp_gain = calculate_exp_gain(winner_level, loser_level, True)
+        exp_gain = max(1, exp_gain)  # Ensure never negative
         gold_gain = 100 + loser_level * 10
         drop_chance = 0.7  # 70% for PvP
         enemy_level = loser_level
@@ -2916,7 +3008,7 @@ def end_combat(combat_id: str):
             cursor.execute("SELECT exp, level, gold, skill_points FROM characters WHERE id = ?", (winner_id,))
             char_data = cursor.fetchone()
             if not char_data:
-                print(f"[ERROR] Character {winner_id} not found when trying to award rewards")
+                logger.error(f"Character {winner_id} not found when trying to award rewards")
                 rewards['applied'] = False
                 rewards['error'] = f"Character {winner_id} not found"
                 state['rewards'] = rewards
@@ -2935,7 +3027,7 @@ def end_combat(combat_id: str):
             new_level = char_data['level']
             new_gold = current_gold + gold_gain
             
-            print(f"[COMBAT] Awarding rewards to {winner_id}: EXP {current_exp} + {exp_gain} = {new_exp}, Gold {current_gold} + {gold_gain} = {new_gold}")
+            logger.info(f"[COMBAT] Awarding rewards to {winner_id}: EXP {current_exp} + {exp_gain} = {new_exp}, Gold {current_gold} + {gold_gain} = {new_gold}")
             
             # Process level up
             char_dict = {
@@ -3057,7 +3149,7 @@ def end_combat(combat_id: str):
                 except Exception as pvp_error:
                     import traceback
                     error_msg = f"Failed to update PvP stats: {pvp_error}"
-                    print(f"[ERROR] {error_msg}")
+                    logger.error(f"{error_msg}")
                     print(traceback.format_exc())
                     # Don't fail the entire reward process if PvP stats fail
                     # The EXP and gold should still be awarded
@@ -3071,12 +3163,12 @@ def end_combat(combat_id: str):
             cursor.execute("SELECT exp, level, gold FROM characters WHERE id = ?", (winner_id,))
             verify_data = cursor.fetchone()
             if verify_data:
-                print(f"[COMBAT] Successfully updated character {winner_id}: EXP {verify_data['exp']}, Level {verify_data['level']}, Gold {verify_data['gold']}")
-                print(f"[COMBAT] Expected: EXP {char_dict['exp']}, Level {char_dict['level']}, Gold {new_gold}")
+                logger.info(f"[COMBAT] Successfully updated character {winner_id}: EXP {verify_data['exp']}, Level {verify_data['level']}, Gold {verify_data['gold']}")
+                logger.info(f"[COMBAT] Expected: EXP {char_dict['exp']}, Level {char_dict['level']}, Gold {new_gold}")
                 if verify_data['exp'] != char_dict['exp'] or verify_data['gold'] != new_gold:
-                    print(f"[ERROR] Database update verification failed! Expected EXP {char_dict['exp']}, got {verify_data['exp']}")
+                    logger.error(f"Database update verification failed! Expected EXP {char_dict['exp']}, got {verify_data['exp']}")
             else:
-                print(f"[ERROR] Could not verify database update - character not found after commit!")
+                logger.error(f"Could not verify database update - character not found after commit!")
             
             # Mark rewards as successfully applied and store in state
             rewards['applied'] = True
@@ -3085,7 +3177,7 @@ def end_combat(combat_id: str):
         except Exception as e:
             import traceback
             error_msg = f"Failed to award combat rewards: {e}"
-            print(f"[ERROR] {error_msg}")
+            logger.error(f"{error_msg}")
             print(traceback.format_exc())
             # Store rewards with error flag so frontend can show error
             rewards['applied'] = False
@@ -3113,7 +3205,7 @@ def end_combat(combat_id: str):
         set_combat_state(combat_id, state)
     except Exception as e:
         import traceback
-        print(f"[ERROR] Failed to save combat state: {e}")
+        logger.error(f"Failed to save combat state: {e}")
         print(traceback.format_exc())
 
 @app.post("/api/combat/end/{combat_id}")
@@ -3229,9 +3321,11 @@ async def resolve_combat(character1_id: str, character2_id_or_data, is_pvp: bool
         enemy_exp = cursor.fetchone()
         # SQLite Row objects don't support .get(), use bracket notation instead
         exp_gain = enemy_exp['exp_reward'] if enemy_exp and enemy_exp['exp_reward'] is not None else 50
+        exp_gain = max(1, exp_gain)  # Ensure never negative
     else:
         # PvP - use variable EXP
         exp_gain = calculate_exp_gain(winner_level, loser_level, True)
+        exp_gain = max(1, exp_gain)  # Ensure never negative
     
     # Update winner's EXP and level
     if winner_id == character1_id:
@@ -3591,12 +3685,12 @@ async def start_auto_fight(request: Dict = Body(...), current_user: dict = Depen
 @app.get("/api/pve/auto-fight/{session_id}")
 async def get_auto_fight_status(session_id: str):
     """Get status of auto-fight session"""
-    print(f"[AUTO-FIGHT] GET request for session_id: {session_id}")
+    logger.info(f"[AUTO-FIGHT] GET request for session_id: {session_id}")
     session = get_auto_fight_session(session_id)
     if session is None:
-        print(f"[AUTO-FIGHT] Session {session_id} not found")
+        logger.info(f"[AUTO-FIGHT] Session {session_id} not found")
         raise HTTPException(status_code=404, detail="Session not found")
-    print(f"[AUTO-FIGHT] Session {session_id} found, is_active: {session.get('is_active', False)}")
+    logger.info(f"[AUTO-FIGHT] Session {session_id} found, is_active: {session.get('is_active', False)}")
     
     # Process fights if still active (runs synchronously but quickly)
     if session['is_active']:
@@ -3759,7 +3853,7 @@ def process_auto_fight(session_id: str):
             
             # Extract rewards from combat state (calculated by end_combat)
             rewards = combat_state.get('rewards', {})
-            exp_gain = rewards.get('exp_gained', 0)
+            exp_gain = max(1, rewards.get('exp_gained', 0))  # Ensure never negative
             gold_gain = rewards.get('gold_gained', 0)
             equipment_dropped = rewards.get('equipment_dropped', False)
             
@@ -3904,14 +3998,14 @@ def end_auto_fight_session(session_id: str):
 @app.post("/api/pve/auto-fight/{session_id}/stop")
 async def stop_auto_fight(session_id: str):
     """Manually stop an auto-fight session early"""
-    print(f"[AUTO-FIGHT] STOP request for session_id: {session_id}")
+    logger.info(f"[AUTO-FIGHT] STOP request for session_id: {session_id}")
     session = get_auto_fight_session(session_id)
     if session is None:
-        print(f"[AUTO-FIGHT] Session {session_id} not found for stop")
+        logger.info(f"[AUTO-FIGHT] Session {session_id} not found for stop")
         raise HTTPException(status_code=404, detail="Session not found")
     
     end_auto_fight_session(session_id)
-    print(f"[AUTO-FIGHT] Session {session_id} stopped successfully")
+    logger.info(f"[AUTO-FIGHT] Session {session_id} stopped successfully")
     
     return {"success": True, "message": "Auto-fight session stopped"}
 
@@ -4512,7 +4606,7 @@ def ensure_feedback_tables_exist():
             conn.close()
     except Exception as e:
         import traceback
-        print(f"[ERROR] Failed to ensure feedback tables exist: {e}")
+        logger.error(f"Failed to ensure feedback tables exist: {e}")
         print(traceback.format_exc())
         if conn:
             try:
@@ -4553,7 +4647,7 @@ async def create_feedback(request: Dict = Body(...), current_user: dict = Depend
                 if char:
                     character_name = char['name']
             except Exception as e:
-                print(f"[WARNING] Could not fetch character name for feedback: {e}")
+                logger.warning(r"Could not fetch character name for feedback: {e}")
                 # Continue without character name
         
         # Create feedback
@@ -4568,7 +4662,7 @@ async def create_feedback(request: Dict = Body(...), current_user: dict = Depend
             import traceback
             conn.rollback()
             error_msg = str(e)
-            print(f"[ERROR] Failed to create feedback: {error_msg}")
+            logger.error(f"Failed to create feedback: {error_msg}")
             print(traceback.format_exc())
             
             # If table doesn't exist error, try to create it and retry once
@@ -4596,7 +4690,7 @@ async def create_feedback(request: Dict = Body(...), current_user: dict = Depend
         raise
     except Exception as e:
         import traceback
-        print(f"[ERROR] Unexpected error in create_feedback: {e}")
+        logger.error(f"Unexpected error in create_feedback: {e}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
@@ -5091,55 +5185,193 @@ async def get_online_player_count():
     
     return {"success": True, "online_count": online_count}
 
-# Health check endpoint
+# Health check endpoints
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for Railway"""
+    """Health check endpoint - returns detailed status of all dependencies"""
     db_type = "PostgreSQL" if USE_POSTGRES else "SQLite"
     db_configured = "yes" if DATABASE_URL else "no"
     
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "2.0.0",
+        "environment": ENVIRONMENT,
+        "checks": {}
+    }
+    
+    # Test database connection
     try:
-        # Test database connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        start_time = datetime.utcnow()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        conn.close()
+        response_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+        
+        health_status["checks"]["database"] = {
+            "status": "healthy",
+            "type": db_type,
+            "configured": db_configured,
+            "response_time_ms": round(response_time, 2)
+        }
+    except Exception as e:
+        health_status["checks"]["database"] = {
+            "status": "unhealthy",
+            "type": db_type,
+            "configured": db_configured,
+            "error": str(e) if not IS_PRODUCTION else "Connection failed"
+        }
+        health_status["status"] = "degraded"
+    
+    # Test Redis connection
+    try:
+        r = get_redis_client()
+        if r:
+            start_time = datetime.utcnow()
+            r.ping()
+            response_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            
+            health_status["checks"]["redis"] = {
+                "status": "healthy",
+                "configured": "yes" if REDIS_URL else "no",
+                "response_time_ms": round(response_time, 2)
+            }
+        else:
+            health_status["checks"]["redis"] = {
+                "status": "not_configured",
+                "configured": "no",
+                "message": "Using in-memory storage"
+            }
+    except Exception as e:
+        health_status["checks"]["redis"] = {
+            "status": "unhealthy",
+            "configured": "yes" if REDIS_URL else "no",
+            "error": str(e) if not IS_PRODUCTION else "Connection failed"
+        }
+        if REDIS_URL:  # Only degrade if Redis is expected
+            health_status["status"] = "degraded"
+    
+    return health_status
+
+@app.get("/health/live")
+async def liveness_check():
+    """Liveness probe - simple check that server is responding"""
+    return {"status": "alive"}
+
+@app.get("/health/ready")
+async def readiness_check():
+    """Readiness probe - check if server is ready to serve traffic"""
+    try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         conn.close()
-        db_status = "connected"
-        db_error = None
+        return {"status": "ready"}
     except Exception as e:
-        db_status = "error"
-        db_error = str(e)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "error": str(e) if not IS_PRODUCTION else "Database unavailable"}
+        )
+
+# Metrics tracking
+request_count = 0
+error_count = 0
+request_times = []
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Track request metrics"""
+    global request_count, error_count
+    import time
+    start_time = time.time()
     
-    # Test Redis connection
-    r = get_redis_client()
-    redis_status = "connected" if r else "not_configured"
+    try:
+        response = await call_next(request)
+        request_count += 1
+        if response.status_code >= 400:
+            error_count += 1
+        return response
+    except Exception as e:
+        error_count += 1
+        raise
+    finally:
+        duration = time.time() - start_time
+        request_times.append(duration)
+        # Keep only last 1000 request times
+        if len(request_times) > 1000:
+            request_times.pop(0)
+
+@app.get("/metrics")
+async def metrics():
+    """Metrics endpoint for monitoring"""
+    global request_count, error_count, request_times
     
-    # Mask DATABASE_URL for security (show only if configured, not the value)
-    db_url_info = f"configured ({'postgresql://...' if USE_POSTGRES else 'not set'})" if DATABASE_URL else "not configured"
+    avg_response_time = sum(request_times) / len(request_times) if request_times else 0
+    p95_response_time = sorted(request_times)[int(len(request_times) * 0.95)] if len(request_times) > 20 else 0
+    
+    # Get database stats
+    db_connection_count = 0
+    try:
+        conn = get_db_connection()
+        if USE_POSTGRES:
+            cursor = conn.cursor()
+            cursor.execute("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()")
+            db_connection_count = cursor.fetchone()['count']
+        conn.close()
+    except:
+        pass
+    
+    # Get Redis stats
+    redis_info = {}
+    try:
+        r = get_redis_client()
+        if r:
+            redis_info = r.info()
+    except:
+        pass
     
     return {
-        "status": "healthy" if db_status == "connected" else "degraded",
+        "requests": {
+            "total": request_count,
+            "errors": error_count,
+            "success_rate": ((request_count - error_count) / request_count * 100) if request_count > 0 else 100
+        },
+        "response_times": {
+            "average_ms": round(avg_response_time * 1000, 2),
+            "p95_ms": round(p95_response_time * 1000, 2) if p95_response_time > 0 else 0
+        },
         "database": {
-            "type": db_type,
-            "status": db_status,
-            "url_configured": db_configured,
-            "url_info": db_url_info,
-            "error": db_error
+            "active_connections": db_connection_count
         },
         "redis": {
-            "status": redis_status,
-            "url_configured": "yes" if REDIS_URL else "no"
+            "connected": redis_info.get("connected_clients", 0) > 0 if redis_info else False,
+            "used_memory_mb": round(redis_info.get("used_memory", 0) / 1024 / 1024, 2) if redis_info else 0
         },
-        "environment": os.getenv("ENVIRONMENT", "development"),
-        "version": "2.0.0"
+        "uptime_seconds": (datetime.utcnow() - app.state.start_time).total_seconds() if hasattr(app.state, 'start_time') else 0
     }
 
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
+    # Set startup time for metrics
+    app.state.start_time = datetime.utcnow()
+    
+    # Validate environment variables
+    try:
+        from env_validation import validate_environment
+        validate_environment()
+    except ImportError:
+        logger.warning("env_validation module not found, skipping environment validation")
+    except Exception as e:
+        logger.error(f"Environment validation failed: {e}")
+        if IS_PRODUCTION:
+            raise
+    
     # Log database configuration
-    print("=" * 60)
-    print("Database Configuration:")
+    logger.info("=" * 60)
+    logger.info("Database Configuration:")
     if DATABASE_URL:
         # Mask password in URL for logging
         url_parts = DATABASE_URL.split("@")
@@ -5147,11 +5379,11 @@ async def startup_event():
             safe_url = "postgresql://***@" + "@".join(url_parts[1:])
         else:
             safe_url = "postgresql://***"
-        print(f"  DATABASE_URL: {safe_url}")
-        print(f"  Database Type: PostgreSQL")
+        logger.info(f"  DATABASE_URL: {safe_url}")
+        logger.info(f"  Database Type: PostgreSQL")
     else:
-        print(f"  DATABASE_URL: Not set")
-        print(f"  Database Type: SQLite (fallback)")
+        logger.info(f"  DATABASE_URL: Not set")
+        logger.info(f"  Database Type: SQLite (fallback)")
     
     # Test database connection
     try:
@@ -5160,35 +5392,35 @@ async def startup_event():
         cursor.execute("SELECT 1")
         conn.close()
         if USE_POSTGRES:
-            print("✓ PostgreSQL connection successful (data will persist)")
+            logger.info("✓ PostgreSQL connection successful (data will persist)")
         else:
-            print("⚠ WARNING: Using SQLite (data will NOT persist on Railway!)")
-            print("⚠ To fix: Add PostgreSQL service in Railway and set DATABASE_URL environment variable")
+            logger.warning("Using SQLite (data will NOT persist on Railway!)")
+            logger.warning("To fix: Add PostgreSQL service in Railway and set DATABASE_URL environment variable")
     except Exception as e:
-        print(f"⚠ ERROR: Database connection failed: {e}")
+        logger.error(f"Database connection failed: {e}")
         if USE_POSTGRES:
-            print("⚠ PostgreSQL connection failed but DATABASE_URL is set!")
-            print("⚠ Check Railway PostgreSQL service status and connection string")
+            logger.error("PostgreSQL connection failed but DATABASE_URL is set!")
+            logger.error("Check Railway PostgreSQL service status and connection string")
     
     # Log Redis configuration
     if REDIS_URL:
-        print(f"  REDIS_URL: Configured")
+        logger.info(f"  REDIS_URL: Configured")
         r = get_redis_client()
         if r:
-            print("✓ Redis connection successful")
+            logger.info("✓ Redis connection successful")
         else:
-            print("⚠ Redis connection failed (using in-memory storage)")
+            logger.warning("Redis connection failed (using in-memory storage)")
     else:
-        print("  REDIS_URL: Not set (using in-memory storage)")
+        logger.info("  REDIS_URL: Not set (using in-memory storage)")
     
-    print("=" * 60)
+    logger.info("=" * 60)
     
     # Initialize database tables
     try:
         init_database()
     except Exception as e:
-        print(f"⚠ ERROR: Database initialization failed: {e}")
-        print("⚠ Server will continue but some features may not work")
+        logger.error(f"Database initialization failed: {e}")
+        logger.warning("Server will continue but some features may not work")
         import traceback
         traceback.print_exc()
 
