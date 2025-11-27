@@ -4351,38 +4351,58 @@ async def combine_items(request: Dict = Body(...)):
 @app.post("/api/feedback/create")
 async def create_feedback(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
     """Create a new feedback/suggestion post"""
-    user_id = current_user["user_id"]
-    content = request.get('content', '').strip()
-    character_id = request.get('character_id')
-    
-    if not content:
-        raise HTTPException(status_code=400, detail="Feedback content cannot be empty")
-    
-    if len(content) > 1000:
-        raise HTTPException(status_code=400, detail="Feedback too long (max 1000 characters)")
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Get character name if provided
-    character_name = None
-    if character_id:
-        cursor.execute("SELECT name FROM characters WHERE id = ?", (character_id,))
-        char = cursor.fetchone()
-        if char:
-            character_name = char['name']
-    
-    # Create feedback
-    feedback_id = str(uuid.uuid4())
-    cursor.execute(
-        "INSERT INTO feedback (id, user_id, character_name, content) VALUES (?, ?, ?, ?)",
-        (feedback_id, user_id, character_name, content)
-    )
-    
-    conn.commit()
-    conn.close()
-    
-    return {"success": True, "feedback_id": feedback_id, "message": "Feedback posted successfully"}
+    try:
+        user_id = current_user["user_id"]
+        content = request.get('content', '').strip()
+        character_id = request.get('character_id')
+        
+        if not content:
+            raise HTTPException(status_code=400, detail="Feedback content cannot be empty")
+        
+        if len(content) > 1000:
+            raise HTTPException(status_code=400, detail="Feedback too long (max 1000 characters)")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Get character name if provided
+        character_name = None
+        if character_id:
+            try:
+                cursor.execute("SELECT name FROM characters WHERE id = ?", (character_id,))
+                char = cursor.fetchone()
+                if char:
+                    character_name = char['name']
+            except Exception as e:
+                print(f"[WARNING] Could not fetch character name for feedback: {e}")
+                # Continue without character name
+        
+        # Create feedback
+        feedback_id = str(uuid.uuid4())
+        try:
+            cursor.execute(
+                "INSERT INTO feedback (id, user_id, character_name, content) VALUES (?, ?, ?, ?)",
+                (feedback_id, user_id, character_name, content)
+            )
+            conn.commit()
+        except Exception as e:
+            import traceback
+            conn.rollback()
+            print(f"[ERROR] Failed to create feedback: {e}")
+            print(traceback.format_exc())
+            conn.close()
+            raise HTTPException(status_code=500, detail=f"Failed to create feedback: {str(e)}")
+        finally:
+            conn.close()
+        
+        return {"success": True, "feedback_id": feedback_id, "message": "Feedback posted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Unexpected error in create_feedback: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/feedback/list")
 async def list_feedback(limit: int = 50, offset: int = 0):
