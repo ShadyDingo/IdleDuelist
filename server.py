@@ -4348,10 +4348,145 @@ async def combine_items(request: Dict = Body(...)):
     return {"success": True, "equipment": equipment, "rarity_created": result_rarity}
 
 # Feedback endpoints
+def ensure_feedback_tables_exist():
+    """Ensure feedback tables exist, create them if they don't"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if feedback table exists
+        table_exists = False
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name = 'feedback'
+            """)
+            table_exists = cursor.fetchone() is not None
+        else:
+            cursor.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='feedback'
+            """)
+            table_exists = cursor.fetchone() is not None
+        
+        if not table_exists:
+            print("[INFO] Feedback table missing, creating it...")
+            if USE_POSTGRES:
+                # Check if users table exists first
+                cursor.execute("""
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_name = 'users'
+                """)
+                users_exists = cursor.fetchone() is not None
+                
+                if users_exists:
+                    cursor.execute('''
+                        CREATE TABLE feedback (
+                            id VARCHAR(255) PRIMARY KEY,
+                            user_id VARCHAR(255) NOT NULL,
+                            character_name VARCHAR(255),
+                            content TEXT NOT NULL,
+                            upvotes INTEGER DEFAULT 0,
+                            downvotes INTEGER DEFAULT 0,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users (id)
+                        )
+                    ''')
+                else:
+                    # Create without foreign key if users table doesn't exist
+                    print("[WARNING] Users table not found, creating feedback table without foreign key")
+                    cursor.execute('''
+                        CREATE TABLE feedback (
+                            id VARCHAR(255) PRIMARY KEY,
+                            user_id VARCHAR(255) NOT NULL,
+                            character_name VARCHAR(255),
+                            content TEXT NOT NULL,
+                            upvotes INTEGER DEFAULT 0,
+                            downvotes INTEGER DEFAULT 0,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS feedback_votes (
+                        id VARCHAR(255) PRIMARY KEY,
+                        feedback_id VARCHAR(255) NOT NULL,
+                        user_id VARCHAR(255) NOT NULL,
+                        vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('upvote', 'downvote')),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (feedback_id) REFERENCES feedback (id) ON DELETE CASCADE,
+                        FOREIGN KEY (user_id) REFERENCES users (id),
+                        UNIQUE(feedback_id, user_id)
+                    )
+                ''')
+            else:
+                # Check if users table exists for SQLite
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+                users_exists = cursor.fetchone() is not None
+                
+                if users_exists:
+                    cursor.execute('''
+                        CREATE TABLE feedback (
+                            id TEXT PRIMARY KEY,
+                            user_id TEXT NOT NULL,
+                            character_name TEXT,
+                            content TEXT NOT NULL,
+                            upvotes INTEGER DEFAULT 0,
+                            downvotes INTEGER DEFAULT 0,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users (id)
+                        )
+                    ''')
+                else:
+                    # Create without foreign key if users table doesn't exist
+                    print("[WARNING] Users table not found, creating feedback table without foreign key")
+                    cursor.execute('''
+                        CREATE TABLE feedback (
+                            id TEXT PRIMARY KEY,
+                            user_id TEXT NOT NULL,
+                            character_name TEXT,
+                            content TEXT NOT NULL,
+                            upvotes INTEGER DEFAULT 0,
+                            downvotes INTEGER DEFAULT 0,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS feedback_votes (
+                        id TEXT PRIMARY KEY,
+                        feedback_id TEXT NOT NULL,
+                        user_id TEXT NOT NULL,
+                        vote_type TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (feedback_id) REFERENCES feedback (id) ON DELETE CASCADE,
+                        FOREIGN KEY (user_id) REFERENCES users (id),
+                        UNIQUE(feedback_id, user_id)
+                    )
+                ''')
+            conn.commit()
+            print("[INFO] Feedback tables created successfully")
+        if conn:
+            conn.close()
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Failed to ensure feedback tables exist: {e}")
+        print(traceback.format_exc())
+        if conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.post("/api/feedback/create")
 async def create_feedback(request: Dict = Body(...), current_user: dict = Depends(get_current_user)):
     """Create a new feedback/suggestion post"""
     try:
+        # Ensure tables exist before trying to use them
+        ensure_feedback_tables_exist()
+        
         user_id = current_user["user_id"]
         content = request.get('content', '').strip()
         character_id = request.get('character_id')
@@ -4388,12 +4523,29 @@ async def create_feedback(request: Dict = Body(...), current_user: dict = Depend
         except Exception as e:
             import traceback
             conn.rollback()
-            print(f"[ERROR] Failed to create feedback: {e}")
+            error_msg = str(e)
+            print(f"[ERROR] Failed to create feedback: {error_msg}")
             print(traceback.format_exc())
-            conn.close()
-            raise HTTPException(status_code=500, detail=f"Failed to create feedback: {str(e)}")
+            
+            # If table doesn't exist error, try to create it and retry once
+            if 'does not exist' in error_msg or 'no such table' in error_msg.lower():
+                print("[INFO] Retrying after ensuring table exists...")
+                conn.close()
+                ensure_feedback_tables_exist()
+                # Retry once
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO feedback (id, user_id, character_name, content) VALUES (?, ?, ?, ?)",
+                    (feedback_id, user_id, character_name, content)
+                )
+                conn.commit()
+            else:
+                conn.close()
+                raise HTTPException(status_code=500, detail=f"Failed to create feedback: {error_msg}")
         finally:
-            conn.close()
+            if conn:
+                conn.close()
         
         return {"success": True, "feedback_id": feedback_id, "message": "Feedback posted successfully"}
     except HTTPException:
