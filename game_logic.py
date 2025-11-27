@@ -229,6 +229,21 @@ def generate_equipment(slot: str, rarity: str, level: int) -> Dict:
     if slot in armor_slots:
         equipment['armor_type'] = random.choice(['cloth', 'leather', 'metal'])
     
+    # Add weapon_type for weapon slots (randomly choose from available weapon types)
+    if slot == 'main_hand':
+        # For main hand, randomly select a weapon type
+        weapon_choices = ['sword', 'bow', 'staff', 'mace', 'dagger', 'wand', 'crossbow', 'hammer', 'axe']
+        equipment['weapon_type'] = random.choice(weapon_choices)
+    elif slot == 'off_hand':
+        # For off hand, it's usually a shield, but could be a weapon for dual-wielding
+        # Randomly choose between shield and a one-handed weapon
+        if random.random() < 0.3:  # 30% chance of dual-wielding
+            one_handed_weapons = ['sword', 'mace', 'dagger', 'wand']
+            equipment['weapon_type'] = random.choice(one_handed_weapons)
+        else:
+            # Default to shield (no weapon_type, handled separately in frontend)
+            pass
+    
     return equipment
 
 
