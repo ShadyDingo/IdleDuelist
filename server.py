@@ -2930,43 +2930,96 @@ def end_combat(combat_id: str):
             
             # Update PvP stats if this is a PvP match
             if state['is_pvp'] and not is_auto_fight:
-                # Get current PvP stats for both players
-                cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (winner_id,))
-                winner_stats = cursor.fetchone()
-                cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (loser_id,))
-                loser_stats = cursor.fetchone()
-                
-                # Get MMR values (default to 1000 if not set)
-                # SQLite Row objects use dictionary-style access, not .get()
-                winner_mmr = winner_stats['pvp_mmr'] if winner_stats and winner_stats['pvp_mmr'] is not None else 1000
-                loser_mmr = loser_stats['pvp_mmr'] if loser_stats and loser_stats['pvp_mmr'] is not None else 1000
-                
-                # Calculate MMR change using ELO system
-                K = 32  # K-factor for competitive games
-                expected_winner = 1 / (1 + 10 ** ((loser_mmr - winner_mmr) / 400))
-                expected_loser = 1 / (1 + 10 ** ((winner_mmr - loser_mmr) / 400))
-                
-                # Winner gets 1 point, loser gets 0
-                winner_mmr_change = int(K * (1 - expected_winner))
-                loser_mmr_change = int(K * (0 - expected_loser))
-                
-                new_winner_mmr = max(0, winner_mmr + winner_mmr_change)
-                new_loser_mmr = max(0, loser_mmr + loser_mmr_change)
-                
-                # Update winner stats
-                # SQLite Row objects use dictionary-style access, not .get()
-                winner_wins = (winner_stats['pvp_wins'] if winner_stats and winner_stats['pvp_wins'] is not None else 0) + 1
-                cursor.execute(
-                    "UPDATE characters SET pvp_wins = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (winner_wins, new_winner_mmr, winner_id)
-                )
-                
-                # Update loser stats
-                loser_losses = (loser_stats['pvp_losses'] if loser_stats and loser_stats['pvp_losses'] is not None else 0) + 1
-                cursor.execute(
-                    "UPDATE characters SET pvp_losses = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (loser_losses, new_loser_mmr, loser_id)
-                )
+                try:
+                    # Check if PvP columns exist first
+                    existing_columns = set()
+                    if USE_POSTGRES:
+                        cursor.execute("""
+                            SELECT column_name 
+                            FROM information_schema.columns 
+                            WHERE table_name = 'characters' AND column_name IN ('pvp_wins', 'pvp_losses', 'pvp_mmr')
+                        """)
+                        existing_columns = {row['column_name'] for row in cursor.fetchall()}
+                        has_pvp_columns = len(existing_columns) == 3
+                    else:
+                        cursor.execute("PRAGMA table_info(characters)")
+                        columns = [col[1] for col in cursor.fetchall()]
+                        existing_columns = set(columns)
+                        has_pvp_columns = all(col in columns for col in ['pvp_wins', 'pvp_losses', 'pvp_mmr'])
+                    
+                    if not has_pvp_columns:
+                        print("[WARNING] PvP columns missing, attempting to add them...")
+                        # Try to add missing columns
+                        if USE_POSTGRES:
+                            if 'pvp_wins' not in existing_columns:
+                                cursor.execute('ALTER TABLE characters ADD COLUMN pvp_wins INTEGER DEFAULT 0')
+                                conn.commit()
+                            if 'pvp_losses' not in existing_columns:
+                                cursor.execute('ALTER TABLE characters ADD COLUMN pvp_losses INTEGER DEFAULT 0')
+                                conn.commit()
+                            if 'pvp_mmr' not in existing_columns:
+                                cursor.execute('ALTER TABLE characters ADD COLUMN pvp_mmr INTEGER DEFAULT 1000')
+                                conn.commit()
+                        else:
+                            # For SQLite, try to add columns with error handling
+                            for col_sql in [
+                                'ALTER TABLE characters ADD COLUMN pvp_wins INTEGER DEFAULT 0',
+                                'ALTER TABLE characters ADD COLUMN pvp_losses INTEGER DEFAULT 0',
+                                'ALTER TABLE characters ADD COLUMN pvp_mmr INTEGER DEFAULT 1000'
+                            ]:
+                                try:
+                                    cursor.execute(col_sql)
+                                    conn.commit()
+                                except Exception:
+                                    pass  # Column already exists
+                    
+                    # Get current PvP stats for both players
+                    cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (winner_id,))
+                    winner_stats = cursor.fetchone()
+                    cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (loser_id,))
+                    loser_stats = cursor.fetchone()
+                    
+                    # Get MMR values (default to 1000 if not set)
+                    # SQLite Row objects use dictionary-style access, not .get()
+                    winner_mmr = winner_stats['pvp_mmr'] if winner_stats and winner_stats['pvp_mmr'] is not None else 1000
+                    loser_mmr = loser_stats['pvp_mmr'] if loser_stats and loser_stats['pvp_mmr'] is not None else 1000
+                    
+                    # Calculate MMR change using ELO system
+                    K = 32  # K-factor for competitive games
+                    expected_winner = 1 / (1 + 10 ** ((loser_mmr - winner_mmr) / 400))
+                    expected_loser = 1 / (1 + 10 ** ((winner_mmr - loser_mmr) / 400))
+                    
+                    # Winner gets 1 point, loser gets 0
+                    winner_mmr_change = int(K * (1 - expected_winner))
+                    loser_mmr_change = int(K * (0 - expected_loser))
+                    
+                    new_winner_mmr = max(0, winner_mmr + winner_mmr_change)
+                    new_loser_mmr = max(0, loser_mmr + loser_mmr_change)
+                    
+                    # Update winner stats
+                    # SQLite Row objects use dictionary-style access, not .get()
+                    winner_wins = (winner_stats['pvp_wins'] if winner_stats and winner_stats['pvp_wins'] is not None else 0) + 1
+                    cursor.execute(
+                        "UPDATE characters SET pvp_wins = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (winner_wins, new_winner_mmr, winner_id)
+                    )
+                    
+                    # Update loser stats
+                    loser_losses = (loser_stats['pvp_losses'] if loser_stats and loser_stats['pvp_losses'] is not None else 0) + 1
+                    cursor.execute(
+                        "UPDATE characters SET pvp_losses = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (loser_losses, new_loser_mmr, loser_id)
+                    )
+                except Exception as pvp_error:
+                    import traceback
+                    error_msg = f"Failed to update PvP stats: {pvp_error}"
+                    print(f"[ERROR] {error_msg}")
+                    print(traceback.format_exc())
+                    # Don't fail the entire reward process if PvP stats fail
+                    # The EXP and gold should still be awarded
+                    # Mark in rewards that PvP stats update failed
+                    if 'rewards' in locals():
+                        rewards['pvp_stats_error'] = str(pvp_error)
             
             conn.commit()
             
