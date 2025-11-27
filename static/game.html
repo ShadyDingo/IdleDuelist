@@ -2302,7 +2302,7 @@
                 
                 if (item) {
                     slotDiv.classList.add('filled');
-                    const iconPath = getItemIconPath(slot, item.weapon_type, item.rarity, item.armor_type);
+                    const iconPath = getItemIconPath(slot, item.weapon_type, item.rarity, item.armor_type, item.name);
                     const rarityOverlayPath = getRarityOverlayPath(item.rarity);
                     const weaponTooltip = item.weapon_type ? getWeaponTooltip(item.weapon_type) : '';
                     slotDiv.innerHTML = `
@@ -2552,9 +2552,32 @@
             return `/assets/rarity/${overlayFile}`;
         }
 
-        function getItemIconPath(slot, weaponType, rarity, armorType) {
+        function inferWeaponTypeFromName(itemName) {
+            // Try to infer weapon type from item name if weapon_type is missing
+            if (!itemName) return null;
+            const nameLower = itemName.toLowerCase();
+            
+            if (nameLower.includes('bow')) return 'bow';
+            if (nameLower.includes('crossbow')) return 'crossbow';
+            if (nameLower.includes('mace')) return 'mace';
+            if (nameLower.includes('hammer')) return 'hammer';
+            if (nameLower.includes('axe')) return 'axe';
+            if (nameLower.includes('dagger')) return 'dagger';
+            if (nameLower.includes('wand')) return 'wand';
+            if (nameLower.includes('staff')) return 'staff';
+            if (nameLower.includes('sword')) return 'sword';
+            
+            return null;
+        }
+
+        function getItemIconPath(slot, weaponType, rarity, armorType, itemName) {
             // Weapon icons
-            if (slot === 'main_hand' && weaponType) {
+            if (slot === 'main_hand') {
+                // If weaponType is missing, try to infer from item name
+                if (!weaponType && itemName) {
+                    weaponType = inferWeaponTypeFromName(itemName);
+                }
+                
                 const weaponMap = {
                     'sword': 'weapon_sword.png',
                     'bow': 'weapon_bow.png',
@@ -2566,7 +2589,8 @@
                     'hammer': 'weapon_hammer.png',
                     'axe': 'weapon_axe.png'
                 };
-                const iconFile = weaponMap[weaponType] || 'weapon_sword.png';
+                // Use weaponType even if it's inferred (could be null if inference failed)
+                const iconFile = (weaponType && weaponMap[weaponType]) ? weaponMap[weaponType] : 'weapon_sword.png';
                 return `/assets/weapons/${iconFile}`;
             }
             
@@ -2889,7 +2913,7 @@
                     .map(([stat, val]) => `${stat}: +${val}`)
                     .join(', ');
 
-                const iconPath = getItemIconPath(item.slot, item.weapon_type, item.rarity, item.armor_type);
+                const iconPath = getItemIconPath(item.slot, item.weapon_type, item.rarity, item.armor_type, item.name);
                 const rarityOverlayPath = getRarityOverlayPath(item.rarity);
                 const weaponTooltip = item.weapon_type ? getWeaponTooltip(item.weapon_type) : '';
                 itemDiv.className = 'inventory-item tooltip-container';
@@ -4540,7 +4564,7 @@
                         itemDiv.className = 'inventory-item';
                         
                         // Get icon path for store items (all are common rarity, default to metal armor)
-                        const iconPath = getItemIconPath(item.slot, item.weapon_type, 'common', 'metal');
+                        const iconPath = getItemIconPath(item.slot, item.weapon_type, 'common', 'metal', item.name);
                         const rarityOverlayPath = getRarityOverlayPath('common');
                         
                         itemDiv.innerHTML = `

@@ -1243,6 +1243,36 @@ async def list_characters(current_user: dict = Depends(get_current_user)):
     
     return {"success": True, "characters": characters}
 
+def normalize_equipment_item(item: Dict, slot: str) -> Dict:
+    """Ensure equipment items have required fields like weapon_type"""
+    if not item:
+        return item
+    
+    # If it's a weapon slot and missing weapon_type, try to infer from name
+    if slot == 'main_hand' and 'weapon_type' not in item:
+        item_name = item.get('name', '').lower()
+        if 'bow' in item_name:
+            item['weapon_type'] = 'bow'
+        elif 'crossbow' in item_name:
+            item['weapon_type'] = 'crossbow'
+        elif 'mace' in item_name:
+            item['weapon_type'] = 'mace'
+        elif 'hammer' in item_name:
+            item['weapon_type'] = 'hammer'
+        elif 'axe' in item_name:
+            item['weapon_type'] = 'axe'
+        elif 'dagger' in item_name:
+            item['weapon_type'] = 'dagger'
+        elif 'wand' in item_name:
+            item['weapon_type'] = 'wand'
+        elif 'staff' in item_name:
+            item['weapon_type'] = 'staff'
+        elif 'sword' in item_name:
+            item['weapon_type'] = 'sword'
+        # If we can't infer, leave it as None - frontend will use default
+    
+    return item
+
 @app.get("/api/character/{character_id}")
 async def get_character(character_id: str, current_user: dict = Depends(get_current_user)):
     """Get character data"""
@@ -1261,6 +1291,20 @@ async def get_character(character_id: str, current_user: dict = Depends(get_curr
     stats = json.loads(character['stats_json'])
     equipment = json.loads(character['equipment_json'])
     inventory = json.loads(character['inventory_json'])
+    
+    # Normalize equipment items to ensure they have weapon_type if missing
+    for slot, item in equipment.items():
+        if item:
+            equipment[slot] = normalize_equipment_item(item, slot)
+    
+    # Normalize inventory items as well
+    for item in inventory:
+        if item and 'slot' in item:
+            slot = item['slot']
+            normalized = normalize_equipment_item(item, slot)
+            # Update item in place
+            for key, value in normalized.items():
+                item[key] = value
     
     # Calculate combat stats
     equipment_stats = get_equipment_stats(equipment)
