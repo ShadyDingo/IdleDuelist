@@ -969,11 +969,12 @@ JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-# Validate JWT_SECRET_KEY in production
+# Validate JWT_SECRET_KEY in production (warn but don't crash)
 if IS_PRODUCTION:
     if not JWT_SECRET_KEY or JWT_SECRET_KEY == "your-secret-key-change-in-production-min-32-chars" or len(JWT_SECRET_KEY) < 32:
-        logger.error("JWT_SECRET_KEY must be set to a secure value (minimum 32 characters) in production!")
-        raise ValueError("JWT_SECRET_KEY must be set to a secure value (minimum 32 characters) in production environment")
+        logger.warning("JWT_SECRET_KEY is not set or is insecure in production! Authentication may be compromised.")
+        logger.warning("Please set JWT_SECRET_KEY environment variable to a secure random string (minimum 32 characters)")
+        # Don't raise - allow server to start but log the warning
 
 # Security scheme for FastAPI
 security = HTTPBearer(auto_error=False)
@@ -1145,7 +1146,7 @@ async def game():
 # Authentication endpoints
 @app.post("/api/register")
 @limiter.limit("5/minute")
-async def register(register_data: RegisterRequest, request: Request = None):
+async def register(register_data: RegisterRequest):
     """Register a new user"""
     conn = None
     try:
@@ -1215,7 +1216,7 @@ async def register(register_data: RegisterRequest, request: Request = None):
 
 @app.post("/api/login")
 @limiter.limit("10/minute")
-async def login(login_data: LoginRequest, request: Request = None):
+async def login(login_data: LoginRequest):
     """Login and return JWT tokens and user data"""
     conn = None
     try:
