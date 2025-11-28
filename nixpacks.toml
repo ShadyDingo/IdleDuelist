@@ -1,9 +1,11 @@
 [phases.setup]
-nixPkgs = ["python312", "python312Packages.pip", "python312Packages.setuptools"]
+nixPkgs = ["python312", "python312Packages.pip", "python312Packages.setuptools", "python312Packages.wheel"]
 
 [phases.install]
 cmds = [
-  "pip3.12 install -r requirements.txt || pip install -r requirements.txt || python3.12 -m pip install -r requirements.txt"
+  "export PATH=$PATH:/root/.nix-profile/bin",
+  "which pip || which pip3.12 || echo 'pip not found in PATH'",
+  "pip install -r requirements.txt || pip3.12 install -r requirements.txt || /root/.nix-profile/bin/pip install -r requirements.txt"
 ]
 
 [start]
