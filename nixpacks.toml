@@ -4,10 +4,12 @@ nixPkgs = ["python312", "python312Packages.pip", "python312Packages.setuptools",
 [phases.install]
 cmds = [
   "export PATH=$PATH:/root/.nix-profile/bin",
-  "which pip || which pip3.12 || echo 'pip not found in PATH'",
-  "pip install -r requirements.txt || pip3.12 install -r requirements.txt || /root/.nix-profile/bin/pip install -r requirements.txt"
+  "python -m venv /opt/venv",
+  "source /opt/venv/bin/activate",
+  "pip install --upgrade pip",
+  "pip install -r requirements.txt"
 ]
 
 [start]
-cmd = "uvicorn server:app --host 0.0.0.0 --port $PORT --workers 2"
+cmd = "/opt/venv/bin/uvicorn server:app --host 0.0.0.0 --port $PORT --workers 2"
 
