@@ -130,3 +130,4 @@ These screens use the dark theme gradient background:
 
 The UI is now fully dark-themed, streamlined, and ready for use!
 
+

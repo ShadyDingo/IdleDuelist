@@ -64,3 +64,4 @@ The database (`web_duelist.db`) will be created automatically. If you need to re
 
 Enjoy playing IdleDuelist! 🎮
 
+

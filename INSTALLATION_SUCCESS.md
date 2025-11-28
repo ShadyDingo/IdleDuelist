@@ -73,3 +73,4 @@ python -m pip install fastapi uvicorn[standard] pydantic python-multipart pytz -
 
 Enjoy playing IdleDuelist! 🎮
 
+

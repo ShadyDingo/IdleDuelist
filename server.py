@@ -969,6 +969,12 @@ JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
+# Validate JWT_SECRET_KEY in production
+if IS_PRODUCTION:
+    if not JWT_SECRET_KEY or JWT_SECRET_KEY == "your-secret-key-change-in-production-min-32-chars" or len(JWT_SECRET_KEY) < 32:
+        logger.error("JWT_SECRET_KEY must be set to a secure value (minimum 32 characters) in production!")
+        raise ValueError("JWT_SECRET_KEY must be set to a secure value (minimum 32 characters) in production environment")
+
 # Security scheme for FastAPI
 security = HTTPBearer(auto_error=False)
 
@@ -1139,101 +1145,161 @@ async def game():
 # Authentication endpoints
 @app.post("/api/register")
 @limiter.limit("5/minute")
-async def register(request: RegisterRequest, req: Request = None):
+async def register(register_data: RegisterRequest, request: Request = None):
     """Register a new user"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Check if username exists
-    if USE_POSTGRES:
-        cursor.execute("SELECT id FROM users WHERE username = %s", (request.username,))
-    else:
-        cursor.execute("SELECT id FROM users WHERE username = ?", (request.username,))
-    if cursor.fetchone():
-        conn.close()
-        raise HTTPException(status_code=400, detail="Username already exists")
-    
-    # Create user
-    user_id = generate_id()
-    password_hash = hash_password(request.password)
-    
-    if USE_POSTGRES:
-        cursor.execute(
-            "INSERT INTO users (id, username, password_hash, email) VALUES (%s, %s, %s, %s)",
-            (user_id, request.username, password_hash, request.email)
-        )
-    else:
-        cursor.execute(
-            "INSERT INTO users (id, username, password_hash, email) VALUES (?, ?, ?, ?)",
-            (user_id, request.username, password_hash, request.email)
-        )
-    
-    conn.commit()
-    conn.close()
-    
-    return {"success": True, "user_id": user_id, "message": "Account created successfully"}
+    conn = None
+    try:
+        # Validate input
+        if not register_data.username or not register_data.password:
+            raise HTTPException(status_code=400, detail="Username and password are required")
+        
+        if len(register_data.username) < 3:
+            raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+        
+        if len(register_data.password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if username exists
+        if USE_POSTGRES:
+            cursor.execute("SELECT id FROM users WHERE username = %s", (register_data.username,))
+        else:
+            cursor.execute("SELECT id FROM users WHERE username = ?", (register_data.username,))
+        if cursor.fetchone():
+            raise HTTPException(status_code=400, detail="Username already exists")
+        
+        # Create user
+        try:
+            user_id = generate_id()
+            password_hash = hash_password(register_data.password)
+        except Exception as e:
+            logger.error(f"Error generating user ID or hashing password: {e}")
+            raise HTTPException(status_code=500, detail="Failed to create user account")
+        
+        # Insert user into database
+        try:
+            if USE_POSTGRES:
+                cursor.execute(
+                    "INSERT INTO users (id, username, password_hash, email) VALUES (%s, %s, %s, %s)",
+                    (user_id, register_data.username, password_hash, register_data.email)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO users (id, username, password_hash, email) VALUES (?, ?, ?, ?)",
+                    (user_id, register_data.username, password_hash, register_data.email)
+                )
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Database error during registration: {e}")
+            if USE_POSTGRES:
+                conn.rollback()
+            raise HTTPException(status_code=500, detail="Failed to create user account. Please try again.")
+        
+        return {"success": True, "user_id": user_id, "message": "Account created successfully"}
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 400, 500)
+        raise
+    except Exception as e:
+        logger.error(f"Registration error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred during registration. Please try again.")
+    finally:
+        # Ensure database connection is closed
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.post("/api/login")
 @limiter.limit("10/minute")
-async def login(request: LoginRequest, req: Request = None):
+async def login(login_data: LoginRequest, request: Request = None):
     """Login and return JWT tokens and user data"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    if USE_POSTGRES:
-        cursor.execute(
-            "SELECT id, username, password_hash FROM users WHERE username = %s",
-            (request.username,)
-        )
-    else:
-        cursor.execute(
-            "SELECT id, username, password_hash FROM users WHERE username = ?",
-            (request.username,)
-        )
-    user = cursor.fetchone()
-    
-    if not user:
-        conn.close()
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    
-    if not verify_password(request.password, user['password_hash']):
-        conn.close()
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    
-    # Get user's character
-    if USE_POSTGRES:
-        cursor.execute(
-            "SELECT * FROM characters WHERE user_id = %s LIMIT 1",
-            (user['id'],)
-        )
-    else:
-        cursor.execute(
-            "SELECT * FROM characters WHERE user_id = ? LIMIT 1",
-            (user['id'],)
-        )
-    character = cursor.fetchone()
-    
-    conn.close()
-    
-    # Create JWT tokens
-    access_token = create_access_token(data={"sub": user['id'], "username": user['username']})
-    refresh_token = create_refresh_token(data={"sub": user['id']})
-    
-    result = {
-        "success": True,
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "user_id": user['id'],
-        "username": user['username'],
-        "has_character": character is not None
-    }
-    
-    if character:
-        result["character_id"] = character['id']
-        result["character_name"] = character['name']
-    
-    return result
+    conn = None
+    try:
+        # Validate input
+        if not login_data.username or not login_data.password:
+            raise HTTPException(status_code=400, detail="Username and password are required")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Query user
+        if USE_POSTGRES:
+            cursor.execute(
+                "SELECT id, username, password_hash FROM users WHERE username = %s",
+                (login_data.username,)
+            )
+        else:
+            cursor.execute(
+                "SELECT id, username, password_hash FROM users WHERE username = ?",
+                (login_data.username,)
+            )
+        user = cursor.fetchone()
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        
+        # Verify password
+        try:
+            if not verify_password(login_data.password, user['password_hash']):
+                raise HTTPException(status_code=401, detail="Invalid username or password")
+        except Exception as e:
+            logger.error(f"Password verification error: {e}")
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        
+        # Get user's character
+        if USE_POSTGRES:
+            cursor.execute(
+                "SELECT * FROM characters WHERE user_id = %s LIMIT 1",
+                (user['id'],)
+            )
+        else:
+            cursor.execute(
+                "SELECT * FROM characters WHERE user_id = ? LIMIT 1",
+                (user['id'],)
+            )
+        character = cursor.fetchone()
+        
+        # Create JWT tokens
+        try:
+            access_token = create_access_token(data={"sub": user['id'], "username": user['username']})
+            refresh_token = create_refresh_token(data={"sub": user['id']})
+        except Exception as e:
+            logger.error(f"JWT token creation error: {e}")
+            raise HTTPException(status_code=500, detail="Failed to create authentication tokens")
+        
+        result = {
+            "success": True,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user_id": user['id'],
+            "username": user['username'],
+            "has_character": character is not None
+        }
+        
+        if character:
+            result["character_id"] = character['id']
+            result["character_name"] = character['name']
+        
+        return result
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 401, 400)
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred during login. Please try again.")
+    finally:
+        # Ensure database connection is closed
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.post("/api/auth/refresh")
 async def refresh_token(refresh_token: str = Body(..., embed=True)):

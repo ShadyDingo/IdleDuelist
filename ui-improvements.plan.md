@@ -94,3 +94,4 @@ This plan implements UI improvements for better user experience: persistent glob
 - Verify database type is logged correctly on Railway
 - Test health check endpoint reports correct database status
 
+
