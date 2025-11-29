@@ -29,10 +29,25 @@ jobs:
           echo "Tests would run here"
           # pytest tests/  # Uncomment if you have tests
       
+      - name: Validate Railway secrets
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "RAILWAY_TOKEN secret is missing or empty." >&2
+            exit 1
+          fi
+          if [ -z "$RAILWAY_SERVICE_ID" ]; then
+            echo "RAILWAY_SERVICE_ID secret is missing or empty." >&2
+            exit 1
+          fi
+
       - name: Deploy to Railway
         uses: bervProject/railway-deploy@0.1.2-beta
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         with:
-          railway_token: ${{ secrets.RAILWAY_TOKEN }}
           service: ${{ secrets.RAILWAY_SERVICE_ID }}
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
