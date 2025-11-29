@@ -57,6 +57,20 @@ class TestAuthEndpoints:
         })
         assert response.status_code == 422  # Validation error
 
+
+class TestPlayerEndpoints:
+    def test_profile_requires_auth(self):
+        response = client.get("/api/player/profile")
+        assert response.status_code == 401
+
+    def test_progress_requires_auth(self):
+        response = client.get("/api/player/progress/test-character")
+        assert response.status_code == 401
+
+    def test_matches_requires_auth(self):
+        response = client.get("/api/player/matches")
+        assert response.status_code == 401
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
