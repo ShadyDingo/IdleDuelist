@@ -1,6 +1,6 @@
 """
 Centralised configuration for IdleDuelist.
-Uses Pydantic settings so deployment targets (Railway, local, CI)
+Uses Pydantic settings so deployment targets (Fly.io, local, CI)
 share a single source of truth for environment variables.
 """
 

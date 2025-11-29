@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan implements UI improvements for better user experience: persistent global chat, online player count, collapsible skill descriptions, and fixes for data persistence on Railway.
+This plan implements UI improvements for better user experience: persistent global chat, online player count, collapsible skill descriptions, and fixes for data persistence on Fly.io/production.
 
 ## Changes Required
 
@@ -54,7 +54,7 @@ This plan implements UI improvements for better user experience: persistent glob
 
 **Location:** `static/game.html` function `updateSkillsScreen()` (~line 2085) and `getStatDescription()` (~line 2119)
 
-### 4. Fix Data Persistence on Railway (`server.py`)
+### 4. Fix Data Persistence on Fly.io / Production (`server.py`)
 
 **Add diagnostic logging:**
 - Log database connection type (SQLite vs PostgreSQL) on startup
@@ -71,7 +71,7 @@ This plan implements UI improvements for better user experience: persistent glob
 **Add startup verification:**
 - In `init_database()`, verify PostgreSQL connection works
 - Print clear error if PostgreSQL connection fails but DATABASE_URL is set
-- Add instructions in error message for Railway PostgreSQL setup
+- Add instructions in error message for provisioning PostgreSQL on Fly.io (or other managed provider)
 
 **Location:**
 - Logging: `server.py` startup section and `get_db_connection()` function (~line 60)
@@ -91,7 +91,7 @@ This plan implements UI improvements for better user experience: persistent glob
 - Test chat doesn't overlap with content
 - Verify online count updates correctly
 - Test skills modal opens/closes properly
-- Verify database type is logged correctly on Railway
+- Verify database type is logged correctly on Fly.io/production
 - Test health check endpoint reports correct database status
 
 

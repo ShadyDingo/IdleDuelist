@@ -2213,7 +2213,7 @@ async def get_game_data():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for Railway"""
+    """Health check endpoint for managed deployments (e.g., Fly.io)"""
     try:
         # Test database connection
         with get_db_connection() as conn:

@@ -23,9 +23,9 @@
 - `raise ValueError(...)` → `logger.warning(...)` (server continues to start)
 
 ### 3. **Build Configuration** ✅ ALREADY FIXED
-- Fixed Nixpacks configuration to include pip
-- Removed ensurepip (doesn't work in Nix environment)
-- Simplified build process
+- Added a Dockerfile for reproducible Fly.io builds
+- Added `fly.toml` with service/health-check settings
+- Simplified the deployment process by removing the legacy Nixpacks configs
 
 ## What Was Working Before
 
@@ -57,7 +57,7 @@ The game was working with:
 ## Next Steps
 
 1. **Deploy these fixes** - The endpoints should now work correctly
-2. **Monitor logs** - Check Railway logs for any remaining errors
+2. **Monitor logs** - Review Fly logs (`fly logs`) and GitHub Actions output for any remaining errors
 3. **Test login/register** - Verify authentication works
 
 ## Files Changed

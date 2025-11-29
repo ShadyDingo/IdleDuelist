@@ -172,7 +172,7 @@ if git ls-remote --heads origin &> /dev/null; then
     echo "Next steps:"
     echo "  1. Run: deploy.bat"
     echo "  2. It will add, commit, and push your changes"
-    echo "  3. Railway will automatically deploy on push"
+    echo "  3. GitHub Actions will deploy to Fly.io after push"
     echo ""
 else
     echo ""

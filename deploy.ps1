@@ -1,6 +1,6 @@
 # IdleDuelist Deployment Script
 # Run this script to commit and push changes to GitHub
-# Railway will automatically redeploy when changes are pushed
+# GitHub Actions will deploy to Fly.io when changes are pushed
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "IdleDuelist Deployment Script" -ForegroundColor Cyan
@@ -14,8 +14,8 @@ if (-not $gitCmd) {
     Write-Host ""
     Write-Host "Please install Git from: https://git-scm.com/download/win" -ForegroundColor Yellow
     Write-Host "Or run these commands in Git Bash:" -ForegroundColor Yellow
-    Write-Host "  git add nixpacks.toml railway.json server.py" -ForegroundColor White
-    Write-Host "  git commit -m 'Fix login and register endpoints'" -ForegroundColor White
+    Write-Host "  git add fly.toml Dockerfile server.py .github/workflows/deploy.yml" -ForegroundColor White
+    Write-Host "  git commit -m 'Update deployment assets'" -ForegroundColor White
     Write-Host "  git push" -ForegroundColor White
     exit 1
 }
@@ -43,7 +43,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "Adding changed files..." -ForegroundColor Yellow
-$filesToAdd = @("nixpacks.toml", "railway.json", "server.py", "deploy.bat", "deploy.ps1", "PUSH_TO_GITHUB.md")
+$filesToAdd = @("fly.toml", "Dockerfile", ".github/workflows/deploy.yml", "server.py", "deploy.bat", "deploy.ps1", "PUSH_TO_GITHUB.md")
 $addedFiles = @()
 
 foreach ($file in $filesToAdd) {
@@ -82,15 +82,11 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "Committing changes..." -ForegroundColor Yellow
     $commitMessage = @"
-Fix login and register endpoints: improve error handling and Request parameter
+Update deployment automation for Fly.io
 
-- Add nixpacks.toml for explicit dependency installation
-- Update railway.json build command to use python -m pip
-- Fix /api/login endpoint with proper error handling and Request parameter
-- Fix /api/register endpoint with proper error handling and Request parameter
-- Add JWT_SECRET_KEY validation for production
-- Improve database connection cleanup in both endpoints
-- Update deployment scripts
+- Add Dockerfile and fly.toml for Fly builds
+- Refresh GitHub Actions workflow for Fly deploys
+- Improve helper scripts and documentation
 "@
     
     git commit -m $commitMessage
@@ -124,8 +120,8 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host "[SUCCESS] Changes pushed successfully!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "[INFO] Railway will automatically detect the push and start a new deployment" -ForegroundColor Cyan
+Write-Host "[INFO] GitHub Actions will deploy this branch to Fly.io" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Monitor your deployment at: https://railway.app" -ForegroundColor Yellow
+Write-Host "Monitor your deployment at: https://fly.io/dashboard" -ForegroundColor Yellow
 Write-Host ""
 

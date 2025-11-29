@@ -136,8 +136,8 @@ echo ========================================
 echo [SUCCESS] Token configured and changes pushed!
 echo ========================================
 echo.
-echo Railway will automatically detect the push and start a new deployment.
-echo Monitor at: https://railway.app
+echo GitHub Actions will deploy this branch to Fly.io.
+echo Monitor at: https://fly.io/dashboard
 echo.
 
 REM Clean up token from memory

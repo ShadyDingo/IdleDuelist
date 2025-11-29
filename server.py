@@ -129,7 +129,7 @@ def init_database():
     except Exception as e:
         logger.critical(r"Cannot initialize database: {e}")
         if USE_POSTGRES:
-            print("⚠ PostgreSQL connection failed. Check Railway PostgreSQL service.")
+            print("⚠ PostgreSQL connection failed. Validate your managed PostgreSQL service (Fly Postgres or similar).")
         raise
     
     # Users table - PostgreSQL uses VARCHAR, SQLite uses TEXT
@@ -5288,13 +5288,13 @@ async def startup_event():
         if USE_POSTGRES:
             logger.info("✓ PostgreSQL connection successful (data will persist)")
         else:
-            logger.warning("Using SQLite (data will NOT persist on Railway!)")
-            logger.warning("To fix: Add PostgreSQL service in Railway and set DATABASE_URL environment variable")
+            logger.warning("Using SQLite (data will NOT persist in production environments)")
+            logger.warning("To fix: Provision a managed PostgreSQL instance (e.g., Fly Postgres) and set the DATABASE_URL environment variable")
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
         if USE_POSTGRES:
             logger.error("PostgreSQL connection failed but DATABASE_URL is set!")
-            logger.error("Check Railway PostgreSQL service status and connection string")
+            logger.error("Check the managed PostgreSQL service status and connection string (Fly Postgres or equivalent)")
     
     # Log Redis configuration
     if REDIS_URL:
