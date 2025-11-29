@@ -13,10 +13,10 @@
 - [ ] Verify CORS_ORIGINS is set and does not include "*"
 - [ ] Verify JWT_SECRET_KEY is strong (use: `python -c "import secrets; print(secrets.token_urlsafe(32))"`)
 - [ ] Review rate limiting configuration
-- [ ] Ensure HTTPS is enabled (Railway handles this automatically)
+- [ ] Ensure HTTPS is enabled (Fly.io handles this automatically)
 
 ### Database
-- [ ] PostgreSQL service is running in Railway
+- [ ] PostgreSQL service is running (Fly Postgres or external provider)
 - [ ] DATABASE_URL is correctly configured
 - [ ] Database migrations have run successfully
 - [ ] Create initial database backup

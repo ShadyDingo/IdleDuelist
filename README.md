@@ -31,7 +31,7 @@ A turn-based combat game built with FastAPI and vanilla JavaScript.
 
 ### Production Deployment
 
-See [README_DEPLOYMENT.md](README_DEPLOYMENT.md) for Railway deployment instructions.
+See [README_DEPLOYMENT.md](README_DEPLOYMENT.md) for Fly.io deployment instructions.
 
 For production readiness checklist, see [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md).
 
@@ -59,9 +59,10 @@ IdleDuelist/
 ├── start_server.py      # Server startup script
 ├── start_server.bat     # Windows startup script
 ├── requirements.txt     # Python dependencies
-├── pytest.ini          # Test configuration
-├── railway.json        # Railway deployment config
-├── .env.example        # Environment variables template
+├── pytest.ini           # Test configuration
+├── Dockerfile           # Container build for Fly.io
+├── fly.toml             # Fly.io application config
+├── .env.example         # Environment variables template
 └── README_DEPLOYMENT.md # Deployment guide
 ```
 
@@ -81,16 +82,16 @@ IdleDuelist/
 ## Online Architecture & Persistence
 
 - **Modular backend:** `app/core` centralizes configuration/logging/Redis management, `app/db` abstracts SQLite/PostgreSQL differences, and `app/services` contains state stores plus the new `PlayerTrackingService`.
-- **Player telemetry tables:** startup now ensures `player_profiles`, `player_sessions`, `player_progress_log`, and `pvp_matches` exist on both SQLite (local) and PostgreSQL (Railway). New analytics endpoints expose this data:
+- **Player telemetry tables:** startup now ensures `player_profiles`, `player_sessions`, `player_progress_log`, and `pvp_matches` exist on both SQLite (local) and managed PostgreSQL (Fly Postgres or similar). New analytics endpoints expose this data:
   - `GET /api/player/profile`
   - `GET /api/player/progress/{character_id}`
   - `GET /api/player/matches`
-- **Queue + combat state backed by Redis:** `state_service` seamlessly toggles between Redis (`REDIS_URL`) and the in-memory fallback, so Railway deployments can scale horizontally without losing combat data.
-- **Railway deployment tips:**
-  1. Provision a PostgreSQL service and set `DATABASE_URL` in Railway.
-  2. (Optional) Provision Redis and set `REDIS_URL` for distributed combat queues.
-  3. Ensure `CORS_ORIGINS` lists your production domain(s) – wildcards are blocked in production.
-  4. Push to `main` and Railway will rebuild automatically using `railway.json`.
+- **Queue + combat state backed by Redis:** `state_service` seamlessly toggles between Redis (`REDIS_URL`) and the in-memory fallback, so Fly.io deployments can scale horizontally without losing combat data.
+- **Fly.io deployment tips:**
+  1. Provision a Fly Postgres cluster (or any managed PostgreSQL) and set `DATABASE_URL`.
+  2. (Optional) Attach Redis (Fly Redis, Upstash, etc.) and set `REDIS_URL` for distributed combat queues.
+  3. Store `FLY_API_TOKEN` (and optional `FLY_APP_NAME`) as GitHub Secrets for the deploy workflow.
+  4. Push to `main` to trigger the GitHub Actions workflow that builds the Dockerfile and deploys via Flyctl.
 
 ## API Documentation
 

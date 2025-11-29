@@ -16,7 +16,7 @@
    deploy.bat
    ```
    - Automatically adds, commits, and pushes changes
-   - Railway will auto-deploy on push
+   - GitHub Actions will build and deploy to Fly.io on push
 
 ## Architecture
 
@@ -57,8 +57,9 @@ The architecture:
 
 - `scripts/setup_git_auth.bat` - One-time authentication setup
 - `deploy.bat` - Daily deployment script
-- `railway.json` - Railway deployment configuration
-- `nixpacks.toml` - Build configuration
+- `Dockerfile` - Container build definition for Fly.io
+- `fly.toml` - Fly.io app configuration
+- `.github/workflows/deploy.yml` - CI/CD pipeline that deploys via Flyctl
 - `docs/DEPLOYMENT_ARCHITECTURE.md` - Detailed architecture docs
 
 ## Troubleshooting

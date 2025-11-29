@@ -47,7 +47,7 @@ This document explains the deployment architecture for IdleDuelist, focusing on 
 - Verifies repository state
 - Detects changed files
 - Commits with descriptive messages
-- Pushes to GitHub (triggers Railway auto-deploy)
+- Pushes to GitHub (triggers the Fly.io GitHub Actions workflow)
 
 **Why this approach**:
 - ✅ Simple, focused scripts (single responsibility)
@@ -56,22 +56,23 @@ This document explains the deployment architecture for IdleDuelist, focusing on 
 - ✅ Can be run manually or automated
 - ✅ Doesn't depend on external services
 
-### 3. Railway Integration
+### 3. Fly.io CI/CD
 
 **Purpose**: Automatic deployment when code is pushed to GitHub
 
 **How it works**:
-- Railway watches GitHub repository
-- On push to main/master, triggers build
-- Uses `railway.json` and `nixpacks.toml` for configuration
-- Builds and deploys automatically
+- GitHub Actions (`.github/workflows/deploy.yml`) runs on pushes to `main`/`master`
+- Workflow installs dependencies, runs tests, then installs `flyctl`
+- `flyctl deploy --remote-only --detach` builds the Dockerfile and releases the app defined in `fly.toml`
+- Requires `FLY_API_TOKEN` (and optional `FLY_APP_NAME`) GitHub secrets
+- Fly handles rolling out the new release, TLS, and health checks
 
 **Why this approach**:
-- ✅ Standard CI/CD pattern (GitHub → Railway)
-- ✅ No custom deployment scripts needed
-- ✅ Railway handles infrastructure
-- ✅ Can be monitored via Railway dashboard
-- ✅ Rollback available if needed
+- ✅ Standard CI/CD pattern (GitHub → Fly.io via Flyctl)
+- ✅ Reproducible Docker builds checked into the repo
+- ✅ Deployment logs exist both in GitHub Actions and `fly logs`
+- ✅ Rollback via `fly releases` if needed
+- ✅ Works even if contributors cannot install Fly CLI locally
 
 ## File Structure
 
@@ -82,8 +83,9 @@ IdleDuelist/
 │   └── setup_git_auth.ps1      # PowerShell setup script
 ├── deploy.bat                   # Windows deployment script
 ├── deploy.ps1                   # PowerShell deployment script
-├── railway.json                 # Railway deployment config
-├── nixpacks.toml                # Nixpacks build config
+├── Dockerfile                   # Container build used by Fly.io
+├── fly.toml                     # Fly.io app + service definition
+├── .github/workflows/deploy.yml # CI pipeline that runs flyctl
 ├── .gitignore                   # Excludes credentials/tokens
 └── docs/
     └── DEPLOYMENT_ARCHITECTURE.md  # This file
@@ -103,14 +105,14 @@ IdleDuelist/
 1. Make code changes
 2. Run `deploy.bat`
 3. Script handles: add → commit → push
-4. Railway automatically detects push and deploys
+4. GitHub Actions builds and deploys to Fly.io automatically
 
 ## Why This Architecture is Solid
 
 ### 1. **Uses Standard Tools**
 - Git's built-in credential helper (not custom solution)
 - Standard Git workflow (add, commit, push)
-- Railway's standard GitHub integration
+- GitHub Actions + Flyctl integration (official tooling)
 
 ### 2. **Separation of Concerns**
 - Authentication setup: separate script
@@ -145,13 +147,13 @@ IdleDuelist/
 - Work with HTTPS (simpler for Windows)
 - Can have specific scopes (more secure)
 
-### Q: Why not use GitHub Actions for deployment?
+### Q: Why use GitHub Actions instead of manual Fly deploys?
 
-**A**: We could, but:
-- Railway's GitHub integration is simpler
-- No need for additional CI/CD setup
-- Railway handles the deployment directly
-- Less moving parts = more stable
+**A**:
+- Every push to `main` proves it can build/tests before deploying
+- Contributors without Fly CLI access still trigger deploys
+- Logs/approvals live in GitHub along with code review context
+- You can still run `flyctl deploy` locally when needed
 
 ### Q: What if the token expires?
 

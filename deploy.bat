@@ -13,8 +13,8 @@ if %ERRORLEVEL% NEQ 0 (
     echo.
     echo Please install Git from: https://git-scm.com/download/win
     echo Or run these commands in Git Bash:
-    echo   git add nixpacks.toml railway.json server.py
-    echo   git commit -m "Fix login and register endpoints"
+    echo   git add fly.toml Dockerfile server.py .github\workflows\deploy.yml
+    echo   git commit -m "Update deployment assets"
     echo   git push
     echo.
     pause
@@ -47,7 +47,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo Adding changed files...
-git add nixpacks.toml railway.json server.py deploy.bat deploy.ps1 PUSH_TO_GITHUB.md 2>nul
+git add fly.toml Dockerfile server.py deploy.bat deploy.ps1 PUSH_TO_GITHUB.md .github/workflows/deploy.yml 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo [WARNING] Some files may not exist, continuing...
 )
@@ -71,15 +71,11 @@ if %ERRORLEVEL% EQU 0 (
 ) else (
     echo.
     echo Committing changes...
-    git commit -m "Fix login and register endpoints: improve error handling and Request parameter
+    git commit -m "Update deployment automation for Fly.io
 
-- Add nixpacks.toml for explicit dependency installation
-- Update railway.json build command to use python -m pip
-- Fix /api/login endpoint with proper error handling and Request parameter
-- Fix /api/register endpoint with proper error handling and Request parameter
-- Add JWT_SECRET_KEY validation for production
-- Improve database connection cleanup in both endpoints
-- Update deployment scripts"
+- Add Dockerfile and fly.toml for Fly builds
+- Refresh GitHub Actions workflow for Fly deploys
+- Improve helper scripts and documentation"
     
     if %ERRORLEVEL% NEQ 0 (
         echo [ERROR] Failed to commit changes
@@ -113,9 +109,9 @@ echo ========================================
 echo [SUCCESS] Changes pushed successfully!
 echo ========================================
 echo.
-echo [INFO] Railway will automatically detect the push and start a new deployment
+echo [INFO] GitHub Actions will deploy this branch to Fly.io
 echo.
-echo Monitor your deployment at: https://railway.app
+echo Monitor your deployment at: https://fly.io/dashboard
 echo.
 pause
 

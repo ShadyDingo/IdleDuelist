@@ -173,7 +173,7 @@
    - `DATABASE_URL` (PostgreSQL)
    - `REDIS_URL` (recommended)
 
-2. **Deploy to Railway:**
+2. **Deploy to Fly.io:**
    - Follow README_DEPLOYMENT.md
    - Use PRODUCTION_CHECKLIST.md for verification
 

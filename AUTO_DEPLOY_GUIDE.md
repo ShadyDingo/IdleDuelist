@@ -16,8 +16,8 @@ Run from PowerShell:
 
 ### Option 3: Manual Commands
 ```bash
-git add nixpacks.toml railway.json server.py deploy.bat deploy.ps1
-git commit -m "Fix login and register endpoints"
+git add fly.toml Dockerfile server.py deploy.bat deploy.ps1 .github/workflows/deploy.yml
+git commit -m "Update deployment automation for Fly.io"
 git push
 ```
 
@@ -40,25 +40,26 @@ git push
 ### Added GitHub Actions Workflow:
 - ✅ Automatic deployment on push to main/master
 - ✅ Runs tests before deployment
-- ✅ Requires Railway token in GitHub Secrets
+- ✅ Uses Flyctl to deploy the Docker image
+- ✅ Requires `FLY_API_TOKEN` (and optional `FLY_APP_NAME`) in GitHub Secrets
 
 ## Setup GitHub Actions (Optional)
 
 If you want automatic deployment via GitHub Actions:
 
-1. Get your Railway token:
-   - Go to Railway → Settings → Tokens
-   - Create a new token
+1. Create a Fly API token:
+   - Install Fly CLI: `fly auth login`
+   - Run `fly auth token` and copy the value
 
 2. Add to GitHub Secrets:
    - Go to your GitHub repo → Settings → Secrets and variables → Actions
-   - Add `RAILWAY_TOKEN` with your Railway token
-   - Add `RAILWAY_SERVICE_ID` with your service ID
+   - Add `FLY_API_TOKEN` with the token you generated
+   - (Optional) Add `FLY_APP_NAME` if you want to override the name in `fly.toml`
 
-3. Push the workflow file:
+3. Push the workflow (already included, but re-run if you modify it):
    ```bash
    git add .github/workflows/deploy.yml
-   git commit -m "Add GitHub Actions deployment"
+   git commit -m "Enable Fly.io deployment workflow"
    git push
    ```
 
@@ -81,6 +82,8 @@ If you want automatic deployment via GitHub Actions:
 
 - ✅ `deploy.bat` - Improved with error handling
 - ✅ `deploy.ps1` - Improved with error handling  
-- ✅ `.github/workflows/deploy.yml` - GitHub Actions workflow (NEW)
+- ✅ `.github/workflows/deploy.yml` - GitHub Actions workflow (Fly deploy)
+- ✅ `Dockerfile` - Container build instructions for Fly.io
+- ✅ `fly.toml` - Fly app + service configuration
 - ✅ `.gitignore` - Updated to ignore unnecessary files
 

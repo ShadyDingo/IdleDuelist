@@ -7,17 +7,17 @@
 **Error:** `Failed to connect to PostgreSQL`
 
 **Solutions:**
-1. Verify DATABASE_URL is set correctly in Railway
-2. Check PostgreSQL service is running in Railway dashboard
+1. Verify `DATABASE_URL` is set (`fly secrets list | grep DATABASE_URL`)
+2. Check Fly Postgres cluster status: `fly postgres status -a <postgres-app>`
 3. Verify connection string format: `postgresql://user:password@host:port/database`
-4. Check firewall/network settings
+4. If using an external database, confirm firewall/network rules allow Fly's outbound IP ranges
 
-**Error:** `Using SQLite (data will NOT persist on Railway!)`
+**Error:** `Using SQLite (data will NOT persist in production!)`
 
 **Solutions:**
-1. Add PostgreSQL service in Railway
-2. Set DATABASE_URL environment variable
-3. Restart the application
+1. Provision a managed PostgreSQL service (Fly Postgres, RDS, Supabase, etc.)
+2. Set the `DATABASE_URL` secret
+3. Redeploy so the app reconnects using the new URL
 
 ### Redis Connection Issues
 
@@ -29,9 +29,9 @@
 - Not suitable for production scaling
 
 **Solutions:**
-1. Add Redis service in Railway
-2. Set REDIS_URL environment variable
-3. Restart the application
+1. Provision a managed Redis instance (Fly Redis, Upstash, Redis Cloud, etc.)
+2. Set the `REDIS_URL` environment variable/secret
+3. Redeploy or restart the application
 
 ### Authentication Errors
 
@@ -111,7 +111,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 2. Review database query performance
 3. Verify connection pooling is working
 4. Check Redis is caching properly
-5. Review server resource usage in Railway
+5. Review server resource usage in Fly dashboard (`fly status`, `fly logs`)
 
 **Symptom:** High error rates
 
@@ -127,11 +127,13 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 - Production: `idleduelist.log` (rotating, max 10MB, 5 backups)
 - Development: Console output
 
-### Railway Logs
-- Available in Railway dashboard under "Deployments" → "View Logs"
+### Fly Logs
+- `fly logs` (real-time)
+- Fly dashboard → App → Logs
+- GitHub Actions → `Deploy to Fly.io` job output
 
 ### Database Logs
-- PostgreSQL: Check Railway PostgreSQL service logs
+- PostgreSQL: `fly postgres logs -a <postgres-app>` or provider dashboard
 - SQLite: No separate logs (errors appear in application logs)
 
 ## Health Check Endpoints
@@ -146,7 +148,7 @@ Use these to diagnose issues:
 ## Getting Help
 
 1. Check application logs for detailed error messages
-2. Review Railway deployment logs
+2. Review Fly deploy logs (GitHub Actions + `fly logs`)
 3. Check `/health` endpoint for service status
 4. Review this troubleshooting guide
 5. Check GitHub issues (if applicable)

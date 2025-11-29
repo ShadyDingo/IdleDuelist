@@ -67,8 +67,6 @@ Thumbs.db
 docs/
 
 # Development files
-deploy_to_railway.py
-railway_deployment_guide.md
 DEPLOYMENT_CHECKLIST.md
 MOBILE_*.md
 COMBAT_*.md

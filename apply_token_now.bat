@@ -144,8 +144,8 @@ echo ========================================
 echo [SUCCESS] Token applied and changes pushed!
 echo ========================================
 echo.
-echo Railway will automatically detect the push and deploy.
-echo Monitor at: https://railway.app
+echo GitHub Actions will deploy this branch to Fly.io.
+echo Monitor at: https://fly.io/dashboard
 echo.
 pause
 
