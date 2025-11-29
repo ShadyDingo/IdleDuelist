@@ -39,6 +39,10 @@ For production readiness checklist, see [PRODUCTION_CHECKLIST.md](PRODUCTION_CHE
 
 ```
 IdleDuelist/
+├── app/                 # Application package
+│   ├── core/           # Config, logging, cache, in-memory state
+│   ├── db/             # Database manager + bootstrap helpers
+│   └── services/       # Player tracking, matchmaking state utilities
 ├── assets/              # Game assets (images, backgrounds, etc.)
 ├── static/              # Frontend files
 │   ├── game.html        # Main game interface
@@ -71,6 +75,22 @@ IdleDuelist/
 - Feedback system
 - Leaderboards
 - Auto-combat for PvE
+- Persistent player profiles + match history storage
+- Competitive PvP MMR with Redis-backed queueing
+
+## Online Architecture & Persistence
+
+- **Modular backend:** `app/core` centralizes configuration/logging/Redis management, `app/db` abstracts SQLite/PostgreSQL differences, and `app/services` contains state stores plus the new `PlayerTrackingService`.
+- **Player telemetry tables:** startup now ensures `player_profiles`, `player_sessions`, `player_progress_log`, and `pvp_matches` exist on both SQLite (local) and PostgreSQL (Railway). New analytics endpoints expose this data:
+  - `GET /api/player/profile`
+  - `GET /api/player/progress/{character_id}`
+  - `GET /api/player/matches`
+- **Queue + combat state backed by Redis:** `state_service` seamlessly toggles between Redis (`REDIS_URL`) and the in-memory fallback, so Railway deployments can scale horizontally without losing combat data.
+- **Railway deployment tips:**
+  1. Provision a PostgreSQL service and set `DATABASE_URL` in Railway.
+  2. (Optional) Provision Redis and set `REDIS_URL` for distributed combat queues.
+  3. Ensure `CORS_ORIGINS` lists your production domain(s) – wildcards are blocked in production.
+  4. Push to `main` and Railway will rebuild automatically using `railway.json`.
 
 ## API Documentation
 
@@ -100,6 +120,8 @@ See `.env.example` for all available environment variables.
 
 **Optional:**
 - `REDIS_URL` (Redis connection string)
+- `REDIS_NAMESPACE` (defaults to `idleduelist`, useful when sharing Redis)
+- `COMBAT_STATE_TTL`, `AUTO_FIGHT_TTL`, `PVP_QUEUE_TTL`, `ACTIVE_SESSION_TTL` for fine-tuning expirations
 - `JWT_ALGORITHM` (default: HS256)
 - `PORT` (default: 8000)
 

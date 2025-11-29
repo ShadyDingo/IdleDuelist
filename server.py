@@ -21,11 +21,31 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from jose import JWTError, jwt
 import logging
-from logging.handlers import RotatingFileHandler
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.exceptions import RequestValidationError
+
+from app.core.cache import redis_cache
+from app.core.config import settings
+from app.core.logging import configure_logging
+from app.core.state import game_state
+from app.db import db_manager, execute_query, get_db_connection, get_db_cursor
+from app.db.bootstrap import ensure_player_tracking_tables
+from app.services.player_tracking import player_tracking_service
+from app.services.state_service import (
+    delete_auto_fight_session,
+    delete_combat_state,
+    delete_pvp_queue_entry,
+    get_all_auto_fight_sessions,
+    get_all_pvp_queue,
+    get_auto_fight_session,
+    get_combat_state,
+    get_pvp_queue_entry,
+    set_auto_fight_session,
+    set_combat_state,
+    set_pvp_queue_entry,
+)
 
 # Import error handlers
 try:
@@ -55,14 +75,7 @@ from game_logic import (
 app = FastAPI(title="IdleDuelist", version="2.0.0")
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO if os.getenv("ENVIRONMENT", "development") == "production" else logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        RotatingFileHandler('idleduelist.log', maxBytes=10*1024*1024, backupCount=5) if os.getenv("ENVIRONMENT") == "production" else logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+logger = configure_logging(settings)
 
 # Rate limiter setup
 limiter = Limiter(key_func=get_remote_address, default_limits=["1000/hour"])
@@ -73,30 +86,23 @@ if validation_exception_handler:
 if general_exception_handler:
     app.add_exception_handler(Exception, general_exception_handler)
 
-# Determine environment
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
-IS_PRODUCTION = ENVIRONMENT == "production"
+# Determine environment / CORS
+IS_PRODUCTION = settings.is_production
+cors_origins = settings.cors_origin_list
 
-# CORS middleware - restrict to specific domains in production
-# In production, require explicit CORS_ORIGINS configuration
-# In development, allow all origins for easier local testing
-CORS_ORIGINS_STR = os.getenv("CORS_ORIGINS", "")
 if IS_PRODUCTION:
-    if not CORS_ORIGINS_STR or CORS_ORIGINS_STR == "*":
+    cors_raw = (settings.cors_origins or "").strip()
+    if not cors_raw or cors_raw == "*" or not cors_origins:
         raise ValueError(
             "CORS_ORIGINS must be explicitly set in production environment. "
             "Set CORS_ORIGINS to a comma-separated list of allowed origins."
         )
-    CORS_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_STR.split(",") if origin.strip()]
-    if not CORS_ORIGINS:
-        raise ValueError("CORS_ORIGINS cannot be empty in production")
 else:
-    # Development: allow all origins for local testing
-    CORS_ORIGINS = ["*"] if not CORS_ORIGINS_STR else [origin.strip() for origin in CORS_ORIGINS_STR.split(",") if origin.strip()]
+    cors_origins = cors_origins or ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -105,204 +111,15 @@ app.add_middleware(
 # Mount static files
 app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
-# Database connection - supports both SQLite (dev) and PostgreSQL (prod)
-DATABASE = "idleduelist.db"
-DATABASE_URL = os.getenv("DATABASE_URL", None)  # Railway provides this for PostgreSQL
-USE_POSTGRES = DATABASE_URL is not None and DATABASE_URL.startswith("postgres")
+# Database / cache configuration
+DATABASE_URL = settings.database_url
+USE_POSTGRES = db_manager.use_postgres
+REDIS_URL = settings.redis_url
 
-# Redis connection for caching and state management
-REDIS_URL = os.getenv("REDIS_URL", None)
-redis_client = None
-
-# Combat state management - will use Redis in production
-combat_states = {}
-pvp_queue = {}  # character_id -> joined_at timestamp
-auto_fight_sessions = {}  # session_id -> session_data
-
-# Active user sessions tracking (for online player count)
-# Maps user_id -> last_activity_timestamp
-active_sessions = {}
-
-def get_db_connection():
-    """Get database connection - SQLite for dev, PostgreSQL for prod"""
-    if USE_POSTGRES:
-        try:
-            import psycopg2
-            from psycopg2.extras import RealDictCursor
-            
-            # Create a custom cursor class that auto-converts ? to %s
-            class AutoConvertCursor(RealDictCursor):
-                def execute(self, query, vars=None):
-                    if isinstance(query, str):
-                        # Convert SQLite ? placeholders to PostgreSQL %s
-                        query = query.replace('?', '%s')
-                    return super().execute(query, vars)
-            
-            # Parse DATABASE_URL (format: postgresql://user:password@host:port/dbname)
-            conn = psycopg2.connect(DATABASE_URL)
-            conn.cursor_factory = AutoConvertCursor
-            return conn
-        except ImportError:
-            logger.error("psycopg2 not installed, falling back to SQLite. Install with: pip install psycopg2-binary")
-            conn = sqlite3.connect(DATABASE)
-            conn.row_factory = sqlite3.Row
-            return conn
-        except Exception as e:
-            logger.error(f"Failed to connect to PostgreSQL: {e}. Falling back to SQLite (data will NOT persist on Railway!)")
-            conn = sqlite3.connect(DATABASE)
-            conn.row_factory = sqlite3.Row
-            return conn
-    else:
-        conn = sqlite3.connect(DATABASE)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-def execute_query(cursor, query, params=None):
-    """
-    Execute a query with proper parameter placeholders for the current database.
-    Converts ? to %s for PostgreSQL automatically.
-    Note: This is a simple conversion - ensure queries don't have ? in string literals.
-    """
-    if params is None:
-        params = ()
-    
-    if USE_POSTGRES:
-        # Convert SQLite ? placeholders to PostgreSQL %s
-        query = query.replace('?', '%s')
-    
-    return cursor.execute(query, params)
-
-def get_db_cursor(conn):
-    """
-    Get a database cursor with automatic parameter placeholder conversion.
-    Wraps the cursor's execute method to handle PostgreSQL vs SQLite differences.
-    """
-    cursor = conn.cursor()
-    
-    if USE_POSTGRES:
-        # Store original execute method
-        original_execute = cursor.execute
-        
-        def wrapped_execute(query, params=None):
-            """Wrapper that converts ? to %s for PostgreSQL"""
-            if params is None:
-                params = ()
-            # Convert SQLite ? placeholders to PostgreSQL %s
-            if isinstance(query, str):
-                query = query.replace('?', '%s')
-            return original_execute(query, params)
-        
-        # Replace execute method with wrapper
-        cursor.execute = wrapped_execute
-    
-    return cursor
 
 def get_redis_client():
-    """Get Redis client or return None if not available"""
-    global redis_client
-    if redis_client is not None:
-        return redis_client
-    
-    if REDIS_URL:
-        try:
-            import redis
-            redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-            # Test connection
-            redis_client.ping()
-            return redis_client
-        except (ImportError, Exception) as e:
-            logger.warning(r"Redis not available: {e}, using in-memory storage")
-            return None
-    return None
-
-# Redis helper functions for combat states
-def get_combat_state(combat_id: str) -> Optional[Dict]:
-    """Get combat state from Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        data = r.get(f"combat:{combat_id}")
-        return json.loads(data) if data else None
-    return combat_states.get(combat_id)
-
-def set_combat_state(combat_id: str, state: Dict):
-    """Set combat state in Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        # Store with 1 hour expiration
-        r.setex(f"combat:{combat_id}", 3600, json.dumps(state))
-    else:
-        combat_states[combat_id] = state
-
-def delete_combat_state(combat_id: str):
-    """Delete combat state from Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        r.delete(f"combat:{combat_id}")
-    else:
-        combat_states.pop(combat_id, None)
-
-# Redis helper functions for PVP queue
-def get_pvp_queue_entry(character_id: str) -> Optional[str]:
-    """Get PVP queue entry from Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        return r.get(f"pvp_queue:{character_id}")
-    return pvp_queue.get(character_id)
-
-def set_pvp_queue_entry(character_id: str, timestamp: str):
-    """Set PVP queue entry in Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        r.setex(f"pvp_queue:{character_id}", 300, timestamp)  # 5 min expiration
-    else:
-        pvp_queue[character_id] = timestamp
-
-def delete_pvp_queue_entry(character_id: str):
-    """Delete PVP queue entry from Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        r.delete(f"pvp_queue:{character_id}")
-    else:
-        pvp_queue.pop(character_id, None)
-
-# Redis helper functions for auto-fight sessions
-def get_auto_fight_session(session_id: str) -> Optional[Dict]:
-    """Get auto-fight session from Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        data = r.get(f"autofight:{session_id}")
-        return json.loads(data) if data else None
-    return auto_fight_sessions.get(session_id)
-
-def set_auto_fight_session(session_id: str, session: Dict):
-    """Set auto-fight session in Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        # Store with 2 hour expiration (longer than 1 hour session)
-        r.setex(f"autofight:{session_id}", 7200, json.dumps(session))
-    else:
-        auto_fight_sessions[session_id] = session
-
-def delete_auto_fight_session(session_id: str):
-    """Delete auto-fight session from Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        r.delete(f"autofight:{session_id}")
-    else:
-        auto_fight_sessions.pop(session_id, None)
-
-def get_all_auto_fight_sessions() -> Dict[str, Dict]:
-    """Get all auto-fight sessions from Redis or in-memory"""
-    r = get_redis_client()
-    if r:
-        sessions = {}
-        for key in r.keys("autofight:*"):
-            session_id = key.replace("autofight:", "")
-            data = r.get(key)
-            if data:
-                sessions[session_id] = json.loads(data)
-        return sessions
-    return auto_fight_sessions.copy()
+    """Return shared Redis client if available."""
+    return redis_cache.get_client()
 
 def init_database():
     """Initialize database with all tables - compatible with both SQLite and PostgreSQL"""
@@ -783,6 +600,7 @@ def init_database():
             )
         ''')
     
+    ensure_player_tracking_tables(conn, cursor, USE_POSTGRES)
     conn.commit()
     conn.close()
     logger.info("Database initialized successfully")
@@ -1002,7 +820,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     # Track active session for online player count
     user_id = data.get("sub") or data.get("user_id")
     if user_id:
-        active_sessions[user_id] = datetime.utcnow().timestamp()
+        game_state.touch_session(user_id)
     
     return encoded_jwt
 
@@ -1041,7 +859,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     # Update active session timestamp for online player count
     user_id = payload.get("sub")
     if user_id:
-        active_sessions[user_id] = datetime.utcnow().timestamp()
+        game_state.touch_session(user_id)
     if user_id is None:
         raise HTTPException(status_code=401, detail="Invalid token payload")
     
@@ -1146,7 +964,7 @@ async def game():
 # Authentication endpoints
 @app.post("/api/register")
 @limiter.limit("5/minute")
-async def register(register_data: RegisterRequest):
+async def register(register_data: RegisterRequest, request: Request):
     """Register a new user"""
     conn = None
     try:
@@ -1192,6 +1010,7 @@ async def register(register_data: RegisterRequest):
                     (user_id, register_data.username, password_hash, register_data.email)
                 )
             conn.commit()
+            player_tracking_service.ensure_profile(user_id, register_data.username, register_data.email)
         except Exception as e:
             logger.error(f"Database error during registration: {e}")
             if USE_POSTGRES:
@@ -1216,7 +1035,7 @@ async def register(register_data: RegisterRequest):
 
 @app.post("/api/login")
 @limiter.limit("10/minute")
-async def login(login_data: LoginRequest):
+async def login(login_data: LoginRequest, request: Request):
     """Login and return JWT tokens and user data"""
     conn = None
     try:
@@ -1285,6 +1104,12 @@ async def login(login_data: LoginRequest):
         if character:
             result["character_id"] = character['id']
             result["character_name"] = character['name']
+
+        try:
+            ip_address = request.client.host if request and request.client else None
+            player_tracking_service.record_login(user['id'], user['username'], ip_address)
+        except Exception as tracking_error:
+            logger.warning(f"Failed to record login analytics: {tracking_error}")
         
         return result
         
@@ -3072,7 +2897,7 @@ def end_combat(combat_id: str):
             cursor = conn.cursor()
             
             # Update character
-            cursor.execute("SELECT exp, level, gold, skill_points FROM characters WHERE id = ?", (winner_id,))
+            cursor.execute("SELECT user_id, name, exp, level, gold, skill_points FROM characters WHERE id = ?", (winner_id,))
             char_data = cursor.fetchone()
             if not char_data:
                 logger.error(f"Character {winner_id} not found when trying to award rewards")
@@ -3086,6 +2911,7 @@ def end_combat(combat_id: str):
                 return
             
             # Handle None values (SQLite returns None for missing/null values)
+            owner_user_id = char_data['user_id']
             current_exp = char_data['exp'] if char_data['exp'] is not None else 0
             current_gold = char_data['gold'] if char_data['gold'] is not None else 0
             current_skill_points = char_data['skill_points'] if char_data['skill_points'] is not None else 0
@@ -3108,6 +2934,22 @@ def end_combat(combat_id: str):
                 "UPDATE characters SET exp = ?, level = ?, skill_points = ?, gold = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 (char_dict['exp'], char_dict['level'], char_dict.get('skill_points', 0), new_gold, winner_id)
             )
+
+            try:
+                player_tracking_service.record_progress(
+                    character_id=winner_id,
+                    user_id=owner_user_id,
+                    level=char_dict['level'],
+                    exp_gain=exp_gain,
+                    gold_gain=gold_gain,
+                    metadata={
+                        "combat_id": combat_id,
+                        "is_pvp": state.get('is_pvp', False),
+                        "opponent_id": state.get('opponent_id'),
+                    },
+                )
+            except Exception as tracking_error:
+                logger.warning(f"Failed to record progress for {winner_id}: {tracking_error}")
             
             # Drop equipment based on drop chance
             equipment_dropped = False
@@ -3177,9 +3019,9 @@ def end_combat(combat_id: str):
                                     pass  # Column already exists
                     
                     # Get current PvP stats for both players
-                    cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (winner_id,))
+                    cursor.execute("SELECT user_id, pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (winner_id,))
                     winner_stats = cursor.fetchone()
-                    cursor.execute("SELECT pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (loser_id,))
+                    cursor.execute("SELECT user_id, pvp_wins, pvp_losses, pvp_mmr FROM characters WHERE id = ?", (loser_id,))
                     loser_stats = cursor.fetchone()
                     
                     # Get MMR values (default to 1000 if not set)
@@ -3213,6 +3055,22 @@ def end_combat(combat_id: str):
                         "UPDATE characters SET pvp_losses = ?, pvp_mmr = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                         (loser_losses, new_loser_mmr, loser_id)
                     )
+
+                    if winner_stats and loser_stats:
+                        try:
+                            player_tracking_service.record_pvp_result(
+                                winner_character_id=winner_id,
+                                loser_character_id=loser_id,
+                                winner_user_id=winner_stats['user_id'],
+                                loser_user_id=loser_stats['user_id'],
+                                winner_mmr_before=winner_mmr,
+                                winner_mmr_after=new_winner_mmr,
+                                loser_mmr_before=loser_mmr,
+                                loser_mmr_after=new_loser_mmr,
+                                metadata={"combat_id": combat_id},
+                            )
+                        except Exception as tracking_error:
+                            logger.warning(f"Failed to persist PvP match analytics: {tracking_error}")
                 except Exception as pvp_error:
                     import traceback
                     error_msg = f"Failed to update PvP stats: {pvp_error}"
@@ -3630,7 +3488,7 @@ async def start_auto_fight(request: Dict = Body(...), current_user: dict = Depen
                         raise HTTPException(status_code=400, detail="Auto-fight session already in progress")
         else:
             # Fallback to in-memory dict
-            for session_id, session in list(auto_fight_sessions.items()):
+            for session_id, session in list(get_all_auto_fight_sessions().items()):
                 # Remove expired or inactive sessions
                 if not session['is_active'] or current_time >= session['end_time']:
                     expired_sessions.append(session_id)
@@ -4021,7 +3879,7 @@ def end_auto_fight_session(session_id: str):
     cursor = conn.cursor()
     
     # Get current character data
-    cursor.execute("SELECT exp, level, gold, skill_points, inventory_json FROM characters WHERE id = ?", (session['character_id'],))
+    cursor.execute("SELECT user_id, exp, level, gold, skill_points, inventory_json FROM characters WHERE id = ?", (session['character_id'],))
     char = cursor.fetchone()
     
     if char:
@@ -4050,6 +3908,22 @@ def end_auto_fight_session(session_id: str):
             "UPDATE characters SET exp = ?, level = ?, skill_points = ?, gold = ?, inventory_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             (char_dict['exp'], char_dict['level'], char_dict.get('skill_points', 0), new_gold, json.dumps(inventory), session['character_id'])
         )
+        
+        try:
+            player_tracking_service.record_progress(
+                character_id=session['character_id'],
+                user_id=char['user_id'],
+                level=char_dict['level'],
+                exp_gain=session['total_exp_gained'],
+                gold_gain=session['total_gold_gained'],
+                metadata={
+                    "auto_session_id": session_id,
+                    "enemy_id": session['enemy_id'],
+                    "wins": session['wins'],
+                },
+            )
+        except Exception as tracking_error:
+            logger.warning(f"Failed to record auto-fight progress: {tracking_error}")
         
         conn.commit()
     
@@ -4084,10 +3958,10 @@ async def pvp_queue(request: Dict = Body(...)):
     action = request.get('action', 'join')  # 'join' or 'leave'
     
     if action == 'join':
-        pvp_queue[character_id] = datetime.now().isoformat()
+        set_pvp_queue_entry(character_id, datetime.now().isoformat())
         return {"success": True, "message": "Joined PvP queue"}
     elif action == 'leave':
-        if character_id in pvp_queue:
+        if get_pvp_queue_entry(character_id):
             delete_pvp_queue_entry(character_id)
         return {"success": True, "message": "Left PvP queue"}
     else:
@@ -4147,11 +4021,11 @@ async def pvp_match(request: Dict = Body(...)):
         return {"success": True, "opponent_id": opponent_id}
     
     # Try to match with queue first
-    queue_list = [cid for cid in pvp_queue.keys() if cid != character_id]
+    queue_list = [cid for cid in get_all_pvp_queue().keys() if cid != character_id]
     if queue_list:
         opponent_id = queue_list[0]
         delete_pvp_queue_entry(opponent_id)
-        if character_id in pvp_queue:
+        if get_pvp_queue_entry(character_id):
             delete_pvp_queue_entry(character_id)
         return {"success": True, "opponent_id": opponent_id, "matched_from": "queue"}
     
@@ -5007,7 +4881,7 @@ async def join_pvp_queue(request: Dict = Body(...), current_user: dict = Depends
         )
     
     # Add to queue
-    pvp_queue[character_id] = datetime.now().timestamp()
+    set_pvp_queue_entry(character_id, str(datetime.now().timestamp()))
     
     conn.commit()
     conn.close()
@@ -5109,116 +4983,38 @@ async def get_pvp_opponents(character_id: str, max_level_diff: int = 5, current_
 
 @app.get("/api/pvp/leaderboard")
 async def get_pvp_leaderboard(limit: int = 50, offset: int = 0):
-    """Get PVP leaderboard (ranked by MMR)"""
-    conn = None
+    """Get PVP leaderboard (ranked by MMR) using persistent tracking data."""
     try:
-        # Validate and clamp parameters
-        limit = max(1, min(100, int(limit)))  # Clamp between 1 and 100
-        offset = max(0, int(offset))  # Ensure non-negative
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Check if PvP columns exist, if not use defaults
-        def check_column_exists(col_name):
-            try:
-                if USE_POSTGRES:
-                    cursor.execute("""
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name = 'characters' AND column_name = %s
-                    """, (col_name,))
-                    return cursor.fetchone() is not None
-                else:
-                    cursor.execute("PRAGMA table_info(characters)")
-                    columns = cursor.fetchall()
-                    return any(col[1] == col_name for col in columns)
-            except:
-                return False
-        
-        has_pvp_mmr = check_column_exists('pvp_mmr')
-        has_pvp_wins = check_column_exists('pvp_wins')
-        has_pvp_losses = check_column_exists('pvp_losses')
-        
-        # Build query based on available columns
-        if USE_POSTGRES:
-            if has_pvp_mmr and has_pvp_wins and has_pvp_losses:
-                cursor.execute("""
-                    SELECT id, name, level, 
-                           COALESCE(pvp_mmr, 1000) as pvp_mmr,
-                           COALESCE(pvp_wins, 0) as pvp_wins,
-                           COALESCE(pvp_losses, 0) as pvp_losses
-                    FROM characters
-                    ORDER BY COALESCE(pvp_mmr, 1000) DESC, COALESCE(pvp_wins, 0) DESC
-                    LIMIT %s OFFSET %s
-                """, (limit, offset))
-            else:
-                # Fallback: use default values if columns don't exist
-                cursor.execute("""
-                    SELECT id, name, level
-                    FROM characters
-                    ORDER BY level DESC, name ASC
-                    LIMIT %s OFFSET %s
-                """, (limit, offset))
-        else:
-            if has_pvp_mmr and has_pvp_wins and has_pvp_losses:
-                cursor.execute("""
-                    SELECT id, name, level, pvp_mmr, pvp_wins, pvp_losses
-                    FROM characters
-                    ORDER BY CASE WHEN pvp_mmr IS NULL THEN 1000 ELSE pvp_mmr END DESC, 
-                             CASE WHEN pvp_wins IS NULL THEN 0 ELSE pvp_wins END DESC
-                    LIMIT ? OFFSET ?
-                """, (limit, offset))
-            else:
-                # Fallback: use default values if columns don't exist
-                cursor.execute("""
-                    SELECT id, name, level
-                    FROM characters
-                    ORDER BY level DESC, name ASC
-                    LIMIT ? OFFSET ?
-                """, (limit, offset))
-        
-        leaderboard = []
-        rank = offset + 1
-        for row in cursor.fetchall():
-            # Handle both cases: with and without PvP columns
-            if has_pvp_mmr and has_pvp_wins and has_pvp_losses:
-                wins = row['pvp_wins'] if row['pvp_wins'] is not None else 0
-                losses = row['pvp_losses'] if row['pvp_losses'] is not None else 0
-                total_games = wins + losses
-                win_rate = (wins / total_games * 100) if total_games > 0 else 0.0
-                mmr = row['pvp_mmr'] if row['pvp_mmr'] is not None else 1000
-            else:
-                # Default values when columns don't exist
-                wins = 0
-                losses = 0
-                win_rate = 0.0
-                mmr = 1000
-            
-            leaderboard.append({
-                'rank': rank,
-                'id': row['id'],
-                'name': row['name'],
-                'level': row['level'],
-                'mmr': mmr,
-                'wins': wins,
-                'losses': losses,
-                'win_rate': round(win_rate, 2)
-            })
-            rank += 1
-        
-        conn.close()
-        
-        return {"success": True, "leaderboard": leaderboard}
-    except Exception as e:
-        import traceback
-        print(f"Error in leaderboard endpoint: {e}")
-        print(traceback.format_exc())
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        rows = player_tracking_service.get_leaderboard(limit=limit, offset=offset)
+    except Exception as exc:
+        logger.error(f"Failed to load leaderboard: {exc}")
+        raise HTTPException(status_code=500, detail="Unable to load leaderboard")
+
+    leaderboard = []
+    rank = offset + 1
+    for row in rows:
+        wins = row.get("wins", 0) or 0
+        losses = row.get("losses", 0) or 0
+        total_games = wins + losses
+        win_rate = (wins / total_games * 100) if total_games else 0.0
+        leaderboard.append(
+            {
+                "rank": rank,
+                "id": row.get("id"),
+                "name": row.get("name"),
+                "username": row.get("username"),
+                "level": row.get("level"),
+                "mmr": row.get("mmr", 1000),
+                "wins": wins,
+                "losses": losses,
+                "win_rate": round(win_rate, 2),
+                "best_mmr": row.get("best_mmr", row.get("mmr", 1000)),
+            }
+        )
+        rank += 1
+
+    return {"success": True, "leaderboard": leaderboard}
+
 
 @app.get("/api/pvp/queue-status")
 async def get_pvp_queue_status(character_id: str):
@@ -5226,7 +5022,7 @@ async def get_pvp_queue_status(character_id: str):
     if not character_id:
         raise HTTPException(status_code=400, detail="character_id required")
     
-    in_queue = character_id in pvp_queue
+    in_queue = get_pvp_queue_entry(character_id) is not None
     
     queue = get_all_pvp_queue()
     queue_size = len(queue)
@@ -5247,10 +5043,41 @@ async def get_online_player_count():
     current_time = datetime.utcnow().timestamp()
     five_minutes_ago = current_time - (5 * 60)  # 5 minutes in seconds
     
-    # Count unique users active in last 5 minutes
-    online_count = sum(1 for timestamp in active_sessions.values() if timestamp >= five_minutes_ago)
+    # Prune stale sessions and count recent ones
+    game_state.prune_sessions(settings.active_session_ttl)
+    online_count = sum(
+        1
+        for session in game_state.active_sessions.values()
+        if session.get("last_seen", 0) >= five_minutes_ago
+    )
     
     return {"success": True, "online_count": online_count}
+
+@app.get("/api/player/profile")
+async def get_player_profile(current_user: dict = Depends(get_current_user)):
+    """Return aggregated profile + character summary for the current user."""
+    data = player_tracking_service.get_profile(current_user["user_id"])
+    return {"success": True, **data}
+
+@app.get("/api/player/progress/{character_id}")
+async def get_character_progress(character_id: str, current_user: dict = Depends(get_current_user), limit: int = 25):
+    """Return recent progress logs for a specific character."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM characters WHERE id = ? AND user_id = ?", (character_id, current_user["user_id"]))
+    owned = cursor.fetchone()
+    conn.close()
+    if not owned:
+        raise HTTPException(status_code=404, detail="Character not found or access denied")
+    
+    entries = player_tracking_service.get_recent_progress(character_id, limit=limit)
+    return {"success": True, "entries": entries}
+
+@app.get("/api/player/matches")
+async def get_recent_matches(limit: int = 20, current_user: dict = Depends(get_current_user)):
+    """Return recent PvP matches for the authenticated user."""
+    matches = player_tracking_service.get_recent_matches(current_user["user_id"], limit=limit)
+    return {"success": True, "matches": matches}
 
 # Health check endpoints
 @app.get("/health")
@@ -5263,7 +5090,7 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "version": "2.0.0",
-        "environment": ENVIRONMENT,
+        "environment": settings.environment,
         "checks": {}
     }
     
